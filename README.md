@@ -49,22 +49,73 @@ inglés:
 
 Las plataformas se normalizan a los 5 íconos: **ios · android · web · cel · monitor**.
 
-### Dos formas de conectar
+### De dónde sale la data
 
-**A) En vivo desde el navegador.** Pon un token en `js/config.js`:
+Al cargar, el sitio prueba tres fuentes en orden y se queda con la primera
+que responda:
 
-```js
-airtable: { token: 'patXXXX...', baseId: 'appU39PYosvxt8FfG', ... }
-```
+| # | Fuente | Cuándo aplica |
+|---|--------|---------------|
+| 1 | `/api/works` | En Vercel. El token vive en el servidor. **Esta es la buena.** |
+| 2 | Airtable directo | Solo si pones un token en `js/config.js`. ⚠️ Queda público. |
+| 3 | `data/works.json` | Snapshot del repo. Es lo que corre en `npm run dev`. |
 
-> ⚠️ Ese archivo se publica, así que el token queda visible para cualquiera.
-> Usa un PAT de **solo lectura** (`data.records:read`) limitado a esta base.
+En local verás un `404` de `/api/works` en la consola: es la prueba del
+paso 1 fallando y cayendo al snapshot. Es lo esperado.
 
-**B) Snapshot (recomendado para un sitio público).** Deja el token vacío y
-regenera el archivo local cuando actualices la tabla:
+---
+
+## Deploy en Vercel
+
+El proyecto es estático + una Serverless Function, sin build. Vercel lo
+detecta solo: no hace falta `vercel.json`.
+
+1. **Importa el repo** en [vercel.com/new](https://vercel.com/new).
+   Framework Preset: *Other*. Build Command: vacío. Output Directory: `./`.
+
+2. **Crea el token** en [airtable.com/create/tokens](https://airtable.com/create/tokens)
+   con el scope `data.records:read` y acceso **solo** a esta base.
+
+3. **Agrega la variable** en Vercel → tu proyecto → *Settings* →
+   *Environment Variables*:
+
+   | Name | Value | Environments |
+   |------|-------|--------------|
+   | `AIRTABLE_TOKEN` | `pat...` | Production, Preview, Development |
+
+   Opcionales, solo si cambias de tabla: `AIRTABLE_BASE`, `AIRTABLE_TABLE`,
+   `AIRTABLE_VIEW`, `WORKS_CACHE_SECONDS`.
+
+4. **Redeploy.** Las variables se leen al arrancar la función, así que un
+   deploy que ya estaba corriendo no las toma: hay que volver a desplegar.
+
+Para verificar, abre `https://tu-dominio.vercel.app/api/works` — debe
+devolver el JSON de Airtable. Y al pie de *Works* la nota debe decir
+"Data en vivo desde Airtable" en vez de "Snapshot local".
+
+> El token nunca llega al navegador: `api/works.js` corre en el servidor de
+> Vercel, llama a Airtable y devuelve solo los registros. Una variable de
+> entorno **no** protege un `fetch` hecho desde el cliente — por eso existe
+> esta función.
+
+### Probar la función en local
 
 ```bash
-AIRTABLE_TOKEN=patXXXX... npm run works:pull
+cp .env.example .env.local     # pon tu token ahí (está en .gitignore)
+npx vercel dev                 # http://localhost:3000 — con /api funcionando
+```
+
+`npm run dev` no levanta la función; sirve el snapshot, que para maquetar
+alcanza.
+
+### Sin Vercel
+
+Si algún día lo mueves a un hosting puramente estático (GitHub Pages y
+compañía), no hay servidor que proteja el token. Ahí la salida es
+regenerar el snapshot cuando actualices la tabla:
+
+```bash
+AIRTABLE_TOKEN=pat... npm run works:pull
 ```
 
 Eso reescribe `data/works.json` y el token nunca sale de tu máquina.

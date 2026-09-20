@@ -4,25 +4,27 @@
 
 export const CONFIG = {
 
-  /* ---------- WORKS · Airtable ----------
-     The data is pulled ONCE, when the page opens or is refreshed.
+  /* ---------- WORKS · de dónde sale la data ----------
+     Se jala UNA sola vez, al abrir o refrescar la página.
+     Se intenta en este orden, y el primero que responda gana:
 
-     Leave `token` empty to serve the local snapshot in data/works.json.
-     Put a read-only Airtable Personal Access Token here to go live.
-
-     ⚠  Anything in this file ships to the browser, so a token placed
-        here is public. Use a PAT scoped to `data.records:read` on this
-        single base, or keep it empty and regenerate the snapshot with
-        `AIRTABLE_TOKEN=pat... npm run works:pull`.
+       1. worksApi      → la función serverless (api/works.js). En Vercel
+                          el token vive en Environment Variables y nunca
+                          llega al navegador. Esta es la forma buena.
+       2. airtable      → llamada directa desde el navegador. Solo si
+                          pones un token aquí abajo. ⚠ Este archivo se
+                          publica: el token queda a la vista de cualquiera.
+       3. worksFallback → snapshot local versionado en el repo.
   ------------------------------------------ */
+  worksApi: '/api/works',
+
   airtable: {
-    token:  '',
+    token:  '',            // déjalo vacío: en Vercel usa AIRTABLE_TOKEN
     baseId: 'appU39PYosvxt8FfG',
     tableId:'tblYmNMjQai8IJeeL',
     viewId: 'viwoFafbiplokrhWt',
   },
 
-  /* Local snapshot used when there is no token (or the call fails). */
   worksFallback: 'data/works.json',
 
   /* ---------- Defaults for incomplete records ---------- */

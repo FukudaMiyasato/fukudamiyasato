@@ -132,11 +132,12 @@ async function init() {
     render();
   }
 
-  sourceEl.textContent = source === 'airtable'
-    ? 'Data en vivo desde Airtable'
-    : source === 'snapshot'
-      ? 'Snapshot local · agrega tu token en js/config.js para leer Airtable en vivo'
-      : 'Sin data';
+  sourceEl.textContent = {
+    api:      'Data en vivo desde Airtable',
+    airtable: 'Data en vivo desde Airtable · token expuesto en el cliente',
+    snapshot: 'Snapshot local · configura AIRTABLE_TOKEN en Vercel para data en vivo',
+    none:     'Sin data',
+  }[source] || '';
 }
 
 [yearSel, typeSel].forEach((s) => s.addEventListener('change', render));

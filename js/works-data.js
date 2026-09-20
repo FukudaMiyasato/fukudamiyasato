@@ -147,6 +147,14 @@ async function fromAirtable() {
   return records;
 }
 
+/** Función serverless de Vercel: el token se queda en el servidor. */
+async function fromApi() {
+  const res = await fetch(CONFIG.worksApi, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`api ${res.status}`);
+  const json = await res.json();
+  return json.records || [];
+}
+
 async function fromSnapshot() {
   const res = await fetch(CONFIG.worksFallback, { cache: 'no-store' });
   if (!res.ok) throw new Error(`snapshot ${res.status}`);
@@ -155,25 +163,39 @@ async function fromSnapshot() {
 }
 
 /**
- * Pull the works once. Resolves to { items, source }.
- * Only rows flagged visible survive.
+ * Jala los works una sola vez, al cargar la página.
+ * Resuelve a { items, source }. Solo sobreviven los marcados visible.
  */
 export async function loadWorks() {
-  let raw = [];
-  let source = 'airtable';
+  /* Orden de intentos:
+       1. /api/works      → Vercel, token en el servidor (lo normal en prod)
+       2. Airtable directo → solo si pusiste un token en config.js
+       3. data/works.json  → snapshot local (y lo que corre en `npm run dev`)  */
+  const chain = [
+    ['api', fromApi],
+    ...(CONFIG.airtable.token ? [['airtable', fromAirtable]] : []),
+    ['snapshot', fromSnapshot],
+  ];
 
-  try {
-    raw = CONFIG.airtable.token ? await fromAirtable() : await fromSnapshot();
-    if (!CONFIG.airtable.token) source = 'snapshot';
-  } catch (err) {
-    console.warn('[works] live pull failed, using local snapshot:', err.message);
-    source = 'snapshot';
+  let raw = null;
+  let source = 'none';
+  let error = null;
+
+  for (const [name, fn] of chain) {
     try {
-      raw = await fromSnapshot();
-    } catch (err2) {
-      console.error('[works] snapshot failed too:', err2.message);
-      return { items: [], source: 'none', error: err2.message };
+      raw = await fn();
+      source = name;
+      error = null;
+      break;
+    } catch (err) {
+      error = err.message;
+      console.info(`[works] "${name}" no disponible (${err.message})`);
     }
+  }
+
+  if (!raw) {
+    console.error('[works] no se pudo leer la data por ningún medio');
+    return { items: [], source: 'none', error };
   }
 
   const yearNum = (it) => parseInt(it.year, 10) || -1;   // "S/F" cae al final
