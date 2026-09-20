@@ -16,7 +16,9 @@ export const CONFIG = {
                           publica: el token queda a la vista de cualquiera.
        3. worksFallback → snapshot local versionado en el repo.
   ------------------------------------------ */
-  worksApi: '/api/works',
+  worksApi:  '/api/airtable?t=works',
+  peopleApi: '/api/airtable?t=people',
+  meApi:     '/api/airtable?t=me',
 
   airtable: {
     token:  '',            // déjalo vacío: en Vercel usa AIRTABLE_TOKEN
