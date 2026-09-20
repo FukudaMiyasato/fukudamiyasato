@@ -4,15 +4,19 @@ Sitio personal estático — sin build, sin dependencias. Se sirve tal cual
 (GitHub Pages, Netlify, o cualquier servidor de archivos).
 
 ```
-index.html      portada: wordmark + 4 accesos (solo íconos)
+index.html      portada: wordmark + accesos (solo íconos)
 works.html      grilla de aplicativos con filtros de año y tipo
 ia.html         vacío por ahora
-todo.html       lista de pendientes por día
-yo.html         perfil + redes
+todo.html       lista de pendientes por día — SIN acceso desde la portada
+yo.html         perfil + links
 ```
 
 Todas las páginas internas llevan una **flecha fija arriba a la izquierda**
 que regresa a la portada.
+
+`todo.html` está oculto: la portada ya no lo enlaza, pero la página sigue
+viva y funcionando si entras por la URL directa. Para volver a mostrarlo,
+descomenta su acceso en `index.html` — la grilla se reacomoda sola.
 
 ---
 
@@ -134,17 +138,20 @@ a toda la base):
 | `/api/airtable?t=me`     | `yo`         | links de la sección Yo |
 
 **`todo_amos`** — columnas que lee: `Name` (o `Nombre`), `icon` (attachment,
-url o un emoji) y `visible` (checkbox). **`yo`** — `URL` (o `Link`), `Name`
-(o `Label`), `icon` y `visible`; si no pones `icon`, la marca se deduce del
-dominio (github.com, linkedin.com, instagram.com, x.com, behance.net,
-youtube.com, dribbble.com) y cualquier otra cosa cae a un ícono de globo.
+url o un emoji) y `visible` (checkbox). **`yo`** — `URL` (o `Link`), `img`
+(attachment: sube ahí el PNG) y `visible`. Cada link se pinta como un cuadro
+de 60x60 con borde gris y 5px de padding, con la imagen centrada y sin texto;
+si el registro no trae `img`, se usa una imagen por defecto. **Solo aparecen
+los links que estén en esa tabla**: si está vacía, la sección no muestra
+ninguno.
 
 Si la columna `visible` todavía no existe en la tabla, no se filtra nada —
 así una tabla recién creada no aparece vacía. En cuanto agregues la columna
 y la marques en al menos un registro, el filtro empieza a aplicar.
 
-Si una tabla no responde o queda vacía, la sección usa los valores de
-`js/config.js` como respaldo.
+Si `todo_amos` no responde, el To-do usa los responsables de `js/config.js`
+como respaldo. Los links de **Yo** no tienen respaldo: salen de Airtable o no
+salen.
 
 ---
 

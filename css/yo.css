@@ -79,29 +79,33 @@
   flex-wrap: wrap;
   margin-top: 40px;
 }
+
+/* Caja de 60x60 con 5px de padding y borde gris; dentro, la imagen
+   que venga de la columna `img` de Airtable. Sin texto. */
 .social {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding: 10px 16px 10px 13px;
+  width: 60px;
+  height: 60px;
+  padding: 5px;
+  display: grid;
+  place-items: center;
   border: 1px solid var(--line);
-  border-radius: 99px;
+  border-radius: 12px;
   background: var(--panel);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-dim);
-  transition: transform .3s var(--ease), color .3s var(--ease),
-              border-color .3s var(--ease), background .3s var(--ease);
+  transition: transform .3s var(--ease), border-color .3s var(--ease),
+              background .3s var(--ease);
 }
-.social svg { width: 16px; height: 16px; fill: currentColor; }
+.social img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
 .social:hover {
   transform: translateY(-3px);
-  color: #fff;
-  background: var(--red);
   border-color: var(--red-hot);
-  box-shadow: 0 12px 26px -14px var(--red);
+  background: var(--panel-2);
+  box-shadow: 0 12px 26px -16px var(--red);
 }
-.social[href="#"] { opacity: .55; }
 
 @media (max-width: 620px) {
   .me { padding: 92px 0 70px; }

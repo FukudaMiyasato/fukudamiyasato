@@ -51,9 +51,11 @@
 }
 
 /* ---------- accesos ---------- */
+/* Tamaño de baldosa fijo y centrado: así da igual si hay 3 o 4 accesos. */
 .gates {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(92px, 130px));
+  justify-content: center;
   gap: clamp(11px, 1.6vw, 19px);
   width: min(576px, 100%);
 }
@@ -95,5 +97,5 @@
 }
 
 @media (max-width: 620px) {
-  .gates { grid-template-columns: repeat(2, 1fr); width: min(288px, 100%); }
+  .gates { width: min(288px, 100%); }
 }

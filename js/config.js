@@ -49,13 +49,7 @@ export const CONFIG = {
       'claro y bien hecho.',
     location: 'Lima, Perú',
     email: 'hola@fukudamiyasato.com',
-    links: [
-      { label: 'GitHub',    url: 'https://github.com/FukudaMiyasato', icon: 'github'    },
-      { label: 'LinkedIn',  url: '#',                                 icon: 'linkedin'  },
-      { label: 'Instagram', url: '#',                                 icon: 'instagram' },
-      { label: 'X',         url: '#',                                 icon: 'x'         },
-      { label: 'Behance',   url: '#',                                 icon: 'behance'   },
-    ],
+    // Los links salen de la tabla `yo` de Airtable (columna `img` + `url`).
   },
 
   /* ---------- TODO ---------- */
