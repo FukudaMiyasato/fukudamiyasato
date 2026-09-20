@@ -1,0 +1,109 @@
+/* ============================================================
+   Yo — perfil
+   ============================================================ */
+
+.me {
+  position: relative;
+  z-index: 1;
+  width: min(760px, calc(100% - 44px));
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 110px 0 90px;
+}
+
+.me-kicker {
+  font-size: 11px;
+  letter-spacing: .44em;
+  text-transform: uppercase;
+  color: var(--red-hot);
+  margin: 0 0 18px;
+}
+
+.me-name {
+  margin: 0;
+  font-size: clamp(34px, 7vw, 62px);
+  font-weight: 900;
+  letter-spacing: -.045em;
+  line-height: 1;
+  text-transform: lowercase;
+}
+
+.me-role {
+  margin: 14px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.me-line {
+  height: 2px;
+  width: 78px;
+  margin: 30px 0;
+  background: linear-gradient(90deg, var(--red), transparent);
+}
+
+.me-desc {
+  margin: 0;
+  max-width: 58ch;
+  font-size: 16px;
+  line-height: 1.75;
+  color: #c5c5cf;
+}
+
+.me-facts {
+  display: flex;
+  gap: 34px;
+  flex-wrap: wrap;
+  margin: 34px 0 0;
+  padding-top: 26px;
+  border-top: 1px solid var(--line-soft);
+}
+.me-fact span {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 5px;
+}
+.me-fact a, .me-fact b { font-size: 14px; font-weight: 500; }
+.me-fact a { border-bottom: 1px solid transparent; transition: color .25s, border-color .25s; }
+.me-fact a:hover { color: var(--red-hot); border-color: var(--red-hot); }
+
+.socials {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 40px;
+}
+.social {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--panel);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  transition: transform .3s var(--ease), color .3s var(--ease),
+              border-color .3s var(--ease), background .3s var(--ease);
+}
+.social svg { width: 16px; height: 16px; fill: currentColor; }
+.social:hover {
+  transform: translateY(-3px);
+  color: #fff;
+  background: var(--red);
+  border-color: var(--red-hot);
+  box-shadow: 0 12px 26px -14px var(--red);
+}
+.social[href="#"] { opacity: .55; }
+
+@media (max-width: 620px) {
+  .me { padding: 92px 0 70px; }
+  .me-desc { font-size: 15px; }
+}

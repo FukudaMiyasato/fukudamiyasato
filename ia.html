@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IA — fukudamiyasato</title>
+<meta name="theme-color" content="#08080a">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<style>
+  .empty {
+    position: relative; z-index: 1;
+    min-height: 100dvh;
+    display: grid; place-content: center; justify-items: center;
+    gap: 22px; padding: 40px;
+  }
+  .empty svg {
+    width: 64px; height: 64px;
+    stroke: var(--red-deep); fill: none;
+    stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round;
+    animation: pulse 3.4s ease-in-out infinite;
+  }
+  .empty p {
+    margin: 0;
+    font-size: 11px; letter-spacing: .5em; text-transform: uppercase;
+    color: #2e2e37;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: .5; transform: scale(1); }
+    50%      { opacity: 1;  transform: scale(1.06); }
+  }
+  @media (prefers-reduced-motion: reduce) { .empty svg { animation: none; } }
+</style>
+</head>
+<body>
+
+<a class="x-btn" href="index.html" aria-label="Volver al inicio">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <path d="M5 5l14 14M19 5L5 19"/>
+  </svg>
+</a>
+
+<main class="empty">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 3.2l1.75 4.55a3 3 0 0 0 1.75 1.75L20.05 11.25l-4.55 1.75a3 3 0 0 0-1.75 1.75L12 19.3l-1.75-4.55a3 3 0 0 0-1.75-1.75L3.95 11.25l4.55-1.75a3 3 0 0 0 1.75-1.75z"/>
+    <path d="M18.4 3.1l.62 1.62c.1.26.3.46.56.56l1.62.62-1.62.62c-.26.1-.46.3-.56.56l-.62 1.62-.62-1.62a1 1 0 0 0-.56-.56l-1.62-.62 1.62-.62c.26-.1.46-.3.56-.56z"/>
+  </svg>
+  <p>IA</p>
+</main>
+
+</body>
+</html>

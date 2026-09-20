@@ -1,0 +1,154 @@
+/* ============================================================
+   Home — wordmark + 4 icon gates
+   ============================================================ */
+
+.home {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(40px, 7vh, 76px);
+  padding: 56px 24px;
+  text-align: center;
+}
+
+/* ---------- wordmark ---------- */
+.wordmark {
+  margin: 0;
+  font-weight: 900;
+  font-size: clamp(30px, 8.4vw, 104px);
+  letter-spacing: -.055em;
+  line-height: .92;
+  text-transform: lowercase;
+  background: linear-gradient(180deg, #ffffff 0%, #d6d6dc 46%, #8e8e99 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rise .9s var(--ease) both;
+}
+.wordmark .dot {
+  -webkit-text-fill-color: var(--red-hot);
+  color: var(--red-hot);
+  text-shadow: 0 0 34px var(--red-glow);
+}
+
+.tagline {
+  margin: 20px 0 0;
+  font-size: clamp(9px, 1.5vw, 12px);
+  letter-spacing: .58em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  animation: rise .9s .1s var(--ease) both;
+}
+
+.rule {
+  width: min(320px, 62vw);
+  height: 2px;
+  margin: 26px auto 0;
+  background: linear-gradient(90deg, transparent, var(--red), transparent);
+  animation: rise .9s .16s var(--ease) both;
+}
+
+/* ---------- gate grid ---------- */
+.gates {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(14px, 2vw, 24px);
+  width: min(720px, 100%);
+}
+
+.gate {
+  position: relative;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background:
+    linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 60%, #101014 100%);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform .4s var(--ease), border-color .4s var(--ease),
+              color .4s var(--ease), box-shadow .4s var(--ease);
+  animation: rise .8s var(--ease) both;
+}
+.gate:nth-child(1) { animation-delay: .22s; }
+.gate:nth-child(2) { animation-delay: .30s; }
+.gate:nth-child(3) { animation-delay: .38s; }
+.gate:nth-child(4) { animation-delay: .46s; }
+
+/* red wash that floods in from the bottom */
+.gate::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, var(--red) 0%, var(--red-deep) 100%);
+  transform: translateY(101%);
+  transition: transform .46s var(--ease);
+}
+
+.gate svg {
+  width: 38%;
+  height: 38%;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform .4s var(--ease);
+}
+
+.gate .gate-tag {
+  position: absolute;
+  bottom: 12px;
+  left: 0;
+  right: 0;
+  font-size: 9px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .4s var(--ease), transform .4s var(--ease), color .4s var(--ease);
+}
+
+.gate:hover, .gate:focus-visible {
+  transform: translateY(-6px);
+  border-color: var(--red-hot);
+  color: #fff;
+  box-shadow: 0 18px 40px -18px rgba(224, 16, 43, .8);
+  outline: none;
+}
+.gate:hover::before, .gate:focus-visible::before { transform: translateY(0); }
+.gate:hover svg, .gate:focus-visible svg { transform: scale(1.1); }
+.gate:hover .gate-tag, .gate:focus-visible .gate-tag {
+  opacity: 1;
+  transform: translateY(0);
+  color: rgba(255, 255, 255, .75);
+}
+.gate:active { transform: translateY(-2px) scale(.98); }
+
+.home-foot {
+  font-size: 10px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: #35353f;
+  animation: rise .9s .55s var(--ease) both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 620px) {
+  .gates { grid-template-columns: repeat(2, 1fr); width: min(360px, 100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wordmark, .tagline, .rule, .gate, .home-foot { animation: none; }
+}

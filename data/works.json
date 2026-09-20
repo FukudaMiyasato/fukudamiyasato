@@ -1,0 +1,80 @@
+{
+  "_comment": "Snapshot local de Works. Se usa cuando js/config.js no tiene token de Airtable. Regenerable con `npm run works:pull`. Los nombres de campo son tolerantes: Name/Titulo, Año/Year, Tipo/Type, Visible, Imagen/Cover, Plataformas/Platforms.",
+  "records": [
+    { "fields": {
+      "Name": "Blessyou Insurance",
+      "Año": 2025,
+      "Tipo": "Fintech",
+      "Visible": true,
+      "Imagen": [{ "url": "assets/covers/blessyou.svg" }],
+      "Plataformas": ["Web", "Monitor"],
+      "URL": ""
+    }},
+    { "fields": {
+      "Name": "AutoToText",
+      "Año": 2025,
+      "Tipo": "Herramienta",
+      "Visible": true,
+      "Imagen": [{ "url": "assets/covers/autototext.svg" }],
+      "Plataformas": ["Web", "iOS"],
+      "URL": ""
+    }},
+    { "fields": {
+      "Name": "Mi Doctor Amigo",
+      "Año": 2024,
+      "Tipo": "Salud",
+      "Visible": true,
+      "Imagen": [{ "url": "assets/covers/doctoramigo.svg" }],
+      "Plataformas": ["iOS", "Android", "Cel"],
+      "URL": ""
+    }},
+    { "fields": {
+      "Name": "Fin de Compra",
+      "Año": 2024,
+      "Tipo": "Retail",
+      "Visible": true,
+      "Imagen": [{ "url": "assets/covers/findecompra.svg" }],
+      "Plataformas": ["Web", "Móvil"],
+      "URL": ""
+    }},
+    { "fields": {
+      "Name": "YT to Music",
+      "Año": 2023,
+      "Tipo": "Herramienta",
+      "Visible": true,
+      "Imagen": [{ "url": "assets/covers/yttomusic.svg" }],
+      "Plataformas": ["Desktop"],
+      "URL": ""
+    }},
+    { "fields": {
+      "Name": "Calculadora de Primas",
+      "Año": 2023,
+      "Tipo": "Fintech",
+      "Visible": true,
+      "Imagen": [{ "url": "assets/covers/calculadora.svg" }],
+      "Plataformas": ["Web"],
+      "URL": ""
+    }},
+    { "fields": {
+      "Name": "Kenko Tracker",
+      "Año": 2022,
+      "Tipo": "Salud",
+      "Visible": true,
+      "Imagen": [{ "url": "assets/covers/kenko.svg" }],
+      "Plataformas": ["Android", "Cel"],
+      "URL": ""
+    }},
+    { "fields": {
+      "Name": "Registro interno",
+      "Visible": true,
+      "_nota": "Registro incompleto a propósito: cae a los defaults (S/F · Otro · placeholder · sin íconos)"
+    }},
+    { "fields": {
+      "Name": "Proyecto oculto",
+      "Año": 2021,
+      "Tipo": "Retail",
+      "Visible": false,
+      "_nota": "No debe aparecer: no está marcado como visible"
+    }}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "fukudamiyasato",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sitio personal de fukudamiyasato — Works, IA, To-do y Yo.",
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 5190",
+    "works:pull": "node scripts/fetch-works.mjs"
+  }
+}

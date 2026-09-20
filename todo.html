@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>To-do — fukudamiyasato</title>
+<meta name="theme-color" content="#08080a">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/todo.css">
+</head>
+<body>
+
+<a class="x-btn" href="index.html" aria-label="Volver al inicio">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <path d="M5 5l14 14M19 5L5 19"/>
+  </svg>
+</a>
+
+<main class="page todo-page">
+
+  <div class="page-head">
+    <div>
+      <h1 class="page-title">To<em>-do</em></h1>
+      <p class="page-sub">Pendientes por día</p>
+    </div>
+    <span class="brand-mini"><b>fukudamiyasato</b> / 03</span>
+  </div>
+
+  <div class="days-wrap">
+    <div class="days-label">
+      <h2 id="day-label"></h2>
+      <button class="today-btn" id="go-today" type="button">Hoy</button>
+    </div>
+    <div class="days" id="days" role="tablist" aria-label="Días"></div>
+  </div>
+
+  <div class="list" id="list"></div>
+
+</main>
+
+<button class="add-fab" id="add-btn" type="button">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  Agregar
+</button>
+
+<div class="sheet-bg" id="sheet-bg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Nuevo item">
+  <div class="sheet-grip"></div>
+  <h3>Nuevo item</h3>
+  <input type="text" id="new-text" placeholder="¿Qué hay que hacer?" autocomplete="off" maxlength="160">
+  <h3 style="margin-top:20px">Responsable</h3>
+  <div class="people" id="people"></div>
+  <div class="sheet-row">
+    <button class="btn" id="cancel-btn" type="button">Cancelar</button>
+    <button class="btn btn-primary" id="save-btn" type="button">Agregar</button>
+  </div>
+  <p class="hint">
+    Desliza &larr; para eliminar &middot; desliza &rarr; para marcar como hecho<br>
+    Mantén presionado para levantar el item y suéltalo en otro día
+  </p>
+</div>
+
+<script type="module" src="js/todo.js"></script>
+</body>
+</html>
