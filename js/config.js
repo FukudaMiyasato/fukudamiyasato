@@ -16,14 +16,14 @@ export const CONFIG = {
                           publica: el token queda a la vista de cualquiera.
        3. worksFallback → snapshot local versionado en el repo.
   ------------------------------------------ */
-  worksApi:  '/api/airtable?t=works',
+  worksApi: '/api/airtable?t=works',
   peopleApi: '/api/airtable?t=people',
-  meApi:     '/api/airtable?t=me',
+  meApi: '/api/airtable?t=me',
 
   airtable: {
-    token:  '',            // déjalo vacío: en Vercel usa AIRTABLE_TOKEN
+    token: '',            // déjalo vacío: en Vercel usa AIRTABLE_TOKEN
     baseId: 'appU39PYosvxt8FfG',
-    tableId:'tblYmNMjQai8IJeeL',
+    tableId: 'tblYmNMjQai8IJeeL',
     viewId: 'viwoFafbiplokrhWt',
   },
 
@@ -48,7 +48,7 @@ export const CONFIG = {
       'interesa todo lo que hace que un producto se sienta rápido, ' +
       'claro y bien hecho.',
     location: 'Lima, Perú',
-    email: 'hola@fukudamiyasato.com',
+    email: 'fukudamiyasato@gmail.com',
     // Los links salen de la tabla `yo` de Airtable (columna `img` + `url`).
   },
 
@@ -57,12 +57,12 @@ export const CONFIG = {
     daysBack: 7,
     daysForward: 7,
     people: [
-      { id: 'fuku',  name: 'Fuku',   color: '#e0102b' },
-      { id: 'ana',   name: 'Ana',    color: '#c2185b' },
-      { id: 'luis',  name: 'Luis',   color: '#5e35b1' },
-      { id: 'sofia', name: 'Sofía',  color: '#00897b' },
-      { id: 'kenji', name: 'Kenji',  color: '#ef6c00' },
-      { id: 'mara',  name: 'Mara',   color: '#3949ab' },
+      { id: 'fuku', name: 'Fuku', color: '#e0102b' },
+      { id: 'ana', name: 'Ana', color: '#c2185b' },
+      { id: 'luis', name: 'Luis', color: '#5e35b1' },
+      { id: 'sofia', name: 'Sofía', color: '#00897b' },
+      { id: 'kenji', name: 'Kenji', color: '#ef6c00' },
+      { id: 'mara', name: 'Mara', color: '#3949ab' },
     ],
   },
 };
