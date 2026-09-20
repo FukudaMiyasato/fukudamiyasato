@@ -70,12 +70,12 @@ input, select { font: inherit; color: inherit; }
 *::-webkit-scrollbar-thumb:hover { background: var(--red-deep); }
 
 /* ============================================================
-   Fixed close (X) button — present on every sub page
+   Botón fijo de volver — arriba a la izquierda, en cada sub página
    ============================================================ */
-.x-btn {
+.back-btn {
   position: fixed;
   top: 22px;
-  right: 22px;
+  left: 22px;
   z-index: 200;
   width: 46px;
   height: 46px;
@@ -90,15 +90,15 @@ input, select { font: inherit; color: inherit; }
   transition: transform .28s var(--ease), background .28s var(--ease),
               border-color .28s var(--ease), color .28s var(--ease);
 }
-.x-btn svg { width: 18px; height: 18px; }
-.x-btn:hover {
+.back-btn svg { width: 19px; height: 19px; }
+.back-btn:hover {
   background: var(--red);
   border-color: var(--red-hot);
   color: #fff;
-  transform: rotate(90deg) scale(1.06);
+  transform: translateX(-3px);
   box-shadow: 0 0 0 6px var(--red-glow);
 }
-.x-btn:active { transform: rotate(90deg) scale(.95); }
+.back-btn:active { transform: translateX(-1px) scale(.95); }
 
 /* ============================================================
    Page shell
@@ -152,5 +152,5 @@ input, select { font: inherit; color: inherit; }
 @media (max-width: 720px) {
   :root { --shell: calc(100% - 32px); }
   .page { padding: 76px 0 72px; }
-  .x-btn { top: 14px; right: 14px; width: 42px; height: 42px; }
+  .back-btn { top: 14px; left: 14px; width: 42px; height: 42px; }
 }

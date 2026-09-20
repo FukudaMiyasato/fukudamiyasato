@@ -5,6 +5,7 @@
 .filters {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
   margin-bottom: 26px;
@@ -42,32 +43,11 @@
   pointer-events: none;
 }
 
-.filter-reset {
-  border: 1px solid transparent;
-  border-radius: 99px;
-  padding: 9px 15px;
-  font-size: 12px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  transition: color .25s var(--ease), border-color .25s var(--ease);
-}
-.filter-reset:hover { color: var(--red-hot); border-color: var(--line); }
-
-.count {
-  margin-left: auto;
-  font-size: 11px;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.count b { color: var(--red-hot); font-weight: 700; }
-
 /* ---------- grid ---------- */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(262px, 1fr));
-  gap: 18px;
+  gap: 22px;
 }
 
 .work {
@@ -79,10 +59,14 @@
   background: var(--panel);
   border: 1px solid var(--line-soft);
   cursor: pointer;
-  transition: border-color .45s var(--ease), box-shadow .45s var(--ease);
+  transform: rotate(0deg) scale(1);
+  transition: transform .45s var(--ease), border-color .45s var(--ease),
+              box-shadow .45s var(--ease);
   animation: workIn .5s var(--ease) both;
 }
-@keyframes workIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+/* Usa `translate` y no `transform`: con fill-mode both, un transform
+   animado se queda pegado y le gana al transform del :hover. */
+@keyframes workIn { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
 
 /* the photo — grows 10% on hover */
 .work-media {
@@ -94,8 +78,6 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  transform: scale(1);
-  transition: transform .6s var(--ease);
 }
 
 /* the 50% dark layer sitting on top of the photo */
@@ -166,14 +148,15 @@
   transition: transform .5s var(--ease);
 }
 
+/* crece 10% en su sitio y se ladea; --rot lo sortea el JS en cada hover */
 .work:hover,
 .work:focus-visible {
+  z-index: 5;
   border-color: var(--red-deep);
-  box-shadow: 0 22px 46px -26px #000;
+  box-shadow: 0 26px 52px -22px #000;
+  transform: rotate(var(--rot, 0deg)) scale(1.1);
   outline: none;
 }
-.work:hover .work-media img,
-.work:focus-visible .work-media img { transform: scale(1.1); }
 .work:hover .work-veil,
 .work:focus-visible .work-veil { opacity: .05; }
 .work:hover .work-body,
@@ -212,7 +195,7 @@
 
 @media (max-width: 540px) {
   .grid { grid-template-columns: 1fr; }
-  .count { margin-left: 0; width: 100%; }
+  .filters { justify-content: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {
   .work { animation: none; }

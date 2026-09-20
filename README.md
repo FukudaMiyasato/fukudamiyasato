@@ -11,8 +11,8 @@ todo.html       lista de pendientes por día
 yo.html         perfil + redes
 ```
 
-Todas las páginas internas llevan una **X fija arriba a la derecha** que
-regresa a la portada.
+Todas las páginas internas llevan una **flecha fija arriba a la izquierda**
+que regresa a la portada.
 
 ---
 
@@ -56,11 +56,11 @@ que responda:
 
 | # | Fuente | Cuándo aplica |
 |---|--------|---------------|
-| 1 | `/api/works` | En Vercel. El token vive en el servidor. **Esta es la buena.** |
+| 1 | `/api/airtable?t=works` | En Vercel. El token vive en el servidor. **Esta es la buena.** |
 | 2 | Airtable directo | Solo si pones un token en `js/config.js`. ⚠️ Queda público. |
 | 3 | `data/works.json` | Snapshot del repo. Es lo que corre en `npm run dev`. |
 
-En local verás un `404` de `/api/works` en la consola: es la prueba del
+En local verás un `404` de `/api/airtable` en la consola: es la prueba del
 paso 1 fallando y cayendo al snapshot. Es lo esperado.
 
 ---
@@ -89,11 +89,11 @@ detecta solo: no hace falta `vercel.json`.
 4. **Redeploy.** Las variables se leen al arrancar la función, así que un
    deploy que ya estaba corriendo no las toma: hay que volver a desplegar.
 
-Para verificar, abre `https://tu-dominio.vercel.app/api/works` — debe
+Para verificar, abre `https://tu-dominio.vercel.app/api/airtable?t=works` — debe
 devolver el JSON de Airtable. Y al pie de *Works* la nota debe decir
 "Data en vivo desde Airtable" en vez de "Snapshot local".
 
-> El token nunca llega al navegador: `api/works.js` corre en el servidor de
+> El token nunca llega al navegador: `api/airtable.js` corre en el servidor de
 > Vercel, llama a Airtable y devuelve solo los registros. Una variable de
 > entorno **no** protege un `fetch` hecho desde el cliente — por eso existe
 > esta función.
@@ -122,18 +122,53 @@ Eso reescribe `data/works.json` y el token nunca sale de tu máquina.
 
 ---
 
+## Las otras dos tablas
+
+La misma función sirve tres fuentes, con allowlist (no es un proxy abierto
+a toda la base):
+
+| Endpoint | Tabla | Para qué |
+|----------|-------|----------|
+| `/api/airtable?t=works`  | la del sitio | la grilla de Works |
+| `/api/airtable?t=people` | `todo_amos`  | responsables del To-do |
+| `/api/airtable?t=me`     | `yo`         | links de la sección Yo |
+
+**`todo_amos`** — columnas que lee: `Name` (o `Nombre`), `icon` (attachment,
+url o un emoji) y `visible` (checkbox). **`yo`** — `URL` (o `Link`), `Name`
+(o `Label`), `icon` y `visible`; si no pones `icon`, la marca se deduce del
+dominio (github.com, linkedin.com, instagram.com, x.com, behance.net,
+youtube.com, dribbble.com) y cualquier otra cosa cae a un ícono de globo.
+
+Si la columna `visible` todavía no existe en la tabla, no se filtra nada —
+así una tabla recién creada no aparece vacía. En cuanto agregues la columna
+y la marques en al menos un registro, el filtro empieza a aplicar.
+
+Si una tabla no responde o queda vacía, la sección usa los valores de
+`js/config.js` como respaldo.
+
+---
+
 ## Interacción
 
 **Works** — hover sobre un item: la capa oscura y el texto bajan de 50 % a
-5 %, la foto crece 10 % y suena la nota musical asignada al azar a ese item
-(5 notas: do, re, mi, sol, la).
+5 %, la card crece 10 % en su sitio y se ladea unos grados al azar (dirección
+y ángulo se sortean en cada hover, hasta 20°), y suena la nota musical
+asignada a ese item (5 notas: do, re, mi, sol, la). Si el registro trae
+`URL`, la card es un link.
 
-**To-do** — carrusel con 7 días atrás y 7 adelante, hoy activo al entrar.
+**To-do** — carrusel con 7 días atrás y 7 adelante. Hoy va en rojo; el día
+seleccionado baja unos píxeles y rompe la línea gris, como una pestaña.
 
-- deslizar **←** elimina (con trombón burlón)
-- deslizar **→** marca como hecho: se va al final, con opacidad y etiqueta
+- deslizar **←** elimina (con trombón burlón); el item no desaparece: se
+  queda al final del día con un mate rojo
+- deslizar **→** marca como hecho: se va al final, con un mate verde
+- en un hecho o eliminado, cualquier deslizada lo **repone** como activo
 - **mantener presionado** levanta el item; suéltalo sobre otro día del
-  carrusel para reasignarlo
+  carrusel para reasignarlo. Solo hacia hoy o más adelante — los días que ya
+  pasaron se apagan durante el arrastre
+- si lo mandas a un día posterior queda marcado **“Postergado N veces”**
+- más de 5 tareas en un día (activas + hechas) y el contador del chip pasa
+  a un **∞**
 
 Los pendientes se guardan en `localStorage` del navegador.
 

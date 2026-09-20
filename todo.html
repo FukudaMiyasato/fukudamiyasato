@@ -14,9 +14,10 @@
 </head>
 <body>
 
-<a class="x-btn" href="index.html" aria-label="Volver al inicio">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-    <path d="M5 5l14 14M19 5L5 19"/>
+<a class="back-btn" href="index.html" aria-label="Volver al inicio">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.5 5.5L8 12l6.5 6.5"/>
   </svg>
 </a>
 
@@ -52,7 +53,7 @@
   <div class="sheet-grip"></div>
   <h3>Nuevo item</h3>
   <input type="text" id="new-text" placeholder="¿Qué hay que hacer?" autocomplete="off" maxlength="160">
-  <h3 style="margin-top:20px">Responsable</h3>
+  <h3 style="margin-top:20px">Responsable <em>(opcional)</em></h3>
   <div class="people" id="people"></div>
   <div class="sheet-row">
     <button class="btn" id="cancel-btn" type="button">Cancelar</button>
@@ -60,6 +61,7 @@
   </div>
   <p class="hint">
     Desliza &larr; para eliminar &middot; desliza &rarr; para marcar como hecho<br>
+    En los hechos o eliminados, desliza para reponerlos<br>
     Mantén presionado para levantar el item y suéltalo en otro día
   </p>
 </div>

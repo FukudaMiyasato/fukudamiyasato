@@ -9,8 +9,6 @@ import { NOTE_NAMES, playNote } from './audio.js';
 const grid      = document.getElementById('grid');
 const yearSel   = document.getElementById('f-year');
 const typeSel   = document.getElementById('f-type');
-const resetBtn  = document.getElementById('f-reset');
-const countEl   = document.getElementById('count');
 const sourceEl  = document.getElementById('source');
 
 let ITEMS = [];
@@ -84,8 +82,14 @@ function card(item, i) {
     </div>
     <span class="work-edge"></span>`;
 
-  el.addEventListener('mouseenter', () => playNote(el.dataset.note));
-  el.addEventListener('focus', () => playNote(el.dataset.note));
+  // giro al azar en cada hover: dirección aleatoria, hasta 20 grados
+  const spin = () => {
+    const deg = (8 + Math.random() * 12) * (Math.random() < .5 ? -1 : 1);
+    el.style.setProperty('--rot', `${deg.toFixed(2)}deg`);
+  };
+
+  el.addEventListener('mouseenter', () => { spin(); playNote(el.dataset.note); });
+  el.addEventListener('focus', () => { spin(); playNote(el.dataset.note); });
   return el;
 }
 
@@ -109,8 +113,6 @@ function render() {
     list.forEach((it, i) => frag.appendChild(card(it, i)));
     grid.appendChild(frag);
   }
-
-  countEl.innerHTML = `<b>${list.length}</b> ${list.length === 1 ? 'proyecto' : 'proyectos'}`;
 }
 
 async function init() {
@@ -123,7 +125,6 @@ async function init() {
     grid.innerHTML = `<div class="state" style="grid-column:1/-1">
       <b>Sin proyectos visibles.</b><br>
       ${error ? 'No se pudo leer la data.' : 'Marca registros como “visible” en Airtable.'}</div>`;
-    countEl.textContent = '';
   } else {
     const years = [...new Set(items.map((i) => i.year))].sort().reverse();
     const types = [...new Set(items.map((i) => i.type))].sort();
@@ -141,10 +142,5 @@ async function init() {
 }
 
 [yearSel, typeSel].forEach((s) => s.addEventListener('change', render));
-resetBtn.addEventListener('click', () => {
-  yearSel.value = '';
-  typeSel.value = '';
-  render();
-});
 
 init();
