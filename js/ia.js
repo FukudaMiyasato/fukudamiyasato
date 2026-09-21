@@ -67,14 +67,30 @@ document.addEventListener('keydown', (e) => {
    Shake para descartar la app cargada
    ------------------------------------------------------------
    Sin botón de eliminar: se agita el celular y vuelve a ser la
-   nebulosa. En iOS hace falta permiso explícito, y solo se puede
-   pedir tras un gesto del usuario — se pide con el primer toque.
-   ============================================================ */
+   nebulosa. En iOS el permiso de movimiento solo se puede pedir
+   dentro de un gesto del usuario — y en el flujo real (la app llega
+   sola, disparada por voz) el único gesto que de verdad ocurre es
+   un toque DENTRO del iframe, sobre la app generada. Por eso el
+   detector principal vive ahí: el SDK inyectado (api/ia.js) pide el
+   permiso en el primer toque dentro de la app y nos avisa por
+   postMessage cuando detecta la sacudida. Esto de aquí es solo un
+   respaldo para cuando el gesto ocurre en la página exterior (p.ej.
+   un toque sobre la nebulosa antes de que cargue nada). */
 const SHAKE_THRESHOLD = 18;    // m/s² de variación entre lecturas
 const SHAKE_COOLDOWN  = 1200;  // no disparar dos veces seguidas
 
 let lastShakeAt = 0;
 let lastAcc = null;
+
+function shakeDetected() {
+  const now = Date.now();
+  if (now - lastShakeAt <= SHAKE_COOLDOWN) return;
+  lastShakeAt = now;
+  if (frame.classList.contains('show')) {
+    markClosed();
+    closeApp();
+  }
+}
 
 function onDeviceMotion(e) {
   const acc = e.accelerationIncludingGravity || e.acceleration;
@@ -83,14 +99,7 @@ function onDeviceMotion(e) {
   const { x, y, z } = acc;
   if (lastAcc) {
     const delta = Math.abs(x - lastAcc.x) + Math.abs(y - lastAcc.y) + Math.abs(z - lastAcc.z);
-    const now = Date.now();
-    if (delta > SHAKE_THRESHOLD && now - lastShakeAt > SHAKE_COOLDOWN) {
-      lastShakeAt = now;
-      if (frame.classList.contains('show')) {
-        markClosed();
-        closeApp();
-      }
-    }
+    if (delta > SHAKE_THRESHOLD) shakeDetected();
   }
   lastAcc = { x, y, z };
 }
@@ -101,17 +110,21 @@ function enableShake() {
 
 if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
   const askPermission = () => {
-    document.removeEventListener('click', askPermission);
-    document.removeEventListener('touchend', askPermission);
+    document.removeEventListener('pointerdown', askPermission, true);
     DeviceMotionEvent.requestPermission().then((state) => {
       if (state === 'granted') enableShake();
     }).catch(() => { /* el usuario dijo que no */ });
   };
-  document.addEventListener('click', askPermission, { once: true });
-  document.addEventListener('touchend', askPermission, { once: true });
+  document.addEventListener('pointerdown', askPermission, { once: true, capture: true });
 } else if (typeof DeviceMotionEvent !== 'undefined') {
   enableShake();
 }
+
+/* el aviso del SDK dentro del iframe: ya detectó la sacudida allí dentro */
+window.addEventListener('message', (e) => {
+  if (e.source !== frame.contentWindow) return;
+  if (e.data && e.data.__fm === 'shake') shakeDetected();
+});
 
 function flashError(msg) {
   console.error('[ia]', msg);

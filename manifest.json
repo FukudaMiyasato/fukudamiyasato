@@ -1,0 +1,13 @@
+{
+  "name": "fukudamiyasato",
+  "short_name": "fukudamiyasato",
+  "description": "fukudamiyasato — trabajos, IA, pendientes y perfil.",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#08080a",
+  "theme_color": "#08080a",
+  "icons": [
+    { "src": "assets/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

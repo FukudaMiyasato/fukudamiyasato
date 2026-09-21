@@ -305,45 +305,81 @@ const SDK = `<script>(function(){
 })();<\/script>`;
 
 /* ============================================================
-   Estilos base — rojo/negro con efectos neón
+   Shake, detectado DENTRO del iframe
+   ------------------------------------------------------------
+   En iOS, DeviceMotionEvent.requestPermission() solo se puede
+   llamar dentro de un gesto del usuario. La app llega sola
+   (disparada por voz), así que el único gesto real que ocurre es un
+   toque DENTRO de la app generada — por eso el permiso se pide aquí
+   y no en la página contenedora. Al detectar la sacudida, avisa al
+   padre por postMessage; ia.js cierra la app y vuelve a la nebulosa.
+   ============================================================ */
+const SHAKE_JS = `<script>(function(){
+  var THRESH = 18, COOLDOWN = 1200, last = 0, lastAcc = null, armed = false;
+  function onMotion(e){
+    var acc = e.accelerationIncludingGravity || e.acceleration;
+    if (!acc || acc.x == null) return;
+    if (lastAcc) {
+      var d = Math.abs(acc.x - lastAcc.x) + Math.abs(acc.y - lastAcc.y) + Math.abs(acc.z - lastAcc.z);
+      var now = Date.now();
+      if (d > THRESH && now - last > COOLDOWN) { last = now; parent.postMessage({ __fm: 'shake' }, '*'); }
+    }
+    lastAcc = { x: acc.x, y: acc.y, z: acc.z };
+  }
+  function enable(){ if (armed) return; armed = true; addEventListener('devicemotion', onMotion); }
+  function tryEnable(){
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      DeviceMotionEvent.requestPermission().then(function(state){ if (state === 'granted') enable(); }).catch(function(){});
+    } else if (typeof DeviceMotionEvent !== 'undefined') {
+      enable();
+    }
+  }
+  document.addEventListener('pointerdown', tryEnable, { once: true, capture: true });
+})();<\/script>`;
+
+/* ============================================================
+   Estilos base — solo bordes neón rojo, sin fondos
    ------------------------------------------------------------
    Se inyectan antes que nada en el <head>, así el modelo no tiene
    que inventarse una paleta ni un tema: botones, inputs y demás ya
-   salen vestidos. Las reglas del modelo, que van después, pueden
-   sobreescribirlas si hace falta.
+   salen vestidos con contorno rojo y glow, sin relleno. Las reglas
+   del modelo, que van después, pueden sobreescribirlas si hace falta.
    ============================================================ */
 const NEON_CSS = `<style id="fm-base">
 :root{
-  --fm-bg:#0a0a0c;--fm-panel:#141418;--fm-panel-2:#1b1b21;--fm-line:#26262e;
-  --fm-red:#e0102b;--fm-red-hot:#ff1f3d;--fm-red-deep:#8c0518;
-  --fm-glow:rgba(224,16,43,.45);--fm-text:#f2f2f4;--fm-text-dim:#9a9aa6;
+  --fm-bg:#0a0a0c;--fm-line:rgba(255,31,61,.45);
+  --fm-red:#e0102b;--fm-red-hot:#ff1f3d;
+  --fm-glow:rgba(255,31,61,.55);
 }
-*{box-sizing:border-box;}
-html,body{margin:0;background:var(--fm-bg);color:var(--fm-text);min-height:100%;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
-::selection{background:var(--fm-red);color:#fff;}
+*{box-sizing:border-box;background-color:transparent;}
+html,body{margin:0;background:var(--fm-bg);color:var(--fm-red-hot);min-height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  text-shadow:0 0 10px var(--fm-glow);}
+::selection{background:var(--fm-red);color:#000;}
+h1,h2,h3,h4,h5,h6{text-shadow:0 0 16px var(--fm-glow);}
 button,.fm-btn,input[type=button],input[type=submit]{
-  font:inherit;color:#fff;cursor:pointer;border-radius:10px;padding:.6em 1.1em;
-  background:linear-gradient(160deg,var(--fm-red) 0%,var(--fm-red-deep) 100%);
-  border:1px solid var(--fm-red-hot);box-shadow:0 0 0 0 var(--fm-glow);
-  transition:box-shadow .25s ease,transform .25s ease,filter .25s ease;}
+  font:inherit;color:var(--fm-red-hot);cursor:pointer;border-radius:10px;padding:.6em 1.1em;
+  background:transparent;border:1px solid var(--fm-red-hot);
+  text-shadow:0 0 8px var(--fm-glow);box-shadow:0 0 6px -2px var(--fm-glow);
+  transition:box-shadow .25s ease,transform .25s ease,border-color .25s ease,color .25s ease;}
 button:hover,.fm-btn:hover,input[type=button]:hover,input[type=submit]:hover{
-  box-shadow:0 0 18px 2px var(--fm-glow);transform:translateY(-1px);}
+  box-shadow:0 0 18px 1px var(--fm-glow);border-color:#fff;color:#fff;transform:translateY(-1px);}
 button:active,.fm-btn:active{transform:translateY(0) scale(.97);}
-button:disabled,.fm-btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none;}
+button:disabled,.fm-btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;transform:none;}
 input,select,textarea{
-  font:inherit;color:var(--fm-text);background:var(--fm-panel);
+  font:inherit;color:var(--fm-red-hot);background:transparent;
   border:1px solid var(--fm-line);border-radius:8px;padding:.55em .8em;}
 input:focus,select:focus,textarea:focus{
-  outline:none;border-color:var(--fm-red-hot);box-shadow:0 0 0 3px var(--fm-glow);}
-a{color:var(--fm-red-hot);}
-.fm-panel,.card,.panel{background:var(--fm-panel-2);border:1px solid var(--fm-line);border-radius:14px;}
-.fm-neon,.glow{text-shadow:0 0 12px var(--fm-glow);}
+  outline:none;border-color:var(--fm-red-hot);box-shadow:0 0 10px -2px var(--fm-glow);}
+a{color:var(--fm-red-hot);text-shadow:0 0 8px var(--fm-glow);}
+.fm-panel,.card,.panel{background:transparent;border:1px solid var(--fm-line);border-radius:14px;
+  box-shadow:0 0 14px -6px var(--fm-glow);}
+.fm-neon,.glow{text-shadow:0 0 14px var(--fm-glow);}
 </style>`;
 
-/** Mete el SDK y los estilos base dentro del <head> de lo que devolvió el modelo. */
+/** Mete el SDK, el shake y los estilos base dentro del <head> de lo que devolvió el modelo. */
 function injectSdk(html) {
-  const inject = NEON_CSS + SDK;
+  const inject = NEON_CSS + SDK + SHAKE_JS;
   if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + inject);
   if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${inject}</head>`);
   return inject + html;
@@ -365,16 +401,22 @@ Reglas estrictas:
   directamente. Fallarían.
 
 DISEÑO — ya viene puesto, no lo reconstruyas
-Antes de tu HTML se inyecta una hoja de estilos base: fondo oscuro
-(--fm-bg #0a0a0c), texto claro, botones e inputs ya vestidos con el tema
-rojo/negro y efectos neón (glow en hover/focus con --fm-glow). Los
-elementos normales (button, input, select, textarea, a) ya salen bien.
-- NO definas tu propia paleta de colores ni reconstruyas el estilo de
-  botones e inputs desde cero: usa las etiquetas normales, o las clases
+Antes de tu HTML se inyecta una hoja de estilos base: fondo casi negro
+(--fm-bg #0a0a0c) y todo lo demás sin relleno — nada de paneles ni
+botones con fondo de color. Los elementos (button, input, select,
+textarea, a, h1..h6) ya salen con contorno rojo neón, texto rojo y un
+glow sutil (--fm-glow) que se intensifica en hover/focus.
+- NO definas tu propia paleta de colores ni le pongas fondo a botones,
+  tarjetas ni contenedores: todo es transparente sobre el fondo oscuro,
+  delineado en rojo neón. Usa las etiquetas normales, o las clases
   .fm-btn / .fm-panel / .card / .panel / .fm-neon si te hacen falta.
 - Tu <style> es solo para el layout propio de la app (posiciones,
   tamaños, espaciados, grids) y detalles muy específicos que la base no
   cubre. Cuanto menos CSS de tema escribas, mejor.
+- NO pongas un título ni un encabezado grande que repita o describa la
+  app (nada de "<h1>Calculadora de X</h1>" a modo de rótulo arriba de
+  todo): ve directo a la interfaz funcional. Un texto o etiqueta corta
+  junto a un control específico sí vale, si hace falta para usarlo.
 - Tiene que verse bien a pantalla completa y también en móvil.
 - Es una app usable, no una maqueta: los botones hacen lo que dicen.
 - Si la instrucción es ambigua o muy corta, elige la interpretación más

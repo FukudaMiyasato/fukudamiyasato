@@ -27,6 +27,14 @@
    que van y vienen. --spin acelera todo cuando está generando.
    ============================================================ */
 
+/* Se registra como número animable: así --spin puede hacer *transition* y el
+   giro acelera de verdad en vez de saltar de golpe a la velocidad nueva. */
+@property --spin {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+
 .orb {
   --size: min(58vmin, 460px);
   --spin: .833;                    /* multiplicador de velocidad: esperando, 20% más lenta */
@@ -38,7 +46,8 @@
   filter: blur(calc(var(--size) / 34)) saturate(1.3) contrast(1.15);
   opacity: 1;
   transform: scale(1);
-  transition: filter .9s var(--ease), transform .7s var(--ease), opacity .7s var(--ease);
+  transition: filter .9s var(--ease), transform .7s var(--ease), opacity .7s var(--ease),
+              --spin 1.6s var(--ease);
 }
 
 /* el halo exterior, que la despega del fondo */
