@@ -6,7 +6,7 @@ Sitio personal estático — sin build, sin dependencias. Se sirve tal cual
 ```
 index.html      portada: wordmark + accesos (solo íconos)
 works.html      grilla de aplicativos con filtros de año y tipo
-ia.html         vacío por ahora
+ia.html         consola de transcripciones que llegan por webhook
 todo.html       lista de pendientes por día — SIN acceso desde la portada
 yo.html         perfil + links
 ```
@@ -152,6 +152,38 @@ y la marques en al menos un registro, el filtro empieza a aplicar.
 Si `todo_amos` no responde, el To-do usa los responsables de `js/config.js`
 como respaldo. Los links de **Yo** no tienen respaldo: salen de Airtable o no
 salen.
+
+---
+
+## IA · webhook de transcripciones
+
+El sitio expone `POST https://fukudamiyasato.com/api/ia`:
+
+```
+Authorization: <el valor de la env INDEX_AUT>
+Content-Type: application/json
+
+{ "transcription": "el texto..." }
+```
+
+Respuestas: `200` con `{ok:true}`, `401` si el header no coincide, `400`
+si falta `transcription`, `501` si `INDEX_AUT` no está configurada en
+Vercel. También acepta el header como `Bearer <valor>`.
+
+`ia.html` consulta `GET /api/ia` cada 2 s y, cuando entra una nueva,
+dispara un `alert()` con el texto y la agrega al listado. Hay un botón
+para silenciar el alert sin dejar de recibir.
+
+> **Esto es un montaje de prueba.** La última transcripción se guarda en
+> memoria de la función, no en una base: si Vercel levanta otra instancia o
+> apaga la que estaba caliente, el `GET` puede devolver `null` aunque el
+> `POST` haya entrado bien. El `POST` siempre queda en los logs de Vercel,
+> así que ahí se puede confirmar. Para que sobreviva de verdad hay que
+> persistirlo (Airtable, Vercel KV, Upstash…).
+>
+> El `GET` es **público**: cualquiera con la URL puede leer la última
+> transcripción. Para probar está bien; si va a llevar contenido sensible,
+> hay que ponerle autenticación.
 
 ---
 

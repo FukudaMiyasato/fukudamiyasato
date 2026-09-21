@@ -11,8 +11,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: clamp(32px, 5.6vh, 61px);
-  padding: 45px 24px;
+  gap: clamp(26px, 4.5vh, 49px);
+  padding: 36px 24px;
   text-align: center;
 }
 
@@ -20,7 +20,7 @@
 .wordmark {
   margin: 0;
   font-weight: 900;
-  font-size: clamp(24px, 6.7vw, 83px);
+  font-size: clamp(19px, 5.4vw, 66px);
   letter-spacing: -.055em;
   line-height: .92;
   text-transform: lowercase;
@@ -32,21 +32,21 @@
 .wordmark .dot {
   -webkit-text-fill-color: var(--red-hot);
   color: var(--red-hot);
-  text-shadow: 0 0 28px var(--red-glow);
+  text-shadow: 0 0 22px var(--red-glow);
 }
 
 .tagline {
-  margin: 16px 0 0;
-  font-size: clamp(8px, 1.2vw, 10px);
+  margin: 13px 0 0;
+  font-size: clamp(7px, 1vw, 8px);
   letter-spacing: .58em;
   text-transform: uppercase;
   color: var(--text-faint);
 }
 
 .rule {
-  width: min(256px, 50vw);
+  width: min(205px, 40vw);
   height: 2px;
-  margin: 21px auto 0;
+  margin: 17px auto 0;
   background: linear-gradient(90deg, transparent, var(--red), transparent);
 }
 
@@ -54,10 +54,10 @@
 /* Tamaño de baldosa fijo y centrado: así da igual si hay 3 o 4 accesos. */
 .gates {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(92px, 130px));
+  grid-template-columns: repeat(auto-fit, minmax(74px, 104px));
   justify-content: center;
-  gap: clamp(11px, 1.6vw, 19px);
-  width: min(576px, 100%);
+  gap: clamp(9px, 1.3vw, 15px);
+  width: min(461px, 100%);
 }
 
 .gate {
@@ -65,7 +65,7 @@
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  border-radius: 16px;
+  border-radius: 13px;
   background: linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 60%, #101014 100%);
   border: 1px solid var(--line);
   color: var(--text-dim);
@@ -90,12 +90,12 @@
 }
 
 .home-foot {
-  font-size: 9px;
+  font-size: 8px;
   letter-spacing: .3em;
   text-transform: uppercase;
   color: #35353f;
 }
 
 @media (max-width: 620px) {
-  .gates { width: min(288px, 100%); }
+  .gates { width: min(230px, 100%); }
 }
