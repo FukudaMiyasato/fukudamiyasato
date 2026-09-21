@@ -179,7 +179,17 @@ POST /api/ia                 webhook (multipart, header Authorization)
 GET  /api/ia                 última transcripción + metadata de la app
 GET  /api/ia?app=1           el código de la app generada
 POST /api/ia?generate=1      { id } -> genera la app con GPT
+GET  /api/ia?diag=1          qué variables ve la función
+GET  /api/ia?diag=models     lo mismo + comprueba el modelo contra OpenAI
 ```
+
+`diag` nunca devuelve el valor de una variable: solo si existe, de qué
+largo es y en qué entorno corre la función. Sirve para distinguir una
+variable que falta de una puesta en otro entorno o con espacios de más.
+
+> **Las variables de entorno exigen redeploy.** Vercel no las inyecta en
+> deployments ya creados: si agregas una y no vuelves a desplegar, la
+> función la sigue viendo vacía.
 
 El POST de generación no lleva `Authorization` porque lo llama el
 navegador. Para que no sea un generador abierto — ni se te vaya el crédito
