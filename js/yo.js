@@ -125,6 +125,14 @@ try {
    ahí para pedirlo a tiempo. Este botón resuelve eso de antemano:
    una vez concedido, el permiso queda para todo el sitio (mismo
    origen), así que al llegar a IA el shake ya funciona.
+
+   No hay forma de "consultar" el permiso sin pedirlo: la única API
+   es requestPermission(). Así que para saber si ya lo tienes, se
+   pide en silencio al cargar la página (sin gesto). Si ya estaba
+   concedido, el navegador responde solo, sin diálogo, y el botón se
+   queda oculto. Si hace falta un gesto real (todavía no se pidió),
+   esa llamada no puede completarlo y el botón se muestra para que lo
+   pidas con un toque de verdad.
    ============================================================ */
 const perm     = document.getElementById('perm');
 const permBtn  = document.getElementById('perm-btn');
@@ -133,28 +141,30 @@ const permNote = document.getElementById('perm-note');
 const needsMotionPermission = typeof DeviceMotionEvent !== 'undefined'
   && typeof DeviceMotionEvent.requestPermission === 'function';
 
+async function requestMotionPermission() {
+  permNote.className = 'perm-note';
+  permNote.textContent = '';
+  try {
+    const state = await DeviceMotionEvent.requestPermission();
+    if (state === 'granted') {
+      perm.hidden = true;   // ya lo tenemos: no hace falta el botón
+      return true;
+    }
+    permNote.textContent = 'No diste el permiso. Actívalo en Ajustes → Safari → Movimiento y orientación.';
+    permNote.classList.add('err');
+  } catch {
+    // no se pudo resolver sin un gesto real: nos quedamos con el botón visible
+  }
+  return false;
+}
+
 if (needsMotionPermission) {
-  perm.hidden = false;
+  requestMotionPermission().then((already) => { if (!already) perm.hidden = false; });
 
   permBtn.addEventListener('click', async () => {
     permBtn.disabled = true;
-    permNote.className = 'perm-note';
-    permNote.textContent = '';
-    try {
-      const state = await DeviceMotionEvent.requestPermission();
-      if (state === 'granted') {
-        permNote.textContent = 'Listo. Ya puedes agitar el celular en IA para cerrar una app.';
-        permNote.classList.add('ok');
-      } else {
-        permNote.textContent = 'No diste el permiso. Actívalo en Ajustes → Safari → Movimiento y orientación.';
-        permNote.classList.add('err');
-      }
-    } catch (err) {
-      permNote.textContent = `No se pudo pedir el permiso: ${err.message}`;
-      permNote.classList.add('err');
-    } finally {
-      permBtn.disabled = false;
-    }
+    await requestMotionPermission();   // si se concede, el bloque entero se oculta solo
+    permBtn.disabled = false;
   });
 }
 // en Android y en navegadores de escritorio no hace falta pedir nada:

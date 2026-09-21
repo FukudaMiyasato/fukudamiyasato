@@ -27,31 +27,51 @@
 }
 
 /* ============================================================
-   Transiciones entre páginas — fade + leve movimiento
+   Transiciones entre páginas — la nebulosa como efecto de warp
+   ------------------------------------------------------------
+   Cada página se difumina, se satura de rojo y gira levemente al
+   salir, y un resplandor rojo tipo nebulosa (el mismo tono que la
+   de IA) asoma un instante detrás, justo cuando ambas capas están
+   semitransparentes — como si se atravesara la nebulosa para llegar
+   a la otra página.
    ============================================================ */
 @view-transition {
   navigation: auto;
 }
 
-@keyframes fm-page-out {
-  from { opacity: 1; transform: translateY(0) scale(1); }
-  to   { opacity: 0; transform: translateY(-16px) scale(.985); }
+::view-transition-group(root) {
+  animation-duration: .8s;
+  animation-timing-function: var(--ease);
+  background: radial-gradient(circle at 50% 50%,
+    rgba(255, 31, 61, .55), rgba(140, 5, 24, .28) 42%, transparent 72%);
 }
-@keyframes fm-page-in {
-  from { opacity: 0; transform: translateY(16px) scale(.985); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+
+@keyframes fm-warp-out {
+  0%   { opacity: 1; filter: blur(0) saturate(1) brightness(1) hue-rotate(0deg); transform: scale(1) rotate(0deg); }
+  55%  { opacity: .16; filter: blur(22px) saturate(2.4) brightness(1.35) hue-rotate(-10deg); transform: scale(1.08) rotate(-2deg); }
+  100% { opacity: 0; filter: blur(34px) saturate(2.8) brightness(.6) hue-rotate(-14deg); transform: scale(1.16) rotate(-3deg); }
+}
+@keyframes fm-warp-in {
+  0%   { opacity: 0; filter: blur(34px) saturate(2.8) brightness(1.4) hue-rotate(12deg); transform: scale(.88) rotate(3deg); }
+  45%  { opacity: .28; filter: blur(18px) saturate(2.1) brightness(1.2) hue-rotate(6deg); transform: scale(.95) rotate(1.5deg); }
+  100% { opacity: 1; filter: blur(0) saturate(1) brightness(1) hue-rotate(0deg); transform: scale(1) rotate(0deg); }
 }
 ::view-transition-old(root) {
-  animation: fm-page-out .5s var(--ease) both;
+  animation: fm-warp-out .55s var(--ease) both;
 }
 ::view-transition-new(root) {
-  animation: fm-page-in .55s var(--ease) both;
+  animation: fm-warp-in .62s var(--ease) .12s both;
 }
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(root) { background: none; }
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 }
 
 * { box-sizing: border-box; }
+
+html {
+  height: 100%;
+}
 
 html, body {
   margin: 0;
@@ -67,6 +87,8 @@ body {
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
   overflow-x: hidden;
+  /* que se sienta como app: sin el rebote elástico de Safari al tope/fondo */
+  overscroll-behavior-y: none;
 }
 
 /* subtle red vignette on every page */

@@ -9,6 +9,9 @@
                                  de la app generada
    GET  /api/ia?app=1            el código de la app generada
    POST /api/ia?generate=1       { id } -> genera la app con GPT
+   POST /api/ia?test=1           { key, text } -> simula el webhook, para
+                                 probar desde /test/sendOrder/ sin exponer
+                                 INDEX_AUT en el navegador
 
    El POST de generación NO lleva Authorization a propósito: lo llama el
    navegador. Para que no sea un generador abierto (y no se te vaya el
@@ -19,6 +22,9 @@
      INDEX_AUT        secreto del webhook
      OPENAI_API_KEY   la key de OpenAI
      OPENAI_MODEL     opcional, por defecto gpt-4o
+     TEST_ORDER_KEY   clave para /test/sendOrder/ (aparte de INDEX_AUT:
+                      así la página de prueba no conoce el secreto real
+                      del webhook, solo esta)
    ============================================================ */
 
 import crypto from 'node:crypto';
@@ -340,18 +346,88 @@ button:active,.fm-btn:active{transform:translateY(0) scale(.97);}
 button:disabled,.fm-btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;transform:none;}
 input,select,textarea{
   font:inherit;color:var(--fm-red-hot);background:transparent;
-  border:1px solid var(--fm-line);border-radius:8px;padding:.55em .8em;}
+  border:1px solid var(--fm-line);border-radius:8px;padding:.55em .8em;
+  box-shadow:0 0 8px -4px var(--fm-glow);}
 input:focus,select:focus,textarea:focus{
   outline:none;border-color:var(--fm-red-hot);box-shadow:0 0 10px -2px var(--fm-glow);}
 a{color:var(--fm-red-hot);text-shadow:0 0 8px var(--fm-glow);}
 .fm-panel,.card,.panel{background:transparent;border:1px solid var(--fm-line);border-radius:14px;
   box-shadow:0 0 14px -6px var(--fm-glow);}
 .fm-neon,.glow{text-shadow:0 0 14px var(--fm-glow);}
+
+/* flotación sutil en reposo, una vez que el elemento ya se acomodó */
+.fm-float{animation:fm-float 5s ease-in-out var(--fm-float-delay,0s) infinite;}
+@keyframes fm-float{
+  0%,100%{translate:0 0;}
+  50%    {translate:0 -6px;}
+}
+@media (prefers-reduced-motion: reduce){
+  .fm-float{animation:none;}
+}
 </style>`;
 
-/** Mete el SDK y los estilos base dentro del <head> de lo que devolvió el modelo. */
+/* ============================================================
+   Ensamblaje de entrada
+   ------------------------------------------------------------
+   Al cargar, cada div/texto arranca como un círculo (borde al
+   máximo) en el centro de la pantalla, transparente, y gira mientras
+   viaja hasta su posición real — como si saliera despedido de la
+   nebulosa. Al terminar, se queda quieto ahí y empieza a flotar
+   suavemente. No se toca `position`: solo un `transform` calculado
+   con getBoundingClientRect(), así el layout real no se altera.
+   ============================================================ */
+const ASSEMBLE_JS = `<script>(function(){
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  function run(){
+    var els = Array.prototype.slice.call(
+      document.querySelectorAll('div, p, h1, h2, h3, h4, h5, h6, span, label, li, a')
+    ).slice(0, 60);
+    if (!els.length) return;
+
+    var cx = innerWidth / 2, cy = innerHeight / 2;
+
+    els.forEach(function(el, i){
+      var r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+
+      var dx = cx - (r.left + r.width / 2);
+      var dy = cy - (r.top + r.height / 2);
+      var delay = Math.min(i * 16, 420);
+      var finalRadius = getComputedStyle(el).borderRadius;
+
+      el.style.transition = 'none';
+      el.style.opacity = '0';
+      el.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(.15) rotate(240deg)';
+      el.style.borderRadius = '50%';
+      void el.offsetWidth;   // fuerza el layout con el estado inicial ya pintado
+
+      requestAnimationFrame(function(){
+        el.style.transition =
+          'transform .9s cubic-bezier(.22,1,.36,1) ' + delay + 'ms, ' +
+          'border-radius .9s cubic-bezier(.22,1,.36,1) ' + delay + 'ms, ' +
+          'opacity .6s ease ' + delay + 'ms';
+        el.style.opacity = '';
+        el.style.transform = '';
+        el.style.borderRadius = finalRadius;
+
+        el.addEventListener('transitionend', function settle(ev){
+          if (ev.propertyName !== 'transform') return;
+          el.removeEventListener('transitionend', settle);
+          el.style.setProperty('--fm-float-delay', ((i % 7) * .3) + 's');
+          el.classList.add('fm-float');
+        });
+      });
+    });
+  }
+
+  if (document.readyState === 'complete') setTimeout(run, 30);
+  else addEventListener('load', function(){ setTimeout(run, 30); });
+})();<\/script>`;
+
+/** Mete el SDK, los estilos base y el ensamblaje de entrada dentro del <head>. */
 function injectSdk(html) {
-  const inject = NEON_CSS + SDK;
+  const inject = NEON_CSS + SDK + ASSEMBLE_JS;
   if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + inject);
   if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${inject}</head>`);
   return inject + html;
@@ -389,6 +465,12 @@ glow sutil (--fm-glow) que se intensifica en hover/focus.
   app (nada de "<h1>Calculadora de X</h1>" a modo de rótulo arriba de
   todo): ve directo a la interfaz funcional. Un texto o etiqueta corta
   junto a un control específico sí vale, si hace falta para usarlo.
+- La aparición de cada elemento y una flotación sutil en reposo ya están
+  animadas automáticamente (no las reimplementes ni les pongas tu propia
+  animación de entrada, ni animation o transition sobre transform a nivel
+  de página: pisarían la que ya corre). Tu CSS puede animar cosas propias
+  de la interacción (un botón que se presiona, un contador que cambia),
+  no la entrada de los elementos.
 - Tiene que verse bien a pantalla completa y también en móvil.
 - Es una app usable, no una maqueta: los botones hacen lo que dicen.
 - Si la instrucción es ambigua o muy corta, elige la interpretación más
@@ -641,6 +723,38 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
     return res.status(405).json({ error: 'Método no permitido' });
+  }
+
+  /* ---------- ruta de prueba: manda texto como si fuera el webhook ---------- */
+  if (req.query?.test) {
+    const expected = process.env.TEST_ORDER_KEY;
+    if (!expected) {
+      return res.status(501).json({ error: 'TEST_ORDER_KEY no está configurada en este entorno.' });
+    }
+
+    let body = {};
+    try { body = JSON.parse(await readRaw(req)) || {}; } catch { /* sin body */ }
+
+    if (!safeEqual(String(body.key || ''), expected)) {
+      return res.status(401).json({ error: 'Clave inválida.' });
+    }
+
+    const text = String(body.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'Falta el texto.' });
+
+    latest = {
+      id: `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      at: new Date().toISOString(),
+      text,
+      client: 'test/sendOrder',
+      recordedAt: null,
+      formato: 'test',
+      bytes: Buffer.byteLength(text, 'utf8'),
+      raw: null,
+    };
+
+    console.log(`[api/ia] orden de prueba (${text.length} chars): ${text}`);
+    return res.status(200).json({ ok: true, id: latest.id });
   }
 
   /* ---------- generación, disparada por el navegador ---------- */

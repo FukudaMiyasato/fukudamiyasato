@@ -1,0 +1,65 @@
+/* ============================================================
+   /test/sendOrder — mandar texto como si fuera el webhook de voz
+   ============================================================ */
+
+.order-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 480px;
+}
+
+.order-form label {
+  margin-top: 14px;
+  font-size: 11px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.order-form label:first-of-type { margin-top: 0; }
+
+.order-form input,
+.order-form textarea {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14.5px;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color .25s var(--ease), box-shadow .25s var(--ease);
+}
+.order-form textarea { min-height: 130px; line-height: 1.5; }
+
+.order-form input:focus,
+.order-form textarea:focus {
+  outline: none;
+  border-color: var(--red-hot);
+  box-shadow: 0 0 0 4px var(--red-glow);
+}
+
+.order-form button {
+  align-self: flex-start;
+  margin-top: 22px;
+  padding: 12px 30px;
+  border-radius: 99px;
+  border: 1px solid var(--red-hot);
+  background: linear-gradient(160deg, var(--red) 0%, var(--red-deep) 100%);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  transition: box-shadow .25s var(--ease), transform .25s var(--ease), opacity .25s var(--ease);
+}
+.order-form button:hover { box-shadow: 0 0 0 6px var(--red-glow); }
+.order-form button:active { transform: scale(.97); }
+.order-form button:disabled { opacity: .5; cursor: default; box-shadow: none; }
+
+.order-note {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  min-height: 1.2em;
+}
+.order-note.err { color: var(--red-hot); }

@@ -148,3 +148,14 @@
   .me { padding: 92px 0 70px; }
   .me-desc { font-size: 15px; }
 }
+
+/* pantallas bajas (la mayoría de celulares): se aprieta el espaciado para
+   que quepa entero sin scroll, en vez de forzarlo por el alto fijo */
+@media (max-height: 760px) {
+  .me { padding: 74px 0 48px; }
+  .me-kicker { margin-bottom: 12px; }
+  .me-line { margin: 18px 0; }
+  .me-facts { margin-top: 22px; padding-top: 16px; }
+  .socials { margin-top: 24px; }
+  .perm { margin-top: 26px; padding-top: 16px; }
+}

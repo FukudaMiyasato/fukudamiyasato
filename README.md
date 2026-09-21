@@ -171,6 +171,7 @@ El botón pasa de flecha a **X**: cierra la app y vuelve a la espera.
 | `INDEX_AUT` | secreto del webhook (ya la tienes) |
 | `OPENAI_API_KEY` | la key de OpenAI |
 | `OPENAI_MODEL` | opcional, por defecto `gpt-4o` |
+| `TEST_ORDER_KEY` | clave de `/test/sendOrder/` (ver abajo) |
 
 ### Endpoints
 
@@ -179,10 +180,33 @@ POST /api/ia                 webhook (multipart, header Authorization)
 GET  /api/ia                 última transcripción + metadata de la app
 GET  /api/ia?app=1           el código de la app generada
 POST /api/ia?generate=1      { id } -> genera la app con GPT
+POST /api/ia?test=1          { key, text } -> ver /test/sendOrder/ abajo
 GET  /api/ia?diag=1          qué variables ve la función
 GET  /api/ia?diag=models     lo mismo + comprueba el modelo contra OpenAI
 GET  /api/ia?diag=write      prueba Airtable de punta a punta
 ```
+
+### `/test/sendOrder/` — probar sin hablarle al webhook
+
+Un formulario con una clave y un textarea: manda el texto a
+`POST /api/ia?test=1`, que hace exactamente lo que haría el webhook real
+(guarda una transcripción nueva), y salta a `/ia.html` a verla ejecutarse.
+
+No usa `INDEX_AUT` — usa su propia variable, `TEST_ORDER_KEY`, así esta
+página no necesita conocer el secreto real del webhook. Sin esa variable
+configurada, el endpoint responde `501` y la página no funciona.
+
+Para ponerla:
+```
+vercel env add TEST_ORDER_KEY
+```
+o a mano en **Vercel → tu proyecto → Settings → Environment Variables**.
+El valor: algo largo y random, nunca una frase fácil de adivinar —
+```
+openssl rand -hex 24
+```
+genera uno bueno. Para probar en local, ponla en `.env.local` (ver
+`.env.example`); ese archivo está en `.gitignore`, así que nunca se sube.
 
 `diag` nunca devuelve el valor de una variable: solo si existe, de qué
 largo es y en qué entorno corre la función. `diag=write` crea un registro
