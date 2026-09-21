@@ -172,6 +172,21 @@ function cleanHtml(out) {
   return s;
 }
 
+/** ¿Existe el modelo configurado para esta cuenta? Solo lectura. */
+async function modelOk(key) {
+  const model = process.env.OPENAI_MODEL || 'gpt-4o';
+  if (!key) return { model, ok: false, motivo: 'sin key' };
+  try {
+    const r = await fetch(`https://api.openai.com/v1/models/${encodeURIComponent(model)}`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (r.ok) return { model, ok: true };
+    return { model, ok: false, motivo: `OpenAI ${r.status}` };
+  } catch (err) {
+    return { model, ok: false, motivo: err.message };
+  }
+}
+
 async function generate(text) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw Object.assign(new Error('OPENAI_API_KEY no está configurada.'), { code: 501 });
@@ -229,6 +244,9 @@ export default async function handler(req, res) {
         OPENAI_MODEL: process.env.OPENAI_MODEL || '(por defecto: gpt-4o)',
         hayTranscripcion: Boolean(latest?.text),
         hayApp: Boolean(app?.html),
+        // ?diag=models comprueba contra OpenAI que el modelo existe para
+        // esta cuenta. Es una llamada de solo lectura, no gasta tokens.
+        modeloDisponible: req.query.diag === 'models' ? await modelOk(key) : null,
       });
     }
 
