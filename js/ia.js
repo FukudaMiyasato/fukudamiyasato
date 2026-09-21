@@ -25,12 +25,25 @@ function setState(cls, txt) {
   status.textContent = txt;
 }
 
+/** Lo que mostramos: el JSON formateado si lo era, si no el crudo. */
+const bodyOf = (e) => e.pretty ?? e.raw ?? '(cuerpo vacío)';
+
 function push(entry) {
   const el = document.createElement('article');
   el.className = 'entry';
   const hora = new Date(entry.at).toLocaleTimeString('es-ES');
-  el.innerHTML = `<time>${hora}</time><p></p>`;
-  el.querySelector('p').textContent = entry.text;   // textContent: nada de HTML inyectado
+
+  el.innerHTML = `
+    <time></time>
+    <pre class="payload"></pre>
+    <details class="meta"><summary>headers</summary><pre></pre></details>`;
+
+  el.querySelector('time').textContent =
+    `${hora} · ${entry.contentType || 'sin content-type'} · ${entry.bytes ?? 0} bytes`;
+  // textContent en todo: el payload se ve literal, nunca se ejecuta
+  el.querySelector('.payload').textContent = bodyOf(entry);
+  el.querySelector('.meta pre').textContent = JSON.stringify(entry.headers ?? {}, null, 2);
+
   log.prepend(el);
   document.getElementById('empty')?.remove();
 }
@@ -48,8 +61,12 @@ async function poll() {
       const first = !started;
       lastId = latest.id;
       push(latest);
-      if (!first && alerting) alert(latest.text);
-      if (first && alerting) alert(`Última transcripción recibida:\n\n${latest.text}`);
+      if (alerting) {
+        const cuerpo = bodyOf(latest);
+        const cabecera = first ? 'Último payload recibido' : 'Payload recibido';
+        alert(`${cabecera}\n${latest.contentType || 'sin content-type'} · ${latest.bytes ?? 0} bytes\n\n` +
+              (cuerpo.length > 2000 ? `${cuerpo.slice(0, 2000)}\n\n… (cortado, el resto está en la página)` : cuerpo));
+      }
     }
     started = true;
   } catch (err) {

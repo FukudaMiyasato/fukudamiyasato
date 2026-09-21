@@ -1,23 +1,22 @@
 /* ============================================================
-   /api/ia — recibe el webhook de transcripciones
+   /api/ia — recibe el webhook y guarda LO QUE SEA que llegue
    ------------------------------------------------------------
-   POST  con header `Authorization` == process.env.INDEX_AUT
-         y body JSON { "transcription": "..." }
-   GET   devuelve la última recibida, para que la página la muestre.
+   POST  con header `Authorization` == process.env.INDEX_AUT.
+         No se interpreta el body: se guarda crudo y se loguea.
+   GET   devuelve lo último recibido, para que la página lo muestre.
 
-   ⚠ La última transcripción se guarda EN MEMORIA de la función, no en
-     una base. Sirve para probar: si Vercel levanta otra instancia (o la
-     apaga por inactividad), el GET puede devolver null aunque el POST
-     haya entrado bien. El POST siempre queda en los logs de Vercel.
-     Para que sobreviva de verdad hay que guardarlo en algún lado
-     (Airtable, Vercel KV, etc.) — ver el README.
+   ⚠ Se guarda en memoria de la función, no en una base. Si Vercel
+     levanta otra instancia, el GET puede devolver null aunque el POST
+     haya entrado bien — el POST siempre queda en los logs de Vercel.
 
-   ⚠ El GET es público: quien tenga la URL puede leer la última
-     transcripción. Para una prueba va bien; si va a llevar contenido
-     sensible hay que ponerle autenticación.
+   ⚠ El GET es público: quien tenga la URL puede leer el último payload.
+     El header Authorization NO se incluye nunca en la respuesta.
    ============================================================ */
 
-let latest = null;          // { id, text, at, meta }
+/* Queremos el cuerpo tal cual viene, sin que el runtime lo interprete. */
+export const config = { api: { bodyParser: false } };
+
+let latest = null;
 
 /** Comparación en tiempo constante, para no filtrar el secreto. */
 function safeEqual(a, b) {
@@ -30,67 +29,36 @@ function safeEqual(a, b) {
 function authorized(req, expected) {
   const raw = (req.headers.authorization || '').trim();
   if (!raw) return false;
-  // acepta el valor pelado o con prefijo Bearer
   const bare = raw.replace(/^Bearer\s+/i, '').trim();
   return safeEqual(raw, expected) || safeEqual(bare, expected);
 }
 
-function parseBody(req) {
-  let b = req.body;
-
-  // algunos emisores mandan el cuerpo crudo (Buffer) o como string
-  if (b && typeof b === 'object' && typeof b.byteLength === 'number') b = b.toString('utf8');
-
-  if (typeof b === 'string') {
-    const raw = b.trim();
-    if (!raw) return {};
-
-    try { return JSON.parse(raw); } catch { /* seguimos probando */ }
-
-    // form-urlencoded: transcription=hola&otro=1
-    if (raw.includes('=') && !raw.includes('\n')) {
-      try { return Object.fromEntries(new URLSearchParams(raw)); } catch { /* nada */ }
-    }
-
-    // multipart: sacamos el campo por su name
-    const mp = raw.match(/name="?(transcription|transcripcion|transcript|text|texto)"?[\s\S]*?\r?\n\r?\n([\s\S]*?)\r?\n--/i);
-    if (mp) return { transcription: mp[2] };
-
-    // texto plano suelto: lo tomamos tal cual
-    return { transcription: raw };
+/** El cuerpo como string, venga como venga. */
+async function readRaw(req) {
+  // si el runtime igual lo parseó, lo usamos
+  if (req.body !== undefined && req.body !== null && req.body !== '') {
+    if (typeof req.body === 'string') return req.body;
+    if (Buffer.isBuffer(req.body)) return req.body.toString('utf8');
+    try { return JSON.stringify(req.body); } catch { return String(req.body); }
   }
-
-  return b && typeof b === 'object' ? b : {};
+  try {
+    const chunks = [];
+    for await (const c of req) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+    return Buffer.concat(chunks).toString('utf8');
+  } catch (err) {
+    return `(no se pudo leer el cuerpo: ${err.message})`;
+  }
 }
 
-/* Busca una clave en todo el objeto, no solo en el primer nivel:
-   así funciona con { data: { transcription } }, { payload: {...} }, etc. */
-function searchKeys(obj, keys, depth = 0) {
-  if (obj == null || depth > 4) return '';
-
-  if (Array.isArray(obj)) {
-    for (const v of obj) { const r = searchKeys(v, keys, depth + 1); if (r) return r; }
-    return '';
+/** Nunca devolvemos el Authorization ni cookies. */
+function safeHeaders(headers) {
+  const out = {};
+  for (const [k, v] of Object.entries(headers || {})) {
+    const key = k.toLowerCase();
+    if (key === 'authorization' || key === 'cookie' || key === 'proxy-authorization') continue;
+    out[k] = Array.isArray(v) ? v.join(', ') : v;
   }
-  if (typeof obj !== 'object') return '';
-
-  for (const [k, v] of Object.entries(obj)) {
-    if (keys.includes(k.toLowerCase().trim()) && typeof v === 'string' && v.trim()) return v.trim();
-  }
-  for (const v of Object.values(obj)) {
-    const r = searchKeys(v, keys, depth + 1);
-    if (r) return r;
-  }
-  return '';
-}
-
-/* Mapa de claves recibidas, para poder depurar desde la respuesta. */
-function shape(obj, depth = 0) {
-  if (obj == null) return String(obj);
-  if (Array.isArray(obj)) return depth > 2 ? '[…]' : [shape(obj[0], depth + 1)];
-  if (typeof obj !== 'object') return typeof obj;
-  if (depth > 2) return '{…}';
-  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, shape(v, depth + 1)]));
+  return out;
 }
 
 export default async function handler(req, res) {
@@ -116,37 +84,28 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Authorization inválido' });
   }
 
-  const body = parseBody(req);
+  const raw = await readRaw(req);
+  const contentType = req.headers['content-type'] || null;
 
-  // primero el nombre exacto, en cualquier nivel; después, alias razonables
-  const text =
-    searchKeys(body, ['transcription', 'transcripcion', 'transcripción']) ||
-    searchKeys(body, ['transcript', 'texto', 'text', 'message', 'content']);
-
-  if (!text) {
-    const dump = (() => { try { return JSON.stringify(body); } catch { return String(body); } })();
-    console.warn(
-      `[api/ia] POST sin transcription · content-type=${req.headers['content-type'] || '(ninguno)'} · body=${dump.slice(0, 2000)}`,
-    );
-    return res.status(400).json({
-      error: 'No encontré el campo `transcription` con texto.',
-      ayuda: 'Manda { "transcription": "..." } como JSON. También lo busco anidado y acepto transcript/text/texto/message/content.',
-      recibido: {
-        contentType: req.headers['content-type'] || null,
-        claves: shape(body),
-        muestra: dump.slice(0, 400),
-      },
-    });
-  }
+  // si resulta ser JSON, lo dejamos también formateado; si no, da igual
+  let pretty = null;
+  try { pretty = JSON.stringify(JSON.parse(raw), null, 2); } catch { /* no era JSON */ }
 
   latest = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    text,
     at: new Date().toISOString(),
+    contentType,
+    bytes: Buffer.byteLength(raw, 'utf8'),
+    raw,
+    pretty,
+    headers: safeHeaders(req.headers),
   };
 
-  // queda en los logs de Vercel aunque el GET caiga en otra instancia
-  console.log(`[api/ia] transcription (${text.length} chars): ${text.slice(0, 300)}`);
+  console.log('[api/ia] ───────── payload recibido ─────────');
+  console.log('[api/ia] content-type:', contentType, '· bytes:', latest.bytes);
+  console.log('[api/ia] headers:', JSON.stringify(latest.headers));
+  console.log('[api/ia] body:', raw.slice(0, 4000));
+  console.log('[api/ia] ──────────────────────────────────');
 
-  return res.status(200).json({ ok: true, id: latest.id, chars: text.length });
+  return res.status(200).json({ ok: true, id: latest.id, bytes: latest.bytes });
 }
