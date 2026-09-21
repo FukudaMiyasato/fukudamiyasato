@@ -212,6 +212,26 @@ export default async function handler(req, res) {
 
   /* ---------- lectura ---------- */
   if (req.method === 'GET') {
+    /* Diagnóstico: qué variables ve la función. Nunca devuelve valores,
+       solo si existen y de qué largo son. */
+    if (req.query?.diag) {
+      const key = process.env.OPENAI_API_KEY || '';
+      return res.status(200).json({
+        entorno: process.env.VERCEL_ENV || '(local)',
+        region: process.env.VERCEL_REGION || null,
+        INDEX_AUT: { configurada: Boolean(process.env.INDEX_AUT), largo: (process.env.INDEX_AUT || '').length },
+        OPENAI_API_KEY: {
+          configurada: Boolean(key),
+          largo: key.length,
+          empiezaEnSk: key.startsWith('sk-'),
+          espaciosSobrantes: key !== key.trim(),
+        },
+        OPENAI_MODEL: process.env.OPENAI_MODEL || '(por defecto: gpt-4o)',
+        hayTranscripcion: Boolean(latest?.text),
+        hayApp: Boolean(app?.html),
+      });
+    }
+
     if (req.query?.app) {
       return res.status(200).json({ app });
     }
