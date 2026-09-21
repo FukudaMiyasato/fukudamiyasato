@@ -1,48 +1,46 @@
 /* ============================================================
-   ia.js — escucha /api/ia y avisa cuando llega una transcripción
+   ia.js — escucha /api/ia y saca por consola cada transcripción
    ============================================================ */
 
 const POLL_MS = 2000;
 
-const dot     = document.getElementById('dot');
-const status  = document.getElementById('status');
-const log     = document.getElementById('log');
-const muteBtn = document.getElementById('mute');
+const dot    = document.getElementById('dot');
+const status = document.getElementById('status');
+const log    = document.getElementById('log');
 
 let lastId = null;
-let started = false;      // el primer sondeo no alerta lo que ya estaba
-let alerting = true;
+let started = false;      // el primer sondeo no reporta lo que ya estaba
 let fails = 0;
-
-muteBtn.addEventListener('click', () => {
-  alerting = !alerting;
-  muteBtn.textContent = alerting ? 'Alert activado' : 'Alert silenciado';
-  muteBtn.classList.toggle('off', !alerting);
-});
 
 function setState(cls, txt) {
   dot.className = `dot ${cls}`;
   status.textContent = txt;
 }
 
-/** Lo que mostramos: el JSON formateado si lo era, si no el crudo. */
-const bodyOf = (e) => e.pretty ?? e.raw ?? '(cuerpo vacío)';
-
 function push(entry) {
   const el = document.createElement('article');
-  el.className = 'entry';
+  el.className = 'entry' + (entry.text ? '' : ' sin-texto');
+
   const hora = new Date(entry.at).toLocaleTimeString('es-ES');
+  const grabado = entry.recordedAt
+    ? new Date(entry.recordedAt).toLocaleString('es-ES')
+    : null;
+
+  const meta = [hora, entry.client, grabado && `grabado ${grabado}`]
+    .filter(Boolean).join(' · ');
 
   el.innerHTML = `
     <time></time>
-    <pre class="payload"></pre>
-    <details class="meta"><summary>headers</summary><pre></pre></details>`;
+    <p class="texto"></p>
+    <details class="meta"><summary>payload</summary><pre></pre></details>`;
 
-  el.querySelector('time').textContent =
-    `${hora} · ${entry.contentType || 'sin content-type'} · ${entry.bytes ?? 0} bytes`;
-  // textContent en todo: el payload se ve literal, nunca se ejecuta
-  el.querySelector('.payload').textContent = bodyOf(entry);
-  el.querySelector('.meta pre').textContent = JSON.stringify(entry.headers ?? {}, null, 2);
+  el.querySelector('time').textContent = meta;
+  // textContent: lo que llegue se ve literal, nunca se ejecuta
+  el.querySelector('.texto').textContent =
+    entry.text || '(sin campo transcription — mira el payload)';
+  el.querySelector('.meta pre').textContent =
+    JSON.stringify({ formato: entry.formato, bytes: entry.bytes, campos: entry.fields,
+                     archivos: entry.files, raw: entry.raw }, null, 2);
 
   log.prepend(el);
   document.getElementById('empty')?.remove();
@@ -58,15 +56,9 @@ async function poll() {
     setState('on', 'Escuchando /api/ia');
 
     if (latest && latest.id !== lastId) {
-      const first = !started;
       lastId = latest.id;
       push(latest);
-      if (alerting) {
-        const cuerpo = bodyOf(latest);
-        const cabecera = first ? 'Último payload recibido' : 'Payload recibido';
-        alert(`${cabecera}\n${latest.contentType || 'sin content-type'} · ${latest.bytes ?? 0} bytes\n\n` +
-              (cuerpo.length > 2000 ? `${cuerpo.slice(0, 2000)}\n\n… (cortado, el resto está en la página)` : cuerpo));
-      }
+      if (started && latest.text) console.log(latest.text);
     }
     started = true;
   } catch (err) {

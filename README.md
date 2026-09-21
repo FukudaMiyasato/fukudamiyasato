@@ -157,39 +157,45 @@ salen.
 
 ## IA · webhook
 
-El sitio expone `POST https://www.fukudamiyasato.com/api/ia`:
+El emisor manda `multipart/form-data` a
+`POST https://www.fukudamiyasato.com/api/ia`:
 
 ```
 Authorization: <el valor de la env INDEX_AUT>
+Content-Type: multipart/form-data; boundary=...
 
-<cualquier cuerpo>
+transcription   el texto
+recordedAt      epoch en milisegundos
+client          de dónde viene
 ```
 
-**No se interpreta el body.** Llegue como llegue — JSON, texto plano,
-form-urlencoded, multipart o vacío — se guarda crudo, se imprime completo
-en los logs de Vercel y la página lo muestra tal cual. Si resulta ser JSON
-válido, además se formatea.
+Se corta el multipart y se extrae `transcription`. El boundary sale del
+`Content-Type`, y si no viene, se deduce de la primera línea del cuerpo.
+Funciona con CRLF o LF, y con texto multilínea.
 
-Respuestas: `200` con `{ok:true, bytes}` para cualquier cuerpo, `401` si el
-header no coincide, `501` si `INDEX_AUT` no está configurada. El header
-también se acepta como `Bearer <valor>`.
+Como respaldo también entiende JSON (busca el campo en cualquier nivel),
+`x-www-form-urlencoded` y texto plano suelto.
 
-`ia.html` consulta `GET /api/ia` cada 2 s y, cuando entra algo nuevo,
-dispara un `alert()` con el payload y lo agrega al listado con su
-content-type, tamaño y headers. Hay un botón para silenciar el alert.
+Respuestas: `200` con `{ok, chars, formato}`, `401` si el header no
+coincide, `501` si falta `INDEX_AUT`. El header también se acepta como
+`Bearer <valor>`. Si no encuentra `transcription`, igual responde `200` y
+guarda el cuerpo crudo para poder depurar.
 
-> El dominio sin `www` responde 308 hacia `www`. Apunta el webhook
-> directo a `www.fukudamiyasato.com` — muchos emisores no siguen redirects
-> en un POST.
+`ia.html` consulta `GET /api/ia` cada 2 s y por cada transcripción nueva
+hace un `console.log` con el texto, además de mostrarlo en pantalla con su
+`client`, la hora de grabado y el payload completo desplegable.
 
-> **Es un montaje de prueba.** El payload se guarda en memoria de la
-> función, no en una base: si Vercel levanta otra instancia, el `GET` puede
-> devolver `null` aunque el `POST` haya entrado bien. En los logs de Vercel
-> queda siempre. Para que persista hay que guardarlo en algún lado
-> (Airtable, Vercel KV, Upstash…).
+> El dominio sin `www` responde 308 hacia `www`. Apunta el webhook directo
+> a `www.fukudamiyasato.com` — muchos emisores no siguen redirects en POST.
+
+> **Es un montaje de prueba.** Se guarda en memoria de la función, no en
+> una base: si Vercel levanta otra instancia, el `GET` puede devolver
+> `null` aunque el `POST` haya entrado bien. En los logs de Vercel queda
+> siempre como `[api/ia] transcription (...)`. Para que persista hay que
+> guardarlo en algún lado (Airtable, Vercel KV, Upstash…).
 >
-> El `GET` es **público**: quien tenga la URL lee el último payload. El
-> header `Authorization` nunca se devuelve ni se guarda.
+> El `GET` es **público**: quien tenga la URL lee la última transcripción.
+> El header `Authorization` nunca se guarda ni se devuelve.
 
 ---
 

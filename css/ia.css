@@ -29,19 +29,17 @@
   50%      { opacity: .35; }
 }
 
-.mute {
+.tip {
   margin-left: auto;
-  padding: 7px 13px;
-  border: 1px solid var(--line);
-  border-radius: 99px;
   font-size: 10px;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  transition: color .25s, border-color .25s;
+  letter-spacing: .12em;
+  text-transform: none;
+  color: #3a3a44;
 }
-.mute:hover { border-color: #3a3a46; color: var(--text); }
-.mute.off { color: var(--text-faint); border-style: dashed; }
+.tip code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-faint);
+}
 
 .log {
   display: flex;
@@ -101,6 +99,18 @@
 }
 
 /* ---------- payload crudo ---------- */
+/* el texto de la transcripción, que es lo que importa */
+.texto {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.entry.sin-texto { border-left-color: var(--text-faint); }
+.entry.sin-texto .texto { color: var(--text-faint); font-style: italic; font-size: 14px; }
+
 .payload {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
