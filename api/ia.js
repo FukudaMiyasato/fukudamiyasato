@@ -183,6 +183,20 @@ const AT_FIELD = process.env.AIRTABLE_SAVE_FIELD || 'file';
 /* Vercel corta los cuerpos en 4.5MB; dejamos margen. */
 const MAX_B64 = 3_600_000;
 
+/**
+ * Saca el último adjunto de un `fields` de Airtable.
+ * La API de contenido devuelve los campos indexados por ID de campo, no
+ * por nombre, así que no se puede buscar por AT_FIELD: tomamos el primer
+ * array que tenga pinta de adjuntos.
+ */
+function lastAttachment(fields, prefer) {
+  const byName = fields?.[prefer];
+  const list = Array.isArray(byName) && byName.length
+    ? byName
+    : Object.values(fields || {}).find((v) => Array.isArray(v) && v.length && v[0]?.url) || [];
+  return list[list.length - 1] || {};
+}
+
 async function airtableSave({ filename, contentType, data }) {
   const key = process.env.AIRTABLE_TOKEN;
   if (!key) throw Object.assign(new Error('AIRTABLE_TOKEN no está configurada.'), { code: 501 });
@@ -223,7 +237,7 @@ async function airtableSave({ filename, contentType, data }) {
   }
 
   const saved = await up.json();
-  const att = saved?.fields?.[AT_FIELD]?.slice(-1)[0] || {};
+  const att = lastAttachment(saved?.fields, AT_FIELD);
   console.log(`[api/ia] guardado en ${AT_TABLE}: ${filename} (${att.size ?? '?'} bytes) -> ${recordId}`);
 
   return { id: recordId, filename: att.filename || filename, url: att.url || null, size: att.size ?? null };
@@ -241,7 +255,7 @@ async function airtableList(limit = 20) {
 
   const { records = [] } = await r.json();
   return records.map((rec) => {
-    const att = (rec.fields?.[AT_FIELD] || [])[0] || {};
+    const att = lastAttachment(rec.fields, AT_FIELD);
     return {
       id: rec.id,
       createdTime: rec.createdTime,
@@ -438,8 +452,15 @@ async function airtableProbe() {
     if (!up.ok) {
       out.adjunto = { ok: false, detalle: `${up.status} ${(await up.text()).slice(0, 300)}` };
     } else {
-      const att = (await up.json())?.fields?.[AT_FIELD]?.slice(-1)[0] || {};
-      out.adjunto = { ok: true, filename: att.filename || null, size: att.size ?? null, tieneUrl: Boolean(att.url) };
+      const body = await up.json();
+      const att = lastAttachment(body?.fields, AT_FIELD);
+      out.adjunto = {
+        ok: Boolean(att.url),
+        filename: att.filename || null,
+        size: att.size ?? null,
+        tieneUrl: Boolean(att.url),
+        clavesDevueltas: Object.keys(body?.fields || {}),
+      };
     }
   } catch (err) {
     out.adjunto = { ok: false, detalle: err.message };
