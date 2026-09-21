@@ -181,10 +181,13 @@ GET  /api/ia?app=1           el código de la app generada
 POST /api/ia?generate=1      { id } -> genera la app con GPT
 GET  /api/ia?diag=1          qué variables ve la función
 GET  /api/ia?diag=models     lo mismo + comprueba el modelo contra OpenAI
+GET  /api/ia?diag=write      prueba Airtable de punta a punta
 ```
 
 `diag` nunca devuelve el valor de una variable: solo si existe, de qué
-largo es y en qué entorno corre la función. Sirve para distinguir una
+largo es y en qué entorno corre la función. `diag=write` crea un registro
+vacío en `ia_save`, le cuelga un adjunto de prueba y borra todo: es la
+única forma de comprobar de verdad los permisos de escritura. Sirve para distinguir una
 variable que falta de una puesta en otro entorno o con espacios de más.
 
 > **Las variables de entorno exigen redeploy.** Vercel no las inyecta en
