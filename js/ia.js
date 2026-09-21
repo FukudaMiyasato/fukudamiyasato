@@ -9,10 +9,8 @@ const STORE   = 'fm.ia.app.v1';
 const stage  = document.getElementById('stage');
 const frame  = document.getElementById('app-frame');
 const nav    = document.getElementById('nav');
-const navIco = document.getElementById('nav-icon');
 
-const ICON_BACK  = '<path d="M14.5 5.5L8 12l6.5 6.5"/>';
-const ICON_CLOSE = '<path d="M5 5l14 14M19 5L5 19"/>';
+const CLOSE_ANIM_MS = 760;  // debe cubrir la transición de .app-frame en ia.css
 
 let handledId = null;     // transcripción ya procesada
 let shownId   = null;     // app que se está viendo
@@ -42,28 +40,21 @@ function showApp(entry) {
   frame.srcdoc = entry.html;           // asignado como propiedad: no hay que escapar nada
   frame.classList.add('show');
   stage.classList.add('oculta');
-  navIco.innerHTML = ICON_CLOSE;
-  nav.href = '#';
-  nav.setAttribute('aria-label', 'Cerrar la app y volver a esperar');
 }
 
+/* El botón de la esquina es siempre "volver al inicio": no hay botón para
+   eliminar la app. Para eso está el shake, más abajo. Al cerrar dejamos que
+   la animación de la nebulosa "tragándose" la app termine antes de vaciar
+   el iframe, si no se ve un parpadeo en blanco a mitad de la transición. */
 function closeApp() {
   frame.classList.remove('show');
   stage.classList.remove('oculta');
-  frame.srcdoc = '';
   shownId = null;
   token = null;
-  navIco.innerHTML = ICON_BACK;
-  nav.href = 'index.html';
-  nav.setAttribute('aria-label', 'Volver al inicio');
+  setTimeout(() => {
+    if (shownId === null) frame.srcdoc = '';
+  }, CLOSE_ANIM_MS);
 }
-
-nav.addEventListener('click', (e) => {
-  if (!frame.classList.contains('show')) return;   // modo nebulosa: es el enlace normal
-  e.preventDefault();
-  markClosed();
-  closeApp();
-});
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && frame.classList.contains('show')) {
@@ -71,6 +62,56 @@ document.addEventListener('keydown', (e) => {
     closeApp();
   }
 });
+
+/* ============================================================
+   Shake para descartar la app cargada
+   ------------------------------------------------------------
+   Sin botón de eliminar: se agita el celular y vuelve a ser la
+   nebulosa. En iOS hace falta permiso explícito, y solo se puede
+   pedir tras un gesto del usuario — se pide con el primer toque.
+   ============================================================ */
+const SHAKE_THRESHOLD = 18;    // m/s² de variación entre lecturas
+const SHAKE_COOLDOWN  = 1200;  // no disparar dos veces seguidas
+
+let lastShakeAt = 0;
+let lastAcc = null;
+
+function onDeviceMotion(e) {
+  const acc = e.accelerationIncludingGravity || e.acceleration;
+  if (!acc || acc.x == null) return;
+
+  const { x, y, z } = acc;
+  if (lastAcc) {
+    const delta = Math.abs(x - lastAcc.x) + Math.abs(y - lastAcc.y) + Math.abs(z - lastAcc.z);
+    const now = Date.now();
+    if (delta > SHAKE_THRESHOLD && now - lastShakeAt > SHAKE_COOLDOWN) {
+      lastShakeAt = now;
+      if (frame.classList.contains('show')) {
+        markClosed();
+        closeApp();
+      }
+    }
+  }
+  lastAcc = { x, y, z };
+}
+
+function enableShake() {
+  window.addEventListener('devicemotion', onDeviceMotion);
+}
+
+if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+  const askPermission = () => {
+    document.removeEventListener('click', askPermission);
+    document.removeEventListener('touchend', askPermission);
+    DeviceMotionEvent.requestPermission().then((state) => {
+      if (state === 'granted') enableShake();
+    }).catch(() => { /* el usuario dijo que no */ });
+  };
+  document.addEventListener('click', askPermission, { once: true });
+  document.addEventListener('touchend', askPermission, { once: true });
+} else if (typeof DeviceMotionEvent !== 'undefined') {
+  enableShake();
+}
 
 function flashError(msg) {
   console.error('[ia]', msg);

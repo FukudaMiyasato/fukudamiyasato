@@ -73,8 +73,8 @@
 }
 
 .gate svg {
-  width: 38%;
-  height: 38%;
+  width: 34%;
+  height: 34%;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.5;
@@ -97,5 +97,6 @@
 }
 
 @media (max-width: 620px) {
-  .gates { width: min(230px, 100%); }
+  /* fuerza 3 columnas para que nunca salten a una segunda fila */
+  .gates { grid-template-columns: repeat(3, minmax(0, 88px)); width: min(280px, 88vw); gap: 10px; }
 }

@@ -2,13 +2,14 @@
    Works — filters + hover-reveal grid
    ============================================================ */
 
+.page-head { align-items: center; }
+
 .filters {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 26px;
 }
 
 .field {

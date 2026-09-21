@@ -304,11 +304,49 @@ const SDK = `<script>(function(){
   };
 })();<\/script>`;
 
-/** Mete el SDK dentro del <head> de lo que devolvió el modelo. */
+/* ============================================================
+   Estilos base — rojo/negro con efectos neón
+   ------------------------------------------------------------
+   Se inyectan antes que nada en el <head>, así el modelo no tiene
+   que inventarse una paleta ni un tema: botones, inputs y demás ya
+   salen vestidos. Las reglas del modelo, que van después, pueden
+   sobreescribirlas si hace falta.
+   ============================================================ */
+const NEON_CSS = `<style id="fm-base">
+:root{
+  --fm-bg:#0a0a0c;--fm-panel:#141418;--fm-panel-2:#1b1b21;--fm-line:#26262e;
+  --fm-red:#e0102b;--fm-red-hot:#ff1f3d;--fm-red-deep:#8c0518;
+  --fm-glow:rgba(224,16,43,.45);--fm-text:#f2f2f4;--fm-text-dim:#9a9aa6;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--fm-bg);color:var(--fm-text);min-height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+::selection{background:var(--fm-red);color:#fff;}
+button,.fm-btn,input[type=button],input[type=submit]{
+  font:inherit;color:#fff;cursor:pointer;border-radius:10px;padding:.6em 1.1em;
+  background:linear-gradient(160deg,var(--fm-red) 0%,var(--fm-red-deep) 100%);
+  border:1px solid var(--fm-red-hot);box-shadow:0 0 0 0 var(--fm-glow);
+  transition:box-shadow .25s ease,transform .25s ease,filter .25s ease;}
+button:hover,.fm-btn:hover,input[type=button]:hover,input[type=submit]:hover{
+  box-shadow:0 0 18px 2px var(--fm-glow);transform:translateY(-1px);}
+button:active,.fm-btn:active{transform:translateY(0) scale(.97);}
+button:disabled,.fm-btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none;}
+input,select,textarea{
+  font:inherit;color:var(--fm-text);background:var(--fm-panel);
+  border:1px solid var(--fm-line);border-radius:8px;padding:.55em .8em;}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--fm-red-hot);box-shadow:0 0 0 3px var(--fm-glow);}
+a{color:var(--fm-red-hot);}
+.fm-panel,.card,.panel{background:var(--fm-panel-2);border:1px solid var(--fm-line);border-radius:14px;}
+.fm-neon,.glow{text-shadow:0 0 12px var(--fm-glow);}
+</style>`;
+
+/** Mete el SDK y los estilos base dentro del <head> de lo que devolvió el modelo. */
 function injectSdk(html) {
-  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + SDK);
-  if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${SDK}</head>`);
-  return SDK + html;
+  const inject = NEON_CSS + SDK;
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + inject);
+  if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${inject}</head>`);
+  return inject + html;
 }
 
 /* ============================================================
@@ -325,9 +363,19 @@ Reglas estrictas:
 - La página corre dentro de un iframe aislado: NO uses localStorage,
   sessionStorage, cookies, fetch, XMLHttpRequest ni window.parent
   directamente. Fallarían.
-- Diseño: fondo oscuro #0a0a0c, texto claro, acentos rojos #e0102b,
-  tipografía del sistema, esquinas suaves. Tiene que verse bien a pantalla
-  completa y también en móvil.
+
+DISEÑO — ya viene puesto, no lo reconstruyas
+Antes de tu HTML se inyecta una hoja de estilos base: fondo oscuro
+(--fm-bg #0a0a0c), texto claro, botones e inputs ya vestidos con el tema
+rojo/negro y efectos neón (glow en hover/focus con --fm-glow). Los
+elementos normales (button, input, select, textarea, a) ya salen bien.
+- NO definas tu propia paleta de colores ni reconstruyas el estilo de
+  botones e inputs desde cero: usa las etiquetas normales, o las clases
+  .fm-btn / .fm-panel / .card / .panel / .fm-neon si te hacen falta.
+- Tu <style> es solo para el layout propio de la app (posiciones,
+  tamaños, espaciados, grids) y detalles muy específicos que la base no
+  cubre. Cuanto menos CSS de tema escribas, mejor.
+- Tiene que verse bien a pantalla completa y también en móvil.
 - Es una app usable, no una maqueta: los botones hacen lo que dicen.
 - Si la instrucción es ambigua o muy corta, elige la interpretación más
   simple y útil, y hazla completa.
