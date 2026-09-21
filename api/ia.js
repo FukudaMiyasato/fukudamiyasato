@@ -369,6 +369,70 @@ function cleanHtml(out) {
   return s;
 }
 
+/**
+ * ¿Puede escribir el token en ia_save? Crea un registro vacío y lo borra.
+ * No deja rastro, y es lo único que distingue un scope faltante de un
+ * token viejo guardado en Vercel.
+ */
+async function airtableProbe() {
+  const key = process.env.AIRTABLE_TOKEN;
+  const out = { base: AT_BASE, tabla: AT_TABLE, campo: AT_FIELD };
+
+  if (!key) return { ...out, error: 'AIRTABLE_TOKEN no está configurada.' };
+  const auth = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+
+  // quién es este token
+  try {
+    const who = await fetch('https://api.airtable.com/v0/meta/whoami', { headers: auth });
+    const j = await who.json().catch(() => ({}));
+    out.token = who.ok ? { id: j.id || null, scopes: j.scopes || '(no los expone)' } : `whoami ${who.status}`;
+  } catch (err) {
+    out.token = `whoami falló: ${err.message}`;
+  }
+
+  // ¿los campos que esperamos existen?
+  try {
+    const r = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}?pageSize=1`, { headers: auth });
+    if (!r.ok) {
+      out.lectura = { ok: false, detalle: `${r.status} ${(await r.text()).slice(0, 200)}` };
+      return out;
+    }
+    const { records = [] } = await r.json();
+    out.lectura = { ok: true, registros: records.length, campos: Object.keys(records[0]?.fields || {}) };
+  } catch (err) {
+    out.lectura = { ok: false, detalle: err.message };
+    return out;
+  }
+
+  // crear y borrar
+  let id = null;
+  try {
+    const mk = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}`, {
+      method: 'POST', headers: auth, body: JSON.stringify({ records: [{ fields: {} }], typecast: true }),
+    });
+    if (!mk.ok) {
+      out.escritura = { ok: false, detalle: `${mk.status} ${(await mk.text()).slice(0, 300)}` };
+      return out;
+    }
+    id = (await mk.json()).records[0].id;
+    out.escritura = { ok: true, registroDePrueba: id };
+  } catch (err) {
+    out.escritura = { ok: false, detalle: err.message };
+    return out;
+  }
+
+  try {
+    const del = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}/${id}`, {
+      method: 'DELETE', headers: auth,
+    });
+    out.limpieza = del.ok ? 'registro de prueba borrado' : `no se pudo borrar (${del.status}) — bórralo a mano: ${id}`;
+  } catch (err) {
+    out.limpieza = `no se pudo borrar: ${err.message} — bórralo a mano: ${id}`;
+  }
+
+  return out;
+}
+
 /** ¿Existe el modelo configurado para esta cuenta? Solo lectura. */
 async function modelOk(key) {
   const model = process.env.OPENAI_MODEL || 'gpt-4o';
@@ -444,6 +508,9 @@ export default async function handler(req, res) {
         // ?diag=models comprueba contra OpenAI que el modelo existe para
         // esta cuenta. Es una llamada de solo lectura, no gasta tokens.
         modeloDisponible: req.query.diag === 'models' ? await modelOk(key) : null,
+        // ?diag=write crea un registro vacío en ia_save y lo borra: es la
+        // única forma de saber de verdad si el token puede escribir.
+        airtable: req.query.diag === 'write' ? await airtableProbe() : null,
       });
     }
 
