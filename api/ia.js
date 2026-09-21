@@ -421,6 +421,30 @@ async function airtableProbe() {
     return out;
   }
 
+  // el paso que de verdad usa la app: colgar un adjunto en el campo `file`
+  try {
+    const up = await fetch(
+      `https://content.airtable.com/v0/${AT_BASE}/${id}/${encodeURIComponent(AT_FIELD)}/uploadAttachment`,
+      {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          contentType: 'text/plain',
+          file: Buffer.from('prueba de adjunto').toString('base64'),
+          filename: 'prueba.txt',
+        }),
+      },
+    );
+    if (!up.ok) {
+      out.adjunto = { ok: false, detalle: `${up.status} ${(await up.text()).slice(0, 300)}` };
+    } else {
+      const att = (await up.json())?.fields?.[AT_FIELD]?.slice(-1)[0] || {};
+      out.adjunto = { ok: true, filename: att.filename || null, size: att.size ?? null, tieneUrl: Boolean(att.url) };
+    }
+  } catch (err) {
+    out.adjunto = { ok: false, detalle: err.message };
+  }
+
   try {
     const del = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}/${id}`, {
       method: 'DELETE', headers: auth,
