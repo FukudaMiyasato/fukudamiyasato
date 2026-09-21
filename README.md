@@ -155,47 +155,54 @@ salen.
 
 ---
 
-## IA · webhook
+## IA · voz → mini-app
 
-El emisor manda `multipart/form-data` a
-`POST https://www.fukudamiyasato.com/api/ia`:
+La sección IA es una pantalla limpia: solo una nebulosa roja girando y el
+botón de la esquina. Cuando entra una transcripción por el webhook, se
+manda a GPT, GPT devuelve una página HTML que implementa lo pedido
+("crea una calculadora", "un botón que contabilice") y esa app se ejecuta a
+pantalla completa. Mientras GPT trabaja, la nebulosa gira 5× más rápido.
+El botón pasa de flecha a **X**: cierra la app y vuelve a la espera.
+
+### Variables de entorno
+
+| Variable | Para qué |
+|----------|----------|
+| `INDEX_AUT` | secreto del webhook (ya la tienes) |
+| `OPENAI_API_KEY` | la key de OpenAI |
+| `OPENAI_MODEL` | opcional, por defecto `gpt-4o` |
+
+### Endpoints
 
 ```
-Authorization: <el valor de la env INDEX_AUT>
-Content-Type: multipart/form-data; boundary=...
-
-transcription   el texto
-recordedAt      epoch en milisegundos
-client          de dónde viene
+POST /api/ia                 webhook (multipart, header Authorization)
+GET  /api/ia                 última transcripción + metadata de la app
+GET  /api/ia?app=1           el código de la app generada
+POST /api/ia?generate=1      { id } -> genera la app con GPT
 ```
 
-Se corta el multipart y se extrae `transcription`. El boundary sale del
-`Content-Type`, y si no viene, se deduce de la primera línea del cuerpo.
-Funciona con CRLF o LF, y con texto multilínea.
+El POST de generación no lleva `Authorization` porque lo llama el
+navegador. Para que no sea un generador abierto — ni se te vaya el crédito
+de OpenAI — solo acepta el id de la transcripción vigente y cachea el
+resultado: **un mensaje, una llamada a la API**. No se pueden mandar
+prompts sueltos.
 
-Como respaldo también entiende JSON (busca el campo en cualquier nivel),
-`x-www-form-urlencoded` y texto plano suelto.
+### Cómo se ejecuta la app
 
-Respuestas: `200` con `{ok, chars, formato}`, `401` si el header no
-coincide, `501` si falta `INDEX_AUT`. El header también se acepta como
-`Bearer <valor>`. Si no encuentra `transcription`, igual responde `200` y
-guarda el cuerpo crudo para poder depurar.
+En un `<iframe sandbox="allow-scripts allow-forms allow-modals">`, **sin**
+`allow-same-origin`. El código lo escribe un modelo a partir de un mensaje
+que llega de fuera, así que corre en un origen opaco: puede usar JS y
+verse a pantalla completa, pero no puede leer el `localStorage` del sitio,
+ni las cookies, ni llamar a `/api/ia`. Por eso el prompt le prohíbe usar
+`localStorage`, `fetch` y `window.parent`: ahí dentro fallarían.
 
-`ia.html` consulta `GET /api/ia` cada 2 s y por cada transcripción nueva
-hace un `console.log` con el texto, además de mostrarlo en pantalla con su
-`client`, la hora de grabado y el payload completo desplegable.
+La app generada se guarda en el `localStorage` del navegador, así que
+sobrevive a recargas. Si la cierras con la X, se recuerda que la cerraste y
+la próxima carga arranca en la nebulosa.
 
-> El dominio sin `www` responde 308 hacia `www`. Apunta el webhook directo
-> a `www.fukudamiyasato.com` — muchos emisores no siguen redirects en POST.
-
-> **Es un montaje de prueba.** Se guarda en memoria de la función, no en
-> una base: si Vercel levanta otra instancia, el `GET` puede devolver
-> `null` aunque el `POST` haya entrado bien. En los logs de Vercel queda
-> siempre como `[api/ia] transcription (...)`. Para que persista hay que
-> guardarlo en algún lado (Airtable, Vercel KV, Upstash…).
->
-> El `GET` es **público**: quien tenga la URL lee la última transcripción.
-> El header `Authorization` nunca se guarda ni se devuelve.
+> Igual que antes, la transcripción y el código viven en memoria de la
+> función. Si Vercel levanta otra instancia se pierden, pero la app ya
+> guardada en el navegador sigue ahí.
 
 ---
 

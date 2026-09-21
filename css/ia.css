@@ -1,153 +1,162 @@
 /* ============================================================
-   IA — consola de transcripciones entrantes
+   IA — pantalla limpia: nebulosa roja esperando, o la app a
+   pantalla completa. Nada más que el botón de la esquina.
    ============================================================ */
 
-.listener {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-bottom: 22px;
-  font-size: 11px;
-  letter-spacing: .18em;
-  text-transform: uppercase;
-  color: var(--text-faint);
+.ia-body {
+  overflow: hidden;
+  height: 100dvh;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
+/* el degradado rojo de base.css estorba aquí */
+.ia-body::before { display: none; }
+
+.stage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+
+/* ============================================================
+   Nebulosa
+   ------------------------------------------------------------
+   Gradientes cónicos girando a distintas velocidades: las bandas
+   se cruzan y forman remolinos. Encima, manchas claras y oscuras
+   que van y vienen. --spin acelera todo cuando está generando.
+   ============================================================ */
+
+.orb {
+  --size: min(58vmin, 460px);
+  --spin: 1;                       /* multiplicador de velocidad */
+
+  position: relative;
+  width: var(--size);
+  height: var(--size);
   border-radius: 50%;
-  flex: 0 0 auto;
-  background: var(--text-faint);
-}
-.dot.on   { background: #2fbf71; box-shadow: 0 0 0 4px rgba(47, 191, 113, .16); animation: beat 2s ease-in-out infinite; }
-.dot.off  { background: var(--red); box-shadow: 0 0 0 4px var(--red-glow); }
-.dot.wait { background: #8a8a3a; }
-
-@keyframes beat {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: .35; }
+  filter: blur(calc(var(--size) / 34)) saturate(1.3) contrast(1.15);
+  transition: filter .9s var(--ease), transform .9s var(--ease);
 }
 
-.tip {
-  margin-left: auto;
-  font-size: 10px;
-  letter-spacing: .12em;
-  text-transform: none;
-  color: #3a3a44;
-}
-.tip code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--text-faint);
-}
-
-.log {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* el halo exterior, que la despega del fondo */
+.orb::after {
+  content: "";
+  position: absolute;
+  inset: -24%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(224, 16, 43, .2), transparent 66%);
+  pointer-events: none;
+  z-index: -1;
 }
 
-.entry {
-  border: 1px solid var(--line-soft);
-  border-left: 2px solid var(--red);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  padding: 14px 16px;
-  animation: entryIn .3s var(--ease) both;
-}
-@keyframes entryIn { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
-
-.entry time {
-  display: block;
-  font-size: 10px;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  margin-bottom: 8px;
-}
-.entry p {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
+.orb i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  /* los bordes se disuelven en vez de cortarse en seco */
+  -webkit-mask-image: radial-gradient(circle, #000 38%, rgba(0, 0, 0, .55) 62%, transparent 78%);
+  mask-image: radial-gradient(circle, #000 38%, rgba(0, 0, 0, .55) 62%, transparent 78%);
 }
 
-.empty-log {
-  padding: 56px 24px;
-  text-align: center;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-  color: var(--text-faint);
-  font-size: 13px;
+/* ---- las bandas que giran ---- */
+.orb i:nth-child(1) {
+  background: conic-gradient(from 0deg,
+    transparent 0%, #ff1f3d 12%, transparent 30%,
+    #8c0518 46%, transparent 62%,
+    #ff5a4e 80%, transparent 96%);
+  animation: rot calc(13s / var(--spin)) linear infinite;
 }
-.empty-log span {
-  display: block;
-  margin-top: 10px;
-  font-size: 11.5px;
-  color: #3a3a44;
-  line-height: 1.9;
+.orb i:nth-child(2) {
+  background: conic-gradient(from 140deg,
+    transparent 4%, #c20d24 20%, transparent 34%,
+    transparent 56%, #ff8a72 70%, transparent 88%);
+  opacity: .8;
+  mix-blend-mode: screen;
+  animation: rot calc(22s / var(--spin)) linear infinite reverse;
 }
-.empty-log code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  color: var(--text-dim);
-  background: var(--panel);
-  border: 1px solid var(--line-soft);
-  border-radius: 5px;
-  padding: 2px 6px;
-}
-
-/* ---------- payload crudo ---------- */
-/* el texto de la transcripción, que es lo que importa */
-.texto {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.65;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.entry.sin-texto { border-left-color: var(--text-faint); }
-.entry.sin-texto .texto { color: var(--text-faint); font-style: italic; font-size: 14px; }
-
-.payload {
-  margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 420px;
-  overflow: auto;
+.orb i:nth-child(3) {
+  background: conic-gradient(from 260deg,
+    transparent 8%, #59010f 24%, transparent 40%,
+    #ff1f3d 60%, transparent 76%);
+  opacity: .7;
+  mix-blend-mode: screen;
+  animation: rot calc(8s / var(--spin)) linear infinite;
 }
 
-.meta {
-  margin-top: 12px;
-  border-top: 1px solid var(--line-soft);
-  padding-top: 10px;
+/* ---- los huecos oscuros, que dan profundidad ---- */
+.orb i:nth-child(4) {
+  background:
+    radial-gradient(circle at 30% 34%, #06060a 0%, rgba(6, 6, 10, .75) 16%, transparent 40%),
+    radial-gradient(circle at 74% 66%, #0d0206 0%, rgba(13, 2, 6, .7) 14%, transparent 36%);
+  mix-blend-mode: multiply;
+  animation: drift calc(19s / var(--spin)) ease-in-out infinite;
 }
-.meta summary {
-  cursor: pointer;
-  font-size: 10px;
-  letter-spacing: .2em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  list-style: none;
+
+/* ---- el núcleo caliente ---- */
+.orb i:nth-child(5) {
+  background: radial-gradient(circle at 52% 46%,
+    rgba(255, 214, 205, .85) 0%, rgba(255, 90, 78, .45) 16%, transparent 40%);
+  mix-blend-mode: screen;
+  animation: drift calc(11s / var(--spin)) ease-in-out infinite reverse,
+             breathe calc(6s / var(--spin)) ease-in-out infinite;
 }
-.meta summary::-webkit-details-marker { display: none; }
-.meta summary::before { content: "▸ "; }
-.meta[open] summary::before { content: "▾ "; }
-.meta summary:hover { color: var(--text-dim); }
-.meta pre {
-  margin: 10px 0 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--text-faint);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 240px;
-  overflow: auto;
+
+@keyframes rot {
+  to { rotate: 360deg; }
+}
+@keyframes drift {
+  0%, 100% { translate: 0 0; }
+  25%      { translate: 7% -5%; }
+  50%      { translate: -4% 6%; }
+  75%      { translate: -6% -4%; }
+}
+@keyframes breathe {
+  0%, 100% { scale: 1; }
+  50%      { scale: 1.2; }
+}
+
+/* generando: gira mucho más rápido y se enciende */
+.stage.busy .orb {
+  --spin: 5;
+  filter: blur(calc(var(--size) / 42)) saturate(1.8) contrast(1.3) brightness(1.2);
+  transform: scale(1.07);
+}
+
+/* algo falló: un latido apagado y vuelve a la espera */
+.stage.error .orb { animation: fallo 1.5s var(--ease); }
+@keyframes fallo {
+  0%, 100% { filter: blur(calc(var(--size) / 34)) saturate(1.3) contrast(1.15); }
+  40%      { filter: blur(calc(var(--size) / 14)) saturate(.3) brightness(.55); }
+}
+
+/* ============================================================
+   La app generada, a pantalla completa
+   ============================================================ */
+.app-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #0a0a0c;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .45s var(--ease);
+}
+.app-frame.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* con una app encima, la nebulosa no tiene por qué seguir gastando CPU */
+.stage.oculta .orb i { animation-play-state: paused; }
+
+/* el botón de la esquina siempre por encima del iframe */
+.back-btn { z-index: 200; }
+
+@media (prefers-reduced-motion: reduce) {
+  .orb i { animation-duration: 120s; }
+  .orb i:nth-child(5) { animation: rot 120s linear infinite; }
 }

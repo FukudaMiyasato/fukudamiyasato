@@ -1,73 +1,156 @@
 /* ============================================================
-   ia.js — escucha /api/ia y saca por consola cada transcripción
+   ia.js — la nebulosa espera; cuando llega una transcripción se
+   manda a GPT, y lo que devuelve se ejecuta a pantalla completa.
    ============================================================ */
 
 const POLL_MS = 2000;
+const STORE   = 'fm.ia.app.v1';
 
-const dot    = document.getElementById('dot');
-const status = document.getElementById('status');
-const log    = document.getElementById('log');
+const stage  = document.getElementById('stage');
+const frame  = document.getElementById('app-frame');
+const nav    = document.getElementById('nav');
+const navIco = document.getElementById('nav-icon');
 
-let lastId = null;
-let started = false;      // el primer sondeo no reporta lo que ya estaba
-let fails = 0;
+const ICON_BACK  = '<path d="M14.5 5.5L8 12l6.5 6.5"/>';
+const ICON_CLOSE = '<path d="M5 5l14 14M19 5L5 19"/>';
 
-function setState(cls, txt) {
-  dot.className = `dot ${cls}`;
-  status.textContent = txt;
+let handledId = null;     // transcripción ya procesada
+let shownId   = null;     // app que se está viendo
+let busy      = false;
+
+/* ---------------- lo guardado ---------------- */
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORE)) || null; } catch { return null; }
+}
+function save(entry) {
+  try { localStorage.setItem(STORE, JSON.stringify(entry)); } catch { /* modo privado */ }
+}
+function markClosed() {
+  const s = load();
+  if (s) save({ ...s, closed: true });
 }
 
-function push(entry) {
-  const el = document.createElement('article');
-  el.className = 'entry' + (entry.text ? '' : ' sin-texto');
-
-  const hora = new Date(entry.at).toLocaleTimeString('es-ES');
-  const grabado = entry.recordedAt
-    ? new Date(entry.recordedAt).toLocaleString('es-ES')
-    : null;
-
-  const meta = [hora, entry.client, grabado && `grabado ${grabado}`]
-    .filter(Boolean).join(' · ');
-
-  el.innerHTML = `
-    <time></time>
-    <p class="texto"></p>
-    <details class="meta"><summary>payload</summary><pre></pre></details>`;
-
-  el.querySelector('time').textContent = meta;
-  // textContent: lo que llegue se ve literal, nunca se ejecuta
-  el.querySelector('.texto').textContent =
-    entry.text || '(sin campo transcription — mira el payload)';
-  el.querySelector('.meta pre').textContent =
-    JSON.stringify({ formato: entry.formato, bytes: entry.bytes, campos: entry.fields,
-                     archivos: entry.files, raw: entry.raw }, null, 2);
-
-  log.prepend(el);
-  document.getElementById('empty')?.remove();
+/* ---------------- pantalla ---------------- */
+function setBusy(on) {
+  busy = on;
+  stage.classList.toggle('busy', on);
 }
 
-async function poll() {
+function showApp(entry) {
+  shownId = entry.id;
+  frame.srcdoc = entry.html;           // asignado como propiedad: no hay que escapar nada
+  frame.classList.add('show');
+  stage.classList.add('oculta');
+  navIco.innerHTML = ICON_CLOSE;
+  nav.href = '#';
+  nav.setAttribute('aria-label', 'Cerrar la app y volver a esperar');
+}
+
+function closeApp() {
+  frame.classList.remove('show');
+  stage.classList.remove('oculta');
+  frame.srcdoc = '';
+  shownId = null;
+  navIco.innerHTML = ICON_BACK;
+  nav.href = 'index.html';
+  nav.setAttribute('aria-label', 'Volver al inicio');
+}
+
+nav.addEventListener('click', (e) => {
+  if (!frame.classList.contains('show')) return;   // modo nebulosa: es el enlace normal
+  e.preventDefault();
+  markClosed();
+  closeApp();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && frame.classList.contains('show')) {
+    markClosed();
+    closeApp();
+  }
+});
+
+function flashError(msg) {
+  console.error('[ia]', msg);
+  stage.classList.add('error');
+  setTimeout(() => stage.classList.remove('error'), 1500);
+}
+
+/* ---------------- generar ---------------- */
+async function generate(id, prompt) {
+  setBusy(true);
   try {
-    const res = await fetch('/api/ia', { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const { latest } = await res.json();
+    const res = await fetch('/api/ia?generate=1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    if (!json.app?.html) throw new Error('respuesta sin código');
 
-    fails = 0;
-    setState('on', 'Escuchando /api/ia');
-
-    if (latest && latest.id !== lastId) {
-      lastId = latest.id;
-      push(latest);
-      if (started && latest.text) console.log(latest.text);
-    }
-    started = true;
+    const entry = { id: json.app.id, html: json.app.html, prompt, at: json.app.at, closed: false };
+    save(entry);
+    showApp(entry);
+    console.log(`[ia] app lista (${entry.html.length} chars) para: ${prompt}`);
   } catch (err) {
-    fails++;
-    started = true;
-    setState('off', fails > 2 ? `Sin conexión con /api/ia (${err.message})` : 'Reintentando…');
+    flashError(`no se pudo generar la app: ${err.message}`);
+  } finally {
+    setBusy(false);
   }
 }
 
-setState('wait', 'Conectando…');
+/** Trae el código de una app que el servidor ya tenía hecha. */
+async function adopt(appId, prompt) {
+  try {
+    const res = await fetch('/api/ia?app=1', { cache: 'no-store' });
+    const { app } = await res.json();
+    if (!app?.html || app.id !== appId) return false;
+
+    const entry = { id: app.id, html: app.html, prompt: app.prompt || prompt, at: app.at, closed: false };
+    save(entry);
+    showApp(entry);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ---------------- sondeo ---------------- */
+async function poll() {
+  if (busy) return;
+
+  let data;
+  try {
+    const res = await fetch('/api/ia', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch {
+    return;                       // sin conexión: la nebulosa sigue girando
+  }
+
+  const { latest, app } = data;
+  if (!latest?.text) return;
+
+  if (latest.id === handledId) return;
+  handledId = latest.id;
+
+  console.log(latest.text);
+
+  // si el servidor ya la generó (otra pestaña, otro dispositivo), la tomamos
+  if (app?.id === latest.id && await adopt(app.id, latest.text)) return;
+
+  generate(latest.id, latest.text);
+}
+
+/* ---------------- arranque ---------------- */
+const saved = load();
+if (saved?.html && !saved.closed) {
+  showApp(saved);
+  handledId = saved.id;
+} else if (saved?.id) {
+  handledId = saved.id;           // ya la vimos y la cerramos: no regenerar
+}
+
 poll();
 setInterval(poll, POLL_MS);
