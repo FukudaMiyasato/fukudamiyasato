@@ -355,11 +355,19 @@ a{color:var(--fm-red-hot);text-shadow:0 0 8px var(--fm-glow);}
   box-shadow:0 0 14px -6px var(--fm-glow);}
 .fm-neon,.glow{text-shadow:0 0 14px var(--fm-glow);}
 
-/* flotación sutil en reposo, una vez que el elemento ya se acomodó */
-.fm-float{animation:fm-float 5s ease-in-out var(--fm-float-delay,0s) infinite;}
+/* flotación sutil en reposo, una vez que el elemento ya se acomodó —
+   cada uno con su propio ritmo (duración, retraso y altura), así no
+   flotan parejo: el JS de abajo pone los tres al azar por elemento */
+.fm-float{
+  animation-name:fm-float;
+  animation-duration:var(--fm-float-dur,5s);
+  animation-delay:var(--fm-float-delay,0s);
+  animation-timing-function:ease-in-out;
+  animation-iteration-count:infinite;
+}
 @keyframes fm-float{
   0%,100%{translate:0 0;}
-  50%    {translate:0 -6px;}
+  50%    {translate:0 var(--fm-float-y,-6px);}
 }
 @media (prefers-reduced-motion: reduce){
   .fm-float{animation:none;}
@@ -414,7 +422,11 @@ const ASSEMBLE_JS = `<script>(function(){
         el.addEventListener('transitionend', function settle(ev){
           if (ev.propertyName !== 'transform') return;
           el.removeEventListener('transitionend', settle);
-          el.style.setProperty('--fm-float-delay', ((i % 7) * .3) + 's');
+          // ritmo propio por elemento: duración, retraso y altura al azar,
+          // no un simple desfase del mismo ciclo — así no laten parejo
+          el.style.setProperty('--fm-float-dur', (3.4 + Math.random() * 2.8).toFixed(2) + 's');
+          el.style.setProperty('--fm-float-delay', (Math.random() * 2.6).toFixed(2) + 's');
+          el.style.setProperty('--fm-float-y', '-' + (4 + Math.random() * 6).toFixed(1) + 'px');
           el.classList.add('fm-float');
         });
       });
@@ -670,6 +682,29 @@ async function generate(text) {
 }
 
 /* ============================================================
+   Generación falsa, para /test/sendOrder/ → "Probar gratis"
+   ------------------------------------------------------------
+   Mismo código, mismo <head> inyectado (SDK, estilos, ensamblaje y
+   flotación) que una app real — así sirve para probar la animación
+   de punta a punta — pero sin tocar OpenAI: cero tokens gastados.
+   El retraso de ~2s imita el tiempo real de generación.
+   ============================================================ */
+const MOCK_HTML = `<!DOCTYPE html><html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:20px;height:100vh;margin:0;padding:24px;box-sizing:border-box;text-align:center">
+  <label for="mock-input">Prueba de animación</label>
+  <input id="mock-input" type="text" placeholder="Escribe algo...">
+  <button type="button">Probar</button>
+</body></html>`;
+
+function mockGenerate() {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(injectSdk(MOCK_HTML)), 2000);
+  });
+}
+
+/* ============================================================
    Handler
    ============================================================ */
 export default async function handler(req, res) {
@@ -742,6 +777,8 @@ export default async function handler(req, res) {
     const text = String(body.text || '').trim();
     if (!text) return res.status(400).json({ error: 'Falta el texto.' });
 
+    const mock = Boolean(body.mock);
+
     latest = {
       id: `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       at: new Date().toISOString(),
@@ -751,9 +788,10 @@ export default async function handler(req, res) {
       formato: 'test',
       bytes: Buffer.byteLength(text, 'utf8'),
       raw: null,
+      mock,   // "Probar gratis": el ?generate=1 de abajo no toca OpenAI
     };
 
-    console.log(`[api/ia] orden de prueba (${text.length} chars): ${text}`);
+    console.log(`[api/ia] orden de prueba${mock ? ' (mock)' : ''} (${text.length} chars): ${text}`);
     return res.status(200).json({ ok: true, id: latest.id });
   }
 
@@ -784,7 +822,7 @@ export default async function handler(req, res) {
 
     const id = latest.id;
     const prompt = latest.text;
-    inflight = { id, promise: generate(prompt) };
+    inflight = { id, promise: latest.mock ? mockGenerate() : generate(prompt) };
 
     try {
       const html = await inflight.promise;

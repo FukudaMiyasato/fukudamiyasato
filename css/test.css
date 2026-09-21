@@ -55,6 +55,23 @@
 .order-form button:active { transform: scale(.97); }
 .order-form button:disabled { opacity: .5; cursor: default; box-shadow: none; }
 
+/* "Probar gratis" — secundario, sin relleno: no debe competir con Enviar.
+   (más específico a propósito: `.order-form button` de arriba, con un
+   elemento en el selector, le ganaría a una sola clase). */
+.order-form .order-mock-btn {
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.order-form .order-mock-btn:hover {
+  border-color: var(--red-hot);
+  color: #fff;
+  box-shadow: 0 0 0 6px var(--red-glow);
+}
+
 .order-note {
   margin: 14px 0 0;
   font-size: 12.5px;
