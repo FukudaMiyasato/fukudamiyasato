@@ -304,38 +304,10 @@ const SDK = `<script>(function(){
   };
 })();<\/script>`;
 
-/* ============================================================
-   Shake, detectado DENTRO del iframe
-   ------------------------------------------------------------
-   En iOS, DeviceMotionEvent.requestPermission() solo se puede
-   llamar dentro de un gesto del usuario. La app llega sola
-   (disparada por voz), así que el único gesto real que ocurre es un
-   toque DENTRO de la app generada — por eso el permiso se pide aquí
-   y no en la página contenedora. Al detectar la sacudida, avisa al
-   padre por postMessage; ia.js cierra la app y vuelve a la nebulosa.
-   ============================================================ */
-const SHAKE_JS = `<script>(function(){
-  var THRESH = 18, COOLDOWN = 1200, last = 0, lastAcc = null, armed = false;
-  function onMotion(e){
-    var acc = e.accelerationIncludingGravity || e.acceleration;
-    if (!acc || acc.x == null) return;
-    if (lastAcc) {
-      var d = Math.abs(acc.x - lastAcc.x) + Math.abs(acc.y - lastAcc.y) + Math.abs(acc.z - lastAcc.z);
-      var now = Date.now();
-      if (d > THRESH && now - last > COOLDOWN) { last = now; parent.postMessage({ __fm: 'shake' }, '*'); }
-    }
-    lastAcc = { x: acc.x, y: acc.y, z: acc.z };
-  }
-  function enable(){ if (armed) return; armed = true; addEventListener('devicemotion', onMotion); }
-  function tryEnable(){
-    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-      DeviceMotionEvent.requestPermission().then(function(state){ if (state === 'granted') enable(); }).catch(function(){});
-    } else if (typeof DeviceMotionEvent !== 'undefined') {
-      enable();
-    }
-  }
-  document.addEventListener('pointerdown', tryEnable, { once: true, capture: true });
-})();<\/script>`;
+/* El shake se detecta en la página contenedora (js/ia.js), no aquí: el
+   iframe de la app corre en sandbox sin "allow-same-origin" (origen
+   opaco), y el navegador le bloquea el sensor de movimiento sin importar
+   el permiso que se le pida. Ver ia.js para el porqué. */
 
 /* ============================================================
    Estilos base — solo bordes neón rojo, sin fondos
@@ -377,9 +349,9 @@ a{color:var(--fm-red-hot);text-shadow:0 0 8px var(--fm-glow);}
 .fm-neon,.glow{text-shadow:0 0 14px var(--fm-glow);}
 </style>`;
 
-/** Mete el SDK, el shake y los estilos base dentro del <head> de lo que devolvió el modelo. */
+/** Mete el SDK y los estilos base dentro del <head> de lo que devolvió el modelo. */
 function injectSdk(html) {
-  const inject = NEON_CSS + SDK + SHAKE_JS;
+  const inject = NEON_CSS + SDK;
   if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + inject);
   if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${inject}</head>`);
   return inject + html;

@@ -67,20 +67,20 @@ document.addEventListener('keydown', (e) => {
    Shake para descartar la app cargada
    ------------------------------------------------------------
    Sin botón de eliminar: se agita el celular y vuelve a ser la
-   nebulosa. En iOS el permiso de movimiento solo se puede pedir
-   dentro de un gesto del usuario — y en el flujo real (la app llega
-   sola, disparada por voz) el único gesto que de verdad ocurre es
-   un toque DENTRO del iframe, sobre la app generada. Por eso el
-   detector principal vive ahí: el SDK inyectado (api/ia.js) pide el
-   permiso en el primer toque dentro de la app y nos avisa por
-   postMessage cuando detecta la sacudida. Esto de aquí es solo un
-   respaldo para cuando el gesto ocurre en la página exterior (p.ej.
-   un toque sobre la nebulosa antes de que cargue nada). */
+   nebulosa. La detección vive AQUÍ, en esta página — nunca dentro
+   del iframe de la app generada: ese iframe corre en sandbox sin
+   "allow-same-origin", así que tiene un origen opaco, y el navegador
+   le bloquea el sensor de movimiento pase lo que pase con el
+   permiso. Por eso el permiso hay que pedirlo desde una página real
+   del sitio: el botón "Solicitar permisos" en Yo. Una vez concedido
+   para el origen, volver a pedirlo aquí (sin necesitar un toque)
+   responde al momento, sin mostrar ningún diálogo. */
 const SHAKE_THRESHOLD = 18;    // m/s² de variación entre lecturas
 const SHAKE_COOLDOWN  = 1200;  // no disparar dos veces seguidas
 
 let lastShakeAt = 0;
 let lastAcc = null;
+let shakeEnabled = false;
 
 function shakeDetected() {
   const now = Date.now();
@@ -105,26 +105,28 @@ function onDeviceMotion(e) {
 }
 
 function enableShake() {
+  if (shakeEnabled) return;
+  shakeEnabled = true;
   window.addEventListener('devicemotion', onDeviceMotion);
 }
 
-if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-  const askPermission = () => {
-    document.removeEventListener('pointerdown', askPermission, true);
-    DeviceMotionEvent.requestPermission().then((state) => {
-      if (state === 'granted') enableShake();
-    }).catch(() => { /* el usuario dijo que no */ });
-  };
-  document.addEventListener('pointerdown', askPermission, { once: true, capture: true });
-} else if (typeof DeviceMotionEvent !== 'undefined') {
-  enableShake();
+function requestShakePermission() {
+  if (typeof DeviceMotionEvent === 'undefined') return;
+  if (typeof DeviceMotionEvent.requestPermission !== 'function') { enableShake(); return; }
+  DeviceMotionEvent.requestPermission()
+    .then((state) => { if (state === 'granted') enableShake(); })
+    .catch(() => { /* todavía no se concedió: se reintenta con el próximo toque */ });
 }
 
-/* el aviso del SDK dentro del iframe: ya detectó la sacudida allí dentro */
-window.addEventListener('message', (e) => {
-  if (e.source !== frame.contentWindow) return;
-  if (e.data && e.data.__fm === 'shake') shakeDetected();
-});
+// se pide de una al cargar: si ya se concedió antes (el botón de Yo),
+// esto responde solo, sin diálogo, y el shake queda listo sin tocar nada
+requestShakePermission();
+
+// respaldo por si esa primera llamada no bastó (primera visita, sin pasar
+// por Yo todavía): cualquier toque en esta página lo vuelve a intentar
+document.addEventListener('pointerdown', () => {
+  if (!shakeEnabled) requestShakePermission();
+}, { capture: true });
 
 function flashError(msg) {
   console.error('[ia]', msg);
