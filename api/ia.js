@@ -21,6 +21,8 @@
      OPENAI_MODEL     opcional, por defecto gpt-4o
    ============================================================ */
 
+import crypto from 'node:crypto';
+
 export const config = { api: { bodyParser: false } };
 export const maxDuration = 60;          // generar puede tardar
 
@@ -140,6 +142,162 @@ function extract(raw, contentType) {
 }
 
 /* ============================================================
+   Token firmado para las capacidades
+   ------------------------------------------------------------
+   El navegador llama a ?save=1 sin Authorization, así que el token
+   va firmado con HMAC sobre INDEX_AUT: se verifica sin necesidad de
+   memoria compartida entre instancias.
+   ============================================================ */
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+
+function hmac(payload) {
+  return crypto.createHmac('sha256', process.env.INDEX_AUT || 'sin-secreto')
+    .update(payload).digest('base64url');
+}
+
+function signToken(appId) {
+  const payload = `${appId}.${Date.now() + TOKEN_TTL_MS}`;
+  return `${payload}.${hmac(payload)}`;
+}
+
+function verifyToken(token) {
+  if (typeof token !== 'string') return false;
+  const cut = token.lastIndexOf('.');
+  if (cut < 1) return false;
+
+  const payload = token.slice(0, cut);
+  const sig = Buffer.from(token.slice(cut + 1));
+  const expected = Buffer.from(hmac(payload));
+  if (sig.length !== expected.length || !crypto.timingSafeEqual(sig, expected)) return false;
+
+  return Date.now() < Number(payload.split('.').pop() || 0);
+}
+
+/* ============================================================
+   Airtable: tabla ia_save, campo de adjuntos `file`
+   ============================================================ */
+const AT_BASE  = process.env.AIRTABLE_BASE || 'appU39PYosvxt8FfG';
+const AT_TABLE = process.env.AIRTABLE_SAVE_TABLE || 'ia_save';
+const AT_FIELD = process.env.AIRTABLE_SAVE_FIELD || 'file';
+
+/* Vercel corta los cuerpos en 4.5MB; dejamos margen. */
+const MAX_B64 = 3_600_000;
+
+async function airtableSave({ filename, contentType, data }) {
+  const key = process.env.AIRTABLE_TOKEN;
+  if (!key) throw Object.assign(new Error('AIRTABLE_TOKEN no está configurada.'), { code: 501 });
+  if (!data) throw Object.assign(new Error('No llegó ningún archivo.'), { code: 400 });
+  if (data.length > MAX_B64) {
+    throw Object.assign(new Error(`El archivo es muy grande (máx ~${Math.round(MAX_B64 * 0.75 / 1e6)}MB).`), { code: 413 });
+  }
+
+  const auth = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+
+  // 1. el registro vacío al que colgar el adjunto
+  const mk = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}`, {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ records: [{ fields: {} }], typecast: true }),
+  });
+  if (!mk.ok) {
+    const detail = await mk.text();
+    console.error('[api/ia] Airtable crear registro', mk.status, detail.slice(0, 400));
+    throw Object.assign(
+      new Error(mk.status === 403
+        ? 'El token de Airtable no tiene permiso de escritura (data.records:write) sobre esta base.'
+        : `Airtable respondió ${mk.status} al crear el registro.`),
+      { code: 502 },
+    );
+  }
+  const recordId = (await mk.json()).records[0].id;
+
+  // 2. el adjunto va por la API de contenido, que acepta base64
+  const up = await fetch(
+    `https://content.airtable.com/v0/${AT_BASE}/${recordId}/${encodeURIComponent(AT_FIELD)}/uploadAttachment`,
+    { method: 'POST', headers: auth, body: JSON.stringify({ contentType, file: data, filename }) },
+  );
+  if (!up.ok) {
+    const detail = await up.text();
+    console.error('[api/ia] Airtable subir adjunto', up.status, detail.slice(0, 400));
+    throw Object.assign(new Error(`Airtable respondió ${up.status} al subir el archivo.`), { code: 502 });
+  }
+
+  const saved = await up.json();
+  const att = saved?.fields?.[AT_FIELD]?.slice(-1)[0] || {};
+  console.log(`[api/ia] guardado en ${AT_TABLE}: ${filename} (${att.size ?? '?'} bytes) -> ${recordId}`);
+
+  return { id: recordId, filename: att.filename || filename, url: att.url || null, size: att.size ?? null };
+}
+
+async function airtableList(limit = 20) {
+  const key = process.env.AIRTABLE_TOKEN;
+  if (!key) throw Object.assign(new Error('AIRTABLE_TOKEN no está configurada.'), { code: 501 });
+
+  const qs = new URLSearchParams({ pageSize: String(Math.min(limit, 50)) });
+  const r = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}?${qs}`, {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  if (!r.ok) throw Object.assign(new Error(`Airtable respondió ${r.status}`), { code: 502 });
+
+  const { records = [] } = await r.json();
+  return records.map((rec) => {
+    const att = (rec.fields?.[AT_FIELD] || [])[0] || {};
+    return {
+      id: rec.id,
+      createdTime: rec.createdTime,
+      filename: att.filename || null,
+      url: att.url || null,
+      size: att.size ?? null,
+      type: att.type || null,
+    };
+  }).filter((f) => f.url);
+}
+
+/* ============================================================
+   El SDK que se inyecta en cada app generada
+   ------------------------------------------------------------
+   La app corre en un iframe de origen opaco: no puede llamar a
+   /api/ia. Habla con la página padre por postMessage y es la
+   página la que hace la llamada autenticada.
+   ============================================================ */
+const SDK = `<script>(function(){
+  var seq = 0, pend = {};
+  addEventListener('message', function(e){
+    var d = e.data;
+    if (!d || d.__fm !== 'res' || !pend[d.rid]) return;
+    var p = pend[d.rid]; delete pend[d.rid];
+    if (d.error) p.rej(new Error(d.error)); else p.res(d.result);
+  });
+  function call(action, payload){
+    return new Promise(function(res, rej){
+      var rid = ++seq;
+      pend[rid] = { res: res, rej: rej };
+      parent.postMessage({ __fm:'req', rid: rid, action: action, payload: payload }, '*');
+      setTimeout(function(){
+        if (pend[rid]) { delete pend[rid]; rej(new Error('La operación tardó demasiado')); }
+      }, 120000);
+    });
+  }
+  window.FM = {
+    saveFile:  function(blob, filename){ return call('save', { blob: blob, filename: filename }); },
+    saveText:  function(text, filename){ return call('save', { text: String(text), filename: filename || 'nota.txt', contentType: 'text/plain' }); },
+    saveJSON:  function(obj, filename){ return call('save', { text: JSON.stringify(obj, null, 2), filename: filename || 'datos.json', contentType: 'application/json' }); },
+    listFiles: function(limit){ return call('list', { limit: limit || 20 }); },
+    record: {
+      start: function(){ return call('rec-start', {}); },
+      stop:  function(opts){ return call('rec-stop', opts || {}); }
+    }
+  };
+})();<\/script>`;
+
+/** Mete el SDK dentro del <head> de lo que devolvió el modelo. */
+function injectSdk(html) {
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + SDK);
+  if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${SDK}</head>`);
+  return SDK + html;
+}
+
+/* ============================================================
    GPT: convierte la instrucción hablada en una mini-app
    ============================================================ */
 const SYSTEM = `Eres un generador de mini-aplicaciones web.
@@ -151,13 +309,52 @@ Reglas estrictas:
 - Un único archivo: el CSS en <style> y el JS en <script>. Sin dependencias
   externas, sin CDN, sin fuentes remotas, sin imágenes remotas.
 - La página corre dentro de un iframe aislado: NO uses localStorage,
-  sessionStorage, cookies, fetch ni window.parent. Fallarían.
+  sessionStorage, cookies, fetch, XMLHttpRequest ni window.parent
+  directamente. Fallarían.
 - Diseño: fondo oscuro #0a0a0c, texto claro, acentos rojos #e0102b,
   tipografía del sistema, esquinas suaves. Tiene que verse bien a pantalla
   completa y también en móvil.
 - Es una app usable, no una maqueta: los botones hacen lo que dicen.
 - Si la instrucción es ambigua o muy corta, elige la interpretación más
-  simple y útil, y hazla completa.`;
+  simple y útil, y hazla completa.
+
+CAPACIDADES YA DISPONIBLES — el objeto global FM
+Ya existe en la página. NO lo reimplementes, no lo redefinas y no escribas
+tu propio código de guardado, subida ni grabación: usa estas funciones.
+Todas devuelven una promesa y lanzan Error si algo falla, así que
+envuélvelas en try/catch y muestra el error en pantalla.
+
+  await FM.saveFile(blob, 'nombre.ext')
+      Guarda un Blob o File. Devuelve { id, filename, url, size }.
+      La url es pública y sirve para reproducir o descargar lo guardado.
+
+  await FM.saveText(texto, 'nota.txt')
+  await FM.saveJSON(objeto, 'datos.json')
+      Lo mismo para texto y para datos estructurados.
+
+  await FM.listFiles(20)
+      Lo guardado antes, lo más reciente primero:
+      [{ id, filename, url, size, type, createdTime }].
+      Úsalo para mostrar un historial o volver a reproducir algo.
+
+  await FM.record.start()
+      Empieza a grabar audio del micrófono. El permiso lo pide la página
+      contenedora, tú no tienes que hacer nada.
+
+  const r = await FM.record.stop({ save: true, filename: 'grabacion.webm' })
+      Detiene la grabación. Con save:true la sube y devuelve
+      { id, filename, url, size, seconds }. Con save:false solo devuelve
+      { seconds, url } con una url local para reproducirla.
+
+Reglas de uso:
+- Cualquier cosa que implique GUARDAR (una grabadora, notas, una lista que
+  persista, exportar datos) se hace con FM.saveFile / saveText / saveJSON.
+- Cualquier cosa que implique GRABAR AUDIO se hace con FM.record.
+- Si la app guarda algo, muestra siempre el resultado: un aviso de
+  guardado y, cuando tenga sentido, la lista de FM.listFiles().
+- Si la app NO necesita guardar nada (una calculadora, un contador, un
+  temporizador), ignora FM por completo y guarda el estado en variables
+  normales de JavaScript.`;
 
 /** Quita las vallas de markdown si el modelo las mete igual. */
 function cleanHtml(out) {
@@ -212,7 +409,7 @@ async function generate(text) {
   }
 
   const json = await res.json();
-  const html = cleanHtml(json.choices?.[0]?.message?.content);
+  const html = injectSdk(cleanHtml(json.choices?.[0]?.message?.content));
   if (!html) throw Object.assign(new Error('El modelo no devolvió HTML usable.'), { code: 502 });
 
   console.log(`[api/ia] app generada (${model}, ${html.length} chars) para: ${text.slice(0, 160)}`);
@@ -250,8 +447,16 @@ export default async function handler(req, res) {
       });
     }
 
+    if (req.query?.files) {
+      try {
+        return res.status(200).json({ files: await airtableList(Number(req.query.limit) || 20) });
+      } catch (err) {
+        return res.status(err.code || 500).json({ error: err.message });
+      }
+    }
+
     if (req.query?.app) {
-      return res.status(200).json({ app });
+      return res.status(200).json({ app: app ? { ...app, token: signToken(app.id) } : null });
     }
     return res.status(200).json({
       latest,
@@ -279,7 +484,7 @@ export default async function handler(req, res) {
     }
 
     if (app && app.id === latest.id) {
-      return res.status(200).json({ app, cache: true });      // ya estaba hecha
+      return res.status(200).json({ app: { ...app, token: signToken(app.id) }, cache: true });
     }
 
     if (inflight && inflight.id === latest.id) {
@@ -296,12 +501,33 @@ export default async function handler(req, res) {
     try {
       const html = await inflight.promise;
       app = { id, at: new Date().toISOString(), prompt, html };
-      return res.status(200).json({ app });
+      return res.status(200).json({ app: { ...app, token: signToken(id) } });
     } catch (err) {
       console.error('[api/ia] fallo generando:', err.message);
       return res.status(err.code || 500).json({ error: err.message });
     } finally {
       inflight = null;
+    }
+  }
+
+  /* ---------- capacidades: guardar un archivo ---------- */
+  if (req.query?.save) {
+    let body = {};
+    try { body = JSON.parse(await readRaw(req)) || {}; } catch { /* sin body */ }
+
+    if (!verifyToken(body.token)) {
+      return res.status(401).json({ error: 'Token de la app inválido o vencido.' });
+    }
+    try {
+      const saved = await airtableSave({
+        filename: String(body.filename || 'archivo').slice(0, 120),
+        contentType: String(body.contentType || 'application/octet-stream').slice(0, 120),
+        data: body.data,
+      });
+      return res.status(200).json(saved);
+    } catch (err) {
+      console.error('[api/ia] fallo guardando:', err.message);
+      return res.status(err.code || 500).json({ error: err.message });
     }
   }
 

@@ -38,6 +38,7 @@ function setBusy(on) {
 
 function showApp(entry) {
   shownId = entry.id;
+  token = entry.token || null;
   frame.srcdoc = entry.html;           // asignado como propiedad: no hay que escapar nada
   frame.classList.add('show');
   stage.classList.add('oculta');
@@ -51,6 +52,7 @@ function closeApp() {
   stage.classList.remove('oculta');
   frame.srcdoc = '';
   shownId = null;
+  token = null;
   navIco.innerHTML = ICON_BACK;
   nav.href = 'index.html';
   nav.setAttribute('aria-label', 'Volver al inicio');
@@ -76,6 +78,134 @@ function flashError(msg) {
   setTimeout(() => stage.classList.remove('error'), 1500);
 }
 
+
+/* ============================================================
+   Puente de capacidades
+   ------------------------------------------------------------
+   La app vive en un iframe de origen opaco: no puede llamar a
+   /api/ia ni pedir el micrófono. Nos pide las cosas por
+   postMessage y las hacemos nosotros, que sí estamos en el
+   dominio. Solo se atiende a nuestro propio iframe.
+   ============================================================ */
+
+let token = null;         // firmado por el servidor, va con cada guardado
+let recorder = null;      // MediaRecorder en curso
+
+/** Blob -> base64, por trozos para no reventar la pila. */
+async function toBase64(blob) {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < buf.length; i += 0x8000) {
+    bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
+}
+
+async function guardar({ blob, text, filename, contentType }) {
+  if (!token) throw new Error('Esta app no tiene permiso para guardar.');
+
+  const file = blob instanceof Blob
+    ? blob
+    : new Blob([String(text ?? '')], { type: contentType || 'text/plain' });
+
+  const res = await fetch('/api/ia?save=1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      token,
+      filename: filename || `archivo-${Date.now()}`,
+      contentType: contentType || file.type || 'application/octet-stream',
+      data: await toBase64(file),
+    }),
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  console.log(`[ia] guardado: ${json.filename}`, json.url);
+  return json;
+}
+
+async function listar(limit) {
+  const res = await fetch(`/api/ia?files=1&limit=${Number(limit) || 20}`, { cache: 'no-store' });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  return json.files;
+}
+
+async function grabarInicio() {
+  if (recorder) throw new Error('Ya hay una grabación en curso.');
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error('Este navegador no da acceso al micrófono.');
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    throw new Error(err.name === 'NotAllowedError'
+      ? 'No diste permiso para usar el micrófono.'
+      : `No se pudo abrir el micrófono: ${err.message}`);
+  }
+
+  const chunks = [];
+  const mr = new MediaRecorder(stream);
+  mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+  mr.start();
+  recorder = { mr, stream, chunks, desde: Date.now() };
+  return { ok: true };
+}
+
+function grabarFin({ save = true, filename } = {}) {
+  if (!recorder) return Promise.reject(new Error('No hay ninguna grabación en curso.'));
+
+  const { mr, stream, chunks, desde } = recorder;
+  recorder = null;
+
+  return new Promise((resolve, reject) => {
+    mr.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
+      const seconds = Math.round((Date.now() - desde) / 100) / 10;
+
+      if (!save) return resolve({ seconds, url: URL.createObjectURL(blob), size: blob.size });
+      try {
+        const guardado = await guardar({
+          blob,
+          filename: filename || `grabacion-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.webm`,
+          contentType: blob.type,
+        });
+        resolve({ ...guardado, seconds });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    mr.stop();
+  });
+}
+
+const ACCIONES = {
+  save:        (p) => guardar(p),
+  list:        (p) => listar(p?.limit),
+  'rec-start': () => grabarInicio(),
+  'rec-stop':  (p) => grabarFin(p),
+};
+
+window.addEventListener('message', async (e) => {
+  // solo nuestro propio iframe: el origen es opaco, así que comparamos la ventana
+  if (e.source !== frame.contentWindow) return;
+
+  const msg = e.data;
+  if (!msg || msg.__fm !== 'req' || !ACCIONES[msg.action]) return;
+
+  const responder = (extra) =>
+    frame.contentWindow?.postMessage({ __fm: 'res', rid: msg.rid, ...extra }, '*');
+
+  try {
+    responder({ result: await ACCIONES[msg.action](msg.payload) });
+  } catch (err) {
+    console.error(`[ia] ${msg.action}:`, err.message);
+    responder({ error: err.message });
+  }
+});
+
 /* ---------------- generar ---------------- */
 async function generate(id, prompt) {
   setBusy(true);
@@ -89,7 +219,7 @@ async function generate(id, prompt) {
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     if (!json.app?.html) throw new Error('respuesta sin código');
 
-    const entry = { id: json.app.id, html: json.app.html, prompt, at: json.app.at, closed: false };
+    const entry = { id: json.app.id, html: json.app.html, token: json.app.token, prompt, at: json.app.at, closed: false };
     save(entry);
     showApp(entry);
     console.log(`[ia] app lista (${entry.html.length} chars) para: ${prompt}`);
@@ -107,7 +237,7 @@ async function adopt(appId, prompt) {
     const { app } = await res.json();
     if (!app?.html || app.id !== appId) return false;
 
-    const entry = { id: app.id, html: app.html, prompt: app.prompt || prompt, at: app.at, closed: false };
+    const entry = { id: app.id, html: app.html, token: app.token, prompt: app.prompt || prompt, at: app.at, closed: false };
     save(entry);
     showApp(entry);
     return true;
@@ -148,6 +278,11 @@ const saved = load();
 if (saved?.html && !saved.closed) {
   showApp(saved);
   handledId = saved.id;
+  // el token dura 24h: al volver pedimos uno fresco para la misma app
+  fetch('/api/ia?app=1', { cache: 'no-store' })
+    .then((r) => r.json())
+    .then(({ app }) => { if (app?.id === saved.id && app.token) { token = app.token; save({ ...saved, token: app.token }); } })
+    .catch(() => { /* seguimos con el que había */ });
 } else if (saved?.id) {
   handledId = saved.id;           // ya la vimos y la cerramos: no regenerar
 }

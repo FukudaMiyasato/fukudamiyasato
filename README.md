@@ -201,14 +201,68 @@ prompts sueltos.
 
 En un `<iframe sandbox="allow-scripts allow-forms allow-modals">`, **sin**
 `allow-same-origin`. El código lo escribe un modelo a partir de un mensaje
-que llega de fuera, así que corre en un origen opaco: puede usar JS y
-verse a pantalla completa, pero no puede leer el `localStorage` del sitio,
-ni las cookies, ni llamar a `/api/ia`. Por eso el prompt le prohíbe usar
-`localStorage`, `fetch` y `window.parent`: ahí dentro fallarían.
+que llega de fuera, así que corre en un origen opaco: puede usar JS y verse
+a pantalla completa, pero no puede leer el `localStorage` del sitio, ni las
+cookies, ni llamar a `/api/ia`.
 
 La app generada se guarda en el `localStorage` del navegador, así que
 sobrevive a recargas. Si la cierras con la X, se recuerda que la cerraste y
 la próxima carga arranca en la nebulosa.
+
+## Capacidades · el objeto FM
+
+Para que las apps generadas no tengan que reinventar nada, el servidor
+inyecta un SDK en cada página que devuelve el modelo. El prompt se lo
+documenta, así que GPT llama a estas funciones en vez de escribir su propio
+código de guardado o grabación:
+
+```js
+await FM.saveFile(blob, 'audio.webm')   // -> { id, filename, url, size }
+await FM.saveText('hola', 'nota.txt')
+await FM.saveJSON({ a: 1 }, 'datos.json')
+await FM.listFiles(20)                  // lo guardado antes, con sus urls
+await FM.record.start()
+await FM.record.stop({ save: true })    // -> { id, url, seconds, ... }
+```
+
+### Cómo funciona por dentro
+
+La app está aislada: no puede llamar a `/api/ia` ni pedir el micrófono
+(un origen opaco no obtiene `getUserMedia`). Así que **las capacidades
+viven en la página contenedora**, que sí está en el dominio:
+
+```
+app (iframe)  --postMessage-->  ia.html  --fetch-->  /api/ia?save=1  -->  Airtable
+```
+
+`ia.html` solo atiende mensajes de su propio iframe (compara
+`event.source`), convierte el Blob a base64 y hace la llamada autenticada.
+La grabación de audio también ocurre en la página contenedora: el permiso
+de micrófono se pide una vez en el dominio real y queda.
+
+### Dónde se guarda
+
+Tabla **`ia_save`** de la base, campo de adjuntos **`file`**. El registro se
+crea vacío y el archivo se sube por la API de contenido de Airtable, que
+acepta base64. Configurable con `AIRTABLE_SAVE_TABLE` y
+`AIRTABLE_SAVE_FIELD`.
+
+> El `AIRTABLE_TOKEN` necesita scope **`data.records:write`** sobre esta
+> base, además del de lectura. Sin eso, guardar devuelve un error que lo
+> dice explícitamente.
+
+Límite por archivo: ~2.7 MB, porque Vercel corta los cuerpos de request en
+4.5 MB y el base64 crece un tercio.
+
+### El token de guardado
+
+`?save=1` lo llama el navegador, así que no lleva `Authorization`. Va
+firmado con HMAC sobre `INDEX_AUT`, atado al id de la app y con 24 h de
+vigencia, y se verifica sin necesidad de estado compartido.
+
+> Es una barrera contra el abuso casual, no autenticación real: quien abra
+> la página obtiene un token válido. Para un dispositivo personal alcanza;
+> si esto se vuelve público conviene ponerle algo más.
 
 > Igual que antes, la transcripción y el código viven en memoria de la
 > función. Si Vercel levanta otra instancia se pierden, pero la app ya
