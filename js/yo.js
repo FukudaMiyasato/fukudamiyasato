@@ -115,3 +115,47 @@ try {
   console.info(`[yo] no se pudieron leer los links de Airtable (${err.message})`);
   render([]);          // solo salen los de Airtable: si no hay, no hay nada
 }
+
+/* ============================================================
+   Permiso de movimiento — para que el shake funcione en IA
+   ------------------------------------------------------------
+   En iOS, DeviceMotionEvent.requestPermission() solo se puede pedir
+   dentro de un gesto del usuario. En la página de IA la app llega
+   sola (disparada por voz), así que casi nunca hay un gesto propio
+   ahí para pedirlo a tiempo. Este botón resuelve eso de antemano:
+   una vez concedido, el permiso queda para todo el sitio (mismo
+   origen), así que al llegar a IA el shake ya funciona.
+   ============================================================ */
+const perm     = document.getElementById('perm');
+const permBtn  = document.getElementById('perm-btn');
+const permNote = document.getElementById('perm-note');
+
+const needsMotionPermission = typeof DeviceMotionEvent !== 'undefined'
+  && typeof DeviceMotionEvent.requestPermission === 'function';
+
+if (needsMotionPermission) {
+  perm.hidden = false;
+
+  permBtn.addEventListener('click', async () => {
+    permBtn.disabled = true;
+    permNote.className = 'perm-note';
+    permNote.textContent = '';
+    try {
+      const state = await DeviceMotionEvent.requestPermission();
+      if (state === 'granted') {
+        permNote.textContent = 'Listo. Ya puedes agitar el celular en IA para cerrar una app.';
+        permNote.classList.add('ok');
+      } else {
+        permNote.textContent = 'No diste el permiso. Actívalo en Ajustes → Safari → Movimiento y orientación.';
+        permNote.classList.add('err');
+      }
+    } catch (err) {
+      permNote.textContent = `No se pudo pedir el permiso: ${err.message}`;
+      permNote.classList.add('err');
+    } finally {
+      permBtn.disabled = false;
+    }
+  });
+}
+// en Android y en navegadores de escritorio no hace falta pedir nada:
+// el botón se queda oculto y el shake ya está listo por su cuenta.
