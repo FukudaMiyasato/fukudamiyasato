@@ -11,7 +11,7 @@ const frame  = document.getElementById('app-frame');
 const nav    = document.getElementById('nav');
 
 const CLOSE_ANIM_MS  = 760;   // debe cubrir la transición de .app-frame en ia.css
-const SHAKE_ANIM_MS  = 520;   // debe coincidir con @keyframes fm-shake en ia.css
+const SHAKE_ANIM_MS  = 620;   // debe coincidir con @keyframes fm-shake en ia.css
 const NEBULA_FALLBACK_MS = 4500;  // por si la app nunca avisa que ya puede apagarse
 
 let handledId = null;     // transcripción ya procesada
@@ -52,15 +52,19 @@ function showApp(entry, { skipEntrance = false } = {}) {
   frame.srcdoc = withEntranceFlag(entry.html, skipEntrance);   // no hay que escapar nada
   frame.classList.add('show');
   // la nebulosa NO se apaga todavía: sigue girando (más rápido, "orbiting")
-  // de fondo mientras la app se arma (las luces orbitan, aterrizan...). La
-  // propia app avisa por postMessage cuándo ya puede apagarse (ver el
-  // listener de 'nebula-fade' más abajo); esto es solo el respaldo por si
-  // ese aviso nunca llega (reduced-motion raro, una app rota, etc.) o si
-  // se saltó la animación entera (skipEntrance).
+  // de fondo mientras la app se arma (las chispitas orbitan, aterrizan...).
+  // El fondo del propio iframe también se pone transparente mientras tanto
+  // (ver .app-frame.orbiting en ia.css) — si no, tapa la nebulosa aunque
+  // ella siga girando detrás. La propia app avisa por postMessage cuándo ya
+  // puede apagarse todo (ver el listener de 'nebula-fade' más abajo); esto
+  // es solo el respaldo por si ese aviso nunca llega (reduced-motion raro,
+  // una app rota, etc.) o si se saltó la animación entera (skipEntrance).
   stage.classList.add('orbiting');
+  frame.classList.add('orbiting');
   clearTimeout(nebulaFadeTimer);
   nebulaFadeTimer = setTimeout(() => {
     stage.classList.remove('orbiting');
+    frame.classList.remove('orbiting');
     stage.classList.add('oculta');
   }, NEBULA_FALLBACK_MS);
 }
@@ -72,6 +76,7 @@ function showApp(entry, { skipEntrance = false } = {}) {
 function closeApp() {
   clearTimeout(nebulaFadeTimer);
   frame.classList.remove('show');
+  frame.classList.remove('orbiting');
   stage.classList.remove('oculta');
   stage.classList.remove('orbiting');
   shownId = null;
@@ -172,6 +177,7 @@ window.addEventListener('message', (e) => {
   if (e.data && e.data.__fm === 'nebula-fade') {
     clearTimeout(nebulaFadeTimer);
     stage.classList.remove('orbiting');
+    frame.classList.remove('orbiting');
     stage.classList.add('oculta');
   }
 });

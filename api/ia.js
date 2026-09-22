@@ -332,7 +332,11 @@ const NEON_CSS = `<style id="fm-base">
 *{box-sizing:border-box;background-color:transparent;}
 html,body{margin:0;background:var(--fm-bg);color:var(--fm-red-hot);min-height:100%;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  text-shadow:0 0 14px var(--fm-glow);}
+  text-shadow:0 0 14px var(--fm-glow);
+  transition:background-color .6s ease;}
+/* mientras las chispitas orbitan, esto se queda transparente para que se
+   vea la nebulosa de fondo (si no, el fondo opaco de la propia app la tapa) */
+html.fm-orbiting,body.fm-orbiting{background:transparent;}
 ::selection{background:var(--fm-red);color:#000;}
 h1,h2,h3,h4,h5,h6{text-shadow:0 0 22px var(--fm-glow);}
 button,.fm-btn,input[type=button],input[type=submit]{
@@ -381,40 +385,80 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
   12%  {box-shadow:0 0 55px 18px rgba(255,90,78,.95),0 0 110px 40px rgba(255,20,50,.7);filter:brightness(1.9);}
   100% {box-shadow:0 0 0 0 rgba(255,90,78,0);filter:brightness(1);}
 }
+
+/* la chispita que orbita en vez de cada elemento con borde: gira, late,
+   y revienta (puesto todo inline desde el JS, por eso no hay clase acá) */
+@keyframes fm-spark-spin{to{rotate:360deg;}}
+@keyframes fm-spark-pulse{0%,100%{scale:.7;}50%{scale:1.25;}}
+@keyframes fm-spark-burst{
+  0%   {opacity:1;scale:1;}
+  45%  {opacity:1;scale:2.3;}
+  100% {opacity:0;scale:2.7;}
+}
 </style>`;
 
 /* ============================================================
-   Ensamblaje de entrada — luces en órbita, no formas
+   Ensamblaje de entrada — chispitas en órbita, no formas
    ------------------------------------------------------------
-   1. Todo arranca invisible (opacity 0).
-   2. Los elementos CON BORDE (button, input, .fm-panel...) se
-      convierten en una lucecita roja (un punto de glow, sin su forma
-      ni su borde ni su texto reales) y orbitan alrededor del centro
-      de la pantalla, en elipses, rápido y cada una a su propia
-      velocidad. La nebulosa de fondo NO se apaga: gira más rápido
-      mientras dura esto.
-   3. Tras un rato orbitando, se avisa al padre (postMessage) para que
-      recién ahí apague la nebulosa, y cada luz aterriza: viaja a su
-      posición real. Al llegar, un pequeño destello (rojo, nunca
-      blanco) y ahí aparece el elemento real — forma, borde y texto de
-      golpe, no en fundido.
-   4. Los elementos sin borde (títulos, párrafos...) no orbitan: se
-      quedan invisibles hasta este mismo momento y solo hacen fade-in.
+   1. Todo arranca invisible (opacity 0). La nebulosa de fondo sigue
+      ahí, girando más rápido — y esta vez de verdad SE VE: mientras
+      dura esto, el fondo de la página (html/body) se queda
+      transparente (clase .fm-orbiting), porque si no el fondo opaco
+      de la propia app tapa la nebulosa aunque ella siga girando.
+   2. Por cada elemento CON BORDE (button, input, .fm-panel...) se crea
+      una chispita — un SVG de destello rojo, aparte del elemento real
+      — que orbita el centro de la pantalla en una elipse, girando
+      sobre sí misma y latiendo (crece y se achica), cada una a su
+      propia velocidad. El elemento real se queda invisible mientras
+      tanto: la chispita ocupa su lugar visualmente.
+   3. Recién ahí — cuando esto termina — se avisa al padre para que
+      apague la nebulosa, y cada chispita viaja a la posición real de
+      su elemento. Al llegar: revienta en un destello y desaparece, y
+      en ese mismo instante aparece el elemento real (con su propio
+      flash de acompañamiento).
+   4. Los elementos sin borde (títulos, párrafos...) no tienen
+      chispita: se quedan invisibles hasta este mismo momento y solo
+      hacen fade-in.
    5. Por último, cada uno empieza a flotar con su propio ritmo.
    Si la app ya existía (se está retomando, no creando de nuevo) se
    salta todo esto: lo marca `window.__fmSkipEntrance`, puesto por
    ia.js antes de que corra este script.
-   No se toca `position` en ningún momento: todo es `transform`
-   calculado con getBoundingClientRect(), así el layout real no cambia.
+   Las chispitas son elementos aparte, `position:fixed`, así que nunca
+   tocan el layout real de la app.
    ============================================================ */
 const ASSEMBLE_JS = `<script>(function(){
   var ORBIT_MS = 1900;   // cuánto orbitan antes de aterrizar
-  var LAND_MS  = 750;    // duración del aterrizaje
+  var LAND_MS  = 750;    // duración del viaje a su posición real
 
   if (window.__fmSkipEntrance || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     parent.postMessage({ __fm: 'nebula-fade' }, '*');
     return;
   }
+
+  var SPARK_SVG = '<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">' +
+    '<defs>' +
+      '<radialGradient id="fmSparkCore" cx="50%" cy="50%" r="50%">' +
+        '<stop offset="0%" stop-color="#fff8f3"/>' +
+        '<stop offset="30%" stop-color="#ff8a72"/>' +
+        '<stop offset="60%" stop-color="#ff1f3d"/>' +
+        '<stop offset="100%" stop-color="rgba(224,16,43,0)"/>' +
+      '</radialGradient>' +
+      '<linearGradient id="fmSparkRay" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0%" stop-color="rgba(255,90,78,0)"/>' +
+        '<stop offset="45%" stop-color="#ff5a4e"/>' +
+        '<stop offset="50%" stop-color="#fff8f3"/>' +
+        '<stop offset="55%" stop-color="#ff5a4e"/>' +
+        '<stop offset="100%" stop-color="rgba(255,90,78,0)"/>' +
+      '</linearGradient>' +
+    '</defs>' +
+    '<g transform="translate(100,100)">' +
+      '<rect x="-2" y="-100" width="4" height="200" fill="url(#fmSparkRay)"/>' +
+      '<rect x="-100" y="-2" width="200" height="4" fill="url(#fmSparkRay)"/>' +
+      '<rect x="-1.2" y="-70" width="2.4" height="140" fill="url(#fmSparkRay)" transform="rotate(45)"/>' +
+      '<rect x="-1.2" y="-70" width="2.4" height="140" fill="url(#fmSparkRay)" transform="rotate(-45)"/>' +
+      '<circle r="30" fill="url(#fmSparkCore)"/>' +
+    '</g>' +
+  '</svg>';
 
   function floatify(el){
     el.style.setProperty('--fm-float-dur', (3.4 + Math.random() * 2.8).toFixed(2) + 's');
@@ -424,11 +468,19 @@ const ASSEMBLE_JS = `<script>(function(){
   }
 
   function run(){
+    document.documentElement.classList.add('fm-orbiting');
+    document.body.classList.add('fm-orbiting');
+
     var all = Array.prototype.slice.call(document.querySelectorAll(
       'div, p, h1, h2, h3, h4, h5, h6, span, label, li, a, button, input, select, textarea'
     )).slice(0, 60);
 
-    if (!all.length) { parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
+    function endOrbitBg(){
+      document.documentElement.classList.remove('fm-orbiting');
+      document.body.classList.remove('fm-orbiting');
+    }
+
+    if (!all.length) { endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
 
     var cx = innerWidth / 2, cy = innerHeight / 2;
     var orbiters = [], texters = [];
@@ -438,91 +490,89 @@ const ASSEMBLE_JS = `<script>(function(){
       if (!r.width || !r.height) return;
       var cs = getComputedStyle(el);
       var bordered = cs.borderTopStyle !== 'none' && parseFloat(cs.borderTopWidth) > 0;
-      var baseX = (r.left + r.width / 2) - cx;
-      var baseY = (r.top + r.height / 2) - cy;
 
       if (bordered) {
         var rx = Math.min(innerWidth, innerHeight) * (0.16 + Math.random() * 0.24);
         orbiters.push({
-          el: el, baseX: baseX, baseY: baseY,
-          finalRadius: cs.borderRadius, finalColor: cs.color, finalBorderColor: cs.borderColor,
+          el: el, targetX: r.left + r.width / 2, targetY: r.top + r.height / 2,
           rx: rx, ry: rx * (0.45 + Math.random() * 0.35),
-          // rápido, y cada luz a una velocidad bien distinta
+          // rápido, y cada chispita a una velocidad bien distinta
           speed: (Math.random() < 0.5 ? -1 : 1) * (Math.PI * 2 / (0.9 + Math.random() * 1.3)),
           phase: Math.random() * Math.PI * 2,
+          size: 46 + Math.random() * 40,
         });
       } else {
         texters.push(el);
       }
     });
 
-    if (!orbiters.length && !texters.length) { parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
+    if (!orbiters.length && !texters.length) { endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
 
     // ---- estado inicial: todo invisible ----
-    orbiters.forEach(function(o){
-      var el = o.el;
-      el.style.transition = 'none';
-      el.style.opacity = '0';
-      el.style.borderRadius = '50%';
-      el.style.borderColor = 'transparent';
-      el.style.color = 'transparent';
-      el.style.textShadow = 'none';
-      // nada de su forma real: solo un glow rojo va a hacer de "luz"
-      el.style.boxShadow =
-        '0 0 55px 18px rgba(255,90,78,.9), 0 0 110px 40px rgba(224,16,43,.45)';
-      el.style.transform = 'translate(' + (-o.baseX) + 'px,' + (-o.baseY) + 'px) scale(.3)';
-    });
+    orbiters.forEach(function(o){ o.el.style.transition = 'none'; o.el.style.opacity = '0'; });
     texters.forEach(function(el){ el.style.transition = 'none'; el.style.opacity = '0'; });
+
+    // ---- una chispita por cada elemento con borde, aparte del layout ----
+    orbiters.forEach(function(o){
+      var wrap = document.createElement('div');
+      wrap.style.cssText =
+        'position:fixed;left:0;top:0;width:' + o.size + 'px;height:' + o.size + 'px;' +
+        'margin-left:-' + (o.size / 2) + 'px;margin-top:-' + (o.size / 2) + 'px;' +
+        'pointer-events:none;z-index:2147483647;';
+      var spin = document.createElement('div');
+      spin.style.cssText =
+        'width:100%;height:100%;filter:drop-shadow(0 0 22px rgba(255,80,60,.85));' +
+        'animation:fm-spark-spin ' + (0.7 + Math.random() * 0.6).toFixed(2) + 's linear infinite,' +
+        'fm-spark-pulse ' + (0.6 + Math.random() * 0.5).toFixed(2) + 's ease-in-out infinite;';
+      spin.innerHTML = SPARK_SVG;
+      wrap.appendChild(spin);
+      document.body.appendChild(wrap);
+      o.spark = wrap;
+    });
+
     void document.body.offsetWidth;   // fuerza el layout con el estado inicial ya pintado
 
-    // ---- fase 1: a orbitar como lucecitas ----
+    // ---- fase 1: a orbitar, girando y latiendo ----
     var start = performance.now(), raf;
     function tick(now){
       var t = (now - start) / 1000;
       orbiters.forEach(function(o){
         var a = o.phase + t * o.speed;
-        var dx = -o.baseX + o.rx * Math.cos(a);
-        var dy = -o.baseY + o.ry * Math.sin(a);
-        o.el.style.transform = 'translate(' + dx.toFixed(2) + 'px,' + dy.toFixed(2) + 'px) scale(.3)';
+        var x = cx + o.rx * Math.cos(a), y = cy + o.ry * Math.sin(a);
+        o.spark.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
       });
       raf = requestAnimationFrame(tick);
     }
     raf = requestAnimationFrame(tick);
 
-    // se hacen visibles casi de inmediato, ya orbitando
-    orbiters.forEach(function(o, i){
-      setTimeout(function(){
-        o.el.style.transition = 'opacity .4s ease';
-        o.el.style.opacity = '1';
-      }, 60 + i * 50);
-    });
-
-    // ---- fase 2: la nebulosa empieza a apagarse, y aterrizan ----
+    // ---- fase 2: recién ahora empiezan a aparecer los elementos: se
+    // avisa a la nebulosa, y cada chispita viaja a su destino real ----
     setTimeout(function(){
       parent.postMessage({ __fm: 'nebula-fade' }, '*');
+      endOrbitBg();
       cancelAnimationFrame(raf);
 
       orbiters.forEach(function(o, i){
-        var el = o.el, delay = i * 40;
-        el.style.transition =
-          'transform ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms';
-        el.style.transform = '';
+        var delay = i * 40;
+        o.spark.style.transition = 'transform ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms';
+        o.spark.style.transform = 'translate(' + o.targetX.toFixed(1) + 'px,' + o.targetY.toFixed(1) + 'px)';
 
-        el.addEventListener('transitionend', function land(ev){
+        o.spark.addEventListener('transitionend', function land(ev){
           if (ev.propertyName !== 'transform') return;
-          el.removeEventListener('transitionend', land);
-          // ---- destello, y aparece el elemento real de golpe ----
-          el.style.transition = 'none';
-          el.style.borderRadius = o.finalRadius;
-          el.style.borderColor = o.finalBorderColor;
-          el.style.color = o.finalColor;
-          el.style.textShadow = '';
-          el.style.boxShadow = '';
-          el.classList.add('fm-flash');
-          el.addEventListener('animationend', function flashDone(){
-            el.removeEventListener('animationend', flashDone);
-            el.classList.remove('fm-flash');
-            floatify(el);
+          o.spark.removeEventListener('transitionend', land);
+          // ---- la chispita revienta, y el elemento real aparece de golpe ----
+          // (el giro/latido de arriba está puesto inline, así que hay que
+          // pisarlo con otra inline: una clase no le gana a un inline)
+          o.spark.firstChild.style.animation = 'fm-spark-burst .35s ease-out both';
+          setTimeout(function(){ o.spark.remove(); }, 380);
+
+          o.el.style.transition = 'none';
+          o.el.style.opacity = '1';
+          o.el.classList.add('fm-flash');
+          o.el.addEventListener('animationend', function flashDone(){
+            o.el.removeEventListener('animationend', flashDone);
+            o.el.classList.remove('fm-flash');
+            floatify(o.el);
           });
         });
       });
