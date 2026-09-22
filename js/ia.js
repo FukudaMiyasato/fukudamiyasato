@@ -10,12 +10,14 @@ const stage  = document.getElementById('stage');
 const frame  = document.getElementById('app-frame');
 const nav    = document.getElementById('nav');
 
-const CLOSE_ANIM_MS = 760;  // debe cubrir la transición de .app-frame en ia.css
-const SHAKE_ANIM_MS = 380;  // debe coincidir con @keyframes fm-shake en ia.css
+const CLOSE_ANIM_MS  = 760;   // debe cubrir la transición de .app-frame en ia.css
+const SHAKE_ANIM_MS  = 380;   // debe coincidir con @keyframes fm-shake en ia.css
+const NEBULA_FALLBACK_MS = 4500;  // por si la app nunca avisa que ya puede apagarse
 
 let handledId = null;     // transcripción ya procesada
 let shownId   = null;     // app que se está viendo
 let busy      = false;
+let nebulaFadeTimer = null;
 
 /* ---------------- lo guardado ---------------- */
 function load() {
@@ -40,7 +42,13 @@ function showApp(entry) {
   token = entry.token || null;
   frame.srcdoc = entry.html;           // asignado como propiedad: no hay que escapar nada
   frame.classList.add('show');
-  stage.classList.add('oculta');
+  // la nebulosa NO se apaga todavía: sigue girando de fondo mientras la
+  // app se arma (orbita, se le ven los bordes, aterriza...). La propia
+  // app avisa por postMessage cuándo ya puede apagarse (ver el listener
+  // de 'nebula-fade' más abajo); esto es solo el respaldo por si ese
+  // aviso nunca llega (reduced-motion raro, una app rota, etc.).
+  clearTimeout(nebulaFadeTimer);
+  nebulaFadeTimer = setTimeout(() => stage.classList.add('oculta'), NEBULA_FALLBACK_MS);
 }
 
 /* El botón de la esquina es siempre "volver al inicio": no hay botón para
@@ -48,6 +56,7 @@ function showApp(entry) {
    la animación de la nebulosa "tragándose" la app termine antes de vaciar
    el iframe, si no se ve un parpadeo en blanco a mitad de la transición. */
 function closeApp() {
+  clearTimeout(nebulaFadeTimer);
   frame.classList.remove('show');
   stage.classList.remove('oculta');
   shownId = null;
@@ -140,6 +149,16 @@ function flashError(msg) {
   stage.classList.add('error');
   setTimeout(() => stage.classList.remove('error'), 1500);
 }
+
+/* la propia app avisa cuándo terminó de orbitar y aterrizar: recién ahí
+   se apaga la nebulosa (ver el "ensamblaje de entrada" en api/ia.js) */
+window.addEventListener('message', (e) => {
+  if (e.source !== frame.contentWindow) return;
+  if (e.data && e.data.__fm === 'nebula-fade') {
+    clearTimeout(nebulaFadeTimer);
+    stage.classList.add('oculta');
+  }
+});
 
 
 /* ============================================================

@@ -327,33 +327,34 @@ const NEON_CSS = `<style id="fm-base">
 :root{
   --fm-bg:#0a0a0c;--fm-line:rgba(255,31,61,.45);
   --fm-red:#e0102b;--fm-red-hot:#ff1f3d;
-  --fm-glow:rgba(255,31,61,.55);
+  --fm-glow:rgba(255,31,61,.65);--fm-glow-soft:rgba(255,31,61,.3);
 }
 *{box-sizing:border-box;background-color:transparent;}
 html,body{margin:0;background:var(--fm-bg);color:var(--fm-red-hot);min-height:100%;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  text-shadow:0 0 10px var(--fm-glow);}
+  text-shadow:0 0 14px var(--fm-glow);}
 ::selection{background:var(--fm-red);color:#000;}
-h1,h2,h3,h4,h5,h6{text-shadow:0 0 16px var(--fm-glow);}
+h1,h2,h3,h4,h5,h6{text-shadow:0 0 22px var(--fm-glow);}
 button,.fm-btn,input[type=button],input[type=submit]{
   font:inherit;color:var(--fm-red-hot);cursor:pointer;border-radius:10px;padding:.6em 1.1em;
   background:transparent;border:1px solid var(--fm-red-hot);
-  text-shadow:0 0 8px var(--fm-glow);box-shadow:0 0 6px -2px var(--fm-glow);
+  text-shadow:0 0 10px var(--fm-glow);
+  box-shadow:0 0 10px -1px var(--fm-glow),0 0 26px 1px var(--fm-glow-soft);
   transition:box-shadow .25s ease,transform .25s ease,border-color .25s ease,color .25s ease;}
 button:hover,.fm-btn:hover,input[type=button]:hover,input[type=submit]:hover{
-  box-shadow:0 0 18px 1px var(--fm-glow);border-color:#fff;color:#fff;transform:translateY(-1px);}
+  box-shadow:0 0 26px 2px var(--fm-glow),0 0 46px 6px var(--fm-glow-soft);border-color:#fff;color:#fff;transform:translateY(-1px);}
 button:active,.fm-btn:active{transform:translateY(0) scale(.97);}
 button:disabled,.fm-btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;transform:none;}
 input,select,textarea{
   font:inherit;color:var(--fm-red-hot);background:transparent;
   border:1px solid var(--fm-line);border-radius:8px;padding:.55em .8em;
-  box-shadow:0 0 8px -4px var(--fm-glow);}
+  box-shadow:0 0 12px -3px var(--fm-glow);}
 input:focus,select:focus,textarea:focus{
-  outline:none;border-color:var(--fm-red-hot);box-shadow:0 0 10px -2px var(--fm-glow);}
-a{color:var(--fm-red-hot);text-shadow:0 0 8px var(--fm-glow);}
+  outline:none;border-color:var(--fm-red-hot);box-shadow:0 0 18px -1px var(--fm-glow);}
+a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
 .fm-panel,.card,.panel{background:transparent;border:1px solid var(--fm-line);border-radius:14px;
-  box-shadow:0 0 14px -6px var(--fm-glow);}
-.fm-neon,.glow{text-shadow:0 0 14px var(--fm-glow);}
+  box-shadow:0 0 22px -5px var(--fm-glow);}
+.fm-neon,.glow{text-shadow:0 0 18px var(--fm-glow);}
 
 /* flotación sutil en reposo, una vez que el elemento ya se acomodó —
    cada uno con su propio ritmo (duración, retraso y altura), así no
@@ -375,62 +376,144 @@ a{color:var(--fm-red-hot);text-shadow:0 0 8px var(--fm-glow);}
 </style>`;
 
 /* ============================================================
-   Ensamblaje de entrada
+   Ensamblaje de entrada — órbita, no vuelo directo
    ------------------------------------------------------------
-   Al cargar, cada div/texto arranca como un círculo (borde al
-   máximo) en el centro de la pantalla, transparente, y gira mientras
-   viaja hasta su posición real — como si saliera despedido de la
-   nebulosa. Al terminar, se queda quieto ahí y empieza a flotar
-   suavemente. No se toca `position`: solo un `transform` calculado
-   con getBoundingClientRect(), así el layout real no se altera.
+   1. Todo arranca invisible (opacity 0).
+   2. Los elementos CON BORDE (button, input, .fm-panel...) orbitan
+      alrededor del centro de la pantalla, en elipses, cada uno con su
+      propio radio y velocidad — la nebulosa de fondo sigue girando,
+      no se apaga todavía.
+   3. Mientras orbitan, se hacen visibles como círculos: aparece el
+      borde y el glow, pero el texto se mantiene oculto (color y
+      text-shadow en transparente/none).
+   4. Tras un rato orbitando, se avisa al padre (postMessage) para que
+      recién ahí apague la nebulosa, y los elementos aterrizan: dejan
+      de orbitar y viajan a su posición y forma reales.
+   5. Ya aterrizados, aparece el texto (el color vuelve a su valor).
+      Los elementos sin borde (títulos, párrafos...) no orbitan: se
+      quedan invisibles hasta este mismo momento y solo hacen fade-in.
+   6. Por último, cada uno empieza a flotar con su propio ritmo.
+   No se toca `position` en ningún momento: todo es `transform`
+   calculado con getBoundingClientRect(), así el layout real no cambia.
    ============================================================ */
 const ASSEMBLE_JS = `<script>(function(){
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var ORBIT_MS = 1900;   // cuánto orbitan antes de aterrizar
+  var LAND_MS  = 850;    // duración del aterrizaje
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    parent.postMessage({ __fm: 'nebula-fade' }, '*');
+    return;
+  }
+
+  function floatify(el){
+    el.style.setProperty('--fm-float-dur', (3.4 + Math.random() * 2.8).toFixed(2) + 's');
+    el.style.setProperty('--fm-float-delay', (Math.random() * 2.6).toFixed(2) + 's');
+    el.style.setProperty('--fm-float-y', '-' + (4 + Math.random() * 6).toFixed(1) + 'px');
+    el.classList.add('fm-float');
+  }
 
   function run(){
-    var els = Array.prototype.slice.call(
-      document.querySelectorAll('div, p, h1, h2, h3, h4, h5, h6, span, label, li, a')
-    ).slice(0, 60);
-    if (!els.length) return;
+    var all = Array.prototype.slice.call(document.querySelectorAll(
+      'div, p, h1, h2, h3, h4, h5, h6, span, label, li, a, button, input, select, textarea'
+    )).slice(0, 60);
+
+    if (!all.length) { parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
 
     var cx = innerWidth / 2, cy = innerHeight / 2;
+    var orbiters = [], texters = [];
 
-    els.forEach(function(el, i){
+    all.forEach(function(el){
       var r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
+      var cs = getComputedStyle(el);
+      var bordered = cs.borderTopStyle !== 'none' && parseFloat(cs.borderTopWidth) > 0;
+      var baseX = (r.left + r.width / 2) - cx;
+      var baseY = (r.top + r.height / 2) - cy;
 
-      var dx = cx - (r.left + r.width / 2);
-      var dy = cy - (r.top + r.height / 2);
-      var delay = Math.min(i * 16, 420);
-      var finalRadius = getComputedStyle(el).borderRadius;
+      if (bordered) {
+        var rx = Math.min(innerWidth, innerHeight) * (0.16 + Math.random() * 0.24);
+        orbiters.push({
+          el: el, baseX: baseX, baseY: baseY,
+          finalRadius: cs.borderRadius, finalColor: cs.color,
+          rx: rx, ry: rx * (0.45 + Math.random() * 0.35),
+          speed: (Math.random() < 0.5 ? -1 : 1) * (Math.PI * 2 / (2.2 + Math.random() * 2.0)),
+          phase: Math.random() * Math.PI * 2,
+        });
+      } else {
+        texters.push(el);
+      }
+    });
 
+    if (!orbiters.length && !texters.length) { parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
+
+    // ---- estado inicial: todo invisible ----
+    orbiters.forEach(function(o){
+      var el = o.el;
       el.style.transition = 'none';
       el.style.opacity = '0';
-      el.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(.15) rotate(240deg)';
       el.style.borderRadius = '50%';
-      void el.offsetWidth;   // fuerza el layout con el estado inicial ya pintado
+      el.style.color = 'transparent';
+      el.style.textShadow = 'none';
+      el.style.transform = 'translate(' + (-o.baseX) + 'px,' + (-o.baseY) + 'px)';
+    });
+    texters.forEach(function(el){ el.style.transition = 'none'; el.style.opacity = '0'; });
+    void document.body.offsetWidth;   // fuerza el layout con el estado inicial ya pintado
 
-      requestAnimationFrame(function(){
+    // ---- fase 1: a orbitar (todavía invisibles) ----
+    var start = performance.now(), raf;
+    function tick(now){
+      var t = (now - start) / 1000;
+      orbiters.forEach(function(o){
+        var a = o.phase + t * o.speed;
+        var dx = -o.baseX + o.rx * Math.cos(a);
+        var dy = -o.baseY + o.ry * Math.sin(a);
+        o.lastDx = dx; o.lastDy = dy;
+        o.el.style.transform = 'translate(' + dx.toFixed(2) + 'px,' + dy.toFixed(2) + 'px)';
+      });
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    // ---- fase 2: mientras orbitan, se hacen visibles como círculos ----
+    orbiters.forEach(function(o, i){
+      setTimeout(function(){
+        o.el.style.transition = 'opacity .55s ease';
+        o.el.style.opacity = '1';
+      }, 120 + i * 70);
+    });
+
+    // ---- fase 3: la nebulosa empieza a apagarse, y aterrizan ----
+    setTimeout(function(){
+      parent.postMessage({ __fm: 'nebula-fade' }, '*');
+      cancelAnimationFrame(raf);
+
+      orbiters.forEach(function(o, i){
+        var el = o.el, delay = i * 40;
         el.style.transition =
-          'transform .9s cubic-bezier(.22,1,.36,1) ' + delay + 'ms, ' +
-          'border-radius .9s cubic-bezier(.22,1,.36,1) ' + delay + 'ms, ' +
-          'opacity .6s ease ' + delay + 'ms';
-        el.style.opacity = '';
+          'transform ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms, ' +
+          'border-radius ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms';
         el.style.transform = '';
-        el.style.borderRadius = finalRadius;
+        el.style.borderRadius = o.finalRadius;
 
-        el.addEventListener('transitionend', function settle(ev){
+        el.addEventListener('transitionend', function land(ev){
           if (ev.propertyName !== 'transform') return;
-          el.removeEventListener('transitionend', settle);
-          // ritmo propio por elemento: duración, retraso y altura al azar,
-          // no un simple desfase del mismo ciclo — así no laten parejo
-          el.style.setProperty('--fm-float-dur', (3.4 + Math.random() * 2.8).toFixed(2) + 's');
-          el.style.setProperty('--fm-float-delay', (Math.random() * 2.6).toFixed(2) + 's');
-          el.style.setProperty('--fm-float-y', '-' + (4 + Math.random() * 6).toFixed(1) + 'px');
-          el.classList.add('fm-float');
+          el.removeEventListener('transitionend', land);
+          // ---- fase 4: ya en su lugar, aparece el texto ----
+          el.style.transition = 'color .5s ease';
+          el.style.color = o.finalColor;
+          el.style.textShadow = '';
+          setTimeout(function(){ floatify(el); }, 520);
         });
       });
-    });
+
+      texters.forEach(function(el, i){
+        setTimeout(function(){
+          el.style.transition = 'opacity .6s ease';
+          el.style.opacity = '1';
+          setTimeout(function(){ floatify(el); }, 620);
+        }, i * 40);
+      });
+    }, ORBIT_MS);
   }
 
   if (document.readyState === 'complete') setTimeout(run, 30);
