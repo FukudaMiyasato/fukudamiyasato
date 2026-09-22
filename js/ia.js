@@ -147,7 +147,7 @@ function spawnIdleSparks() {
       rx: 0.14 + Math.random() * 0.2,   // fracción del lado menor de la pantalla
       ry: 0.09 + Math.random() * 0.16,
       phase: Math.random() * Math.PI * 2,
-      speed: (Math.random() < 0.5 ? -1 : 1) * (0.1 + Math.random() * 0.08),
+      speed: (Math.random() < 0.5 ? -1 : 1) * (0.1 + Math.random() * 0.08) * 0.8,   // 20% más lento
     });
   }
   idleStart = performance.now();
