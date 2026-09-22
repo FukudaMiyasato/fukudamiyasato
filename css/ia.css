@@ -143,7 +143,9 @@
   animation: fm-idle-spin 1.3s linear infinite, fm-idle-pulse 1.1s ease-in-out infinite;
   transition: opacity .5s ease;
 }
-.idle-sparks.fading .idle-spark { opacity: 0; }
+/* con la app ya mostrada: nunca desaparecen del todo, solo se apagan y
+   siguen moviéndose detrás (z-index 5, el app-frame es 100) */
+.idle-sparks.behind .idle-spark { opacity: .16; }
 @keyframes fm-idle-spin { to { rotate: 360deg; } }
 @keyframes fm-idle-pulse { 0%, 100% { scale: .6; } 50% { scale: 1.25; } }
 @media (prefers-reduced-motion: reduce) {
@@ -221,7 +223,7 @@
    arranca esta transición larga a transparencia */
 .stage.oculta .orb {
   opacity: 0;
-  transform: scale(.4);
+  transform: scale(1.65);   /* se disuelve agrandándose, no se achica */
   transition: opacity 2.4s var(--ease), transform 2.4s var(--ease);
 }
 /* las capas siguen girando por JS incluso mientras esto se desvanece —

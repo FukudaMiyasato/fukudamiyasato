@@ -453,14 +453,17 @@ const NEON_CSS = `<style id="fm-base">
 html,body{margin:0;background:transparent;color:var(--fm-red-hot);min-height:100%;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   text-shadow:0 0 14px var(--fm-glow);
-  transition:background-color .6s ease;}
+  transition:background-color 2.4s cubic-bezier(.22,1,.36,1);}
 /* Transparente por defecto — desde el primer pintado, no recién cuando el
    ensamblaje de entrada corra (con "load") — así nunca hay un instante
    donde el fondo opaco de la propia app tapa la nebulosa de golpe y
    después "salta" a transparente al revelarla: sería un corte feo, como
    un cambio de página. Pasa a opaco solo cuando ya se sabe que no hace
    falta seguir revelando la nebulosa: terminó de orbitar (fm-ready sin
-   fm-orbiting) o se saltó la animación (fm-ready solo). */
+   fm-orbiting) o se saltó la animación (fm-ready solo). La transición
+   dura lo mismo que el fade de la nebulosa en ia.css (2.4s): si esta
+   fuera más rápida, taparía la nebulosa de golpe antes de que termine
+   de desvanecerse — el mismo corte feo, pero al revés. */
 html.fm-ready:not(.fm-orbiting){background:var(--fm-bg);}
 html.fm-ready:not(.fm-orbiting) body{background:var(--fm-bg);}
 /* contenido centrado por defecto — el <style> del modelo, que va después
@@ -524,7 +527,7 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
 .fm-label,.fm-label-main{
   display:inline-flex;align-items:center;justify-content:center;
   padding:.5em 1.2em;border-radius:999px;white-space:nowrap;
-  border:1px solid var(--fm-red-hot);color:var(--fm-red-hot);
+  background:transparent;border:1px solid var(--fm-red-hot);color:var(--fm-red-hot);
   text-shadow:0 0 12px var(--fm-glow);
   box-shadow:0 0 13px -2px var(--fm-glow),0 0 28px 0 var(--fm-glow-soft);}
 .fm-label-main{min-width:60%;padding-left:1.6em;padding-right:1.6em;}

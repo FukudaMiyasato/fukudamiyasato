@@ -167,13 +167,6 @@ function tickIdle() {
   idleRaf = requestAnimationFrame(tickIdle);
 }
 
-function clearIdleSparks() {
-  cancelAnimationFrame(idleRaf);
-  idleRaf = null;
-  idleSparks.forEach((s) => s.el.remove());
-  idleSparks = [];
-}
-
 /* ---------------- lo guardado ---------------- */
 function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || null; } catch { return null; }
@@ -205,7 +198,9 @@ function withEntranceFlag(html, skip) {
 }
 
 function showApp(entry, { skipEntrance = false } = {}) {
-  clearIdleSparks();   // la app ya está lista: los destellos falsos desaparecen
+  // la app ya está lista: nunca desaparecen del todo, solo se apagan y
+  // siguen orbitando detrás (ver .idle-sparks.behind en ia.css)
+  idleLayer.classList.add('behind');
   shownId = entry.id;
   token = entry.token || null;
   frame.srcdoc = withEntranceFlag(entry.html, skipEntrance);   // no hay que escapar nada
@@ -240,7 +235,10 @@ function closeApp() {
   stage.classList.remove('orbiting');
   shownId = null;
   token = null;
-  spawnIdleSparks();   // de vuelta a la espera: que vuelvan a orbitar
+  // de vuelta a la espera: brillan de nuevo (spawnIdleSparks no hace nada
+  // si ya existían, solo cubre el caso de que nunca se hayan creado)
+  idleLayer.classList.remove('behind');
+  spawnIdleSparks();
   setTimeout(() => {
     if (shownId === null) frame.srcdoc = '';
   }, CLOSE_ANIM_MS);
