@@ -76,7 +76,12 @@ function spawnIdleSparks() {
     const el = document.createElement('div');
     el.className = 'idle-spark';
     el.innerHTML = IDLE_SPARK_SVG;
-    // cada una a su propio ritmo de giro/latido, como las de la entrada
+    // cada una a su propio tamaño y ritmo de giro/latido, como las de la entrada
+    const size = 40 + Math.random() * 60;
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.marginLeft = (-size / 2) + 'px';
+    el.style.marginTop = (-size / 2) + 'px';
     el.style.animationDuration =
       (0.9 + Math.random() * 0.8).toFixed(2) + 's, ' + (0.9 + Math.random() * 0.7).toFixed(2) + 's';
     idleLayer.appendChild(el);

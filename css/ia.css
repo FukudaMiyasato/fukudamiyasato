@@ -159,13 +159,11 @@
   z-index: 5;
 }
 .idle-spark {
+  /* tamaño y márgenes de centrado: los pone ia.js inline, distinto por
+     cada destello (ver spawnIdleSparks) */
   position: absolute;
   left: 0;
   top: 0;
-  width: 64px;
-  height: 64px;
-  margin-left: -32px;
-  margin-top: -32px;
   opacity: .8;
   filter: drop-shadow(0 0 14px rgba(255, 31, 61, .85)) drop-shadow(0 0 30px rgba(255, 20, 50, .55));
   animation: fm-idle-spin 1.3s linear infinite, fm-idle-pulse 1.1s ease-in-out infinite;

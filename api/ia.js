@@ -409,6 +409,18 @@ const ICON_SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" style="position:abs
 <symbol id="fm-icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 14-5.3"/><polyline points="18,3 18,7 14,7"/><path d="M20 12a8 8 0 0 1-14 5.3"/><polyline points="6,21 6,17 10,17"/></symbol>
 <symbol id="fm-icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10,6 4,12 10,18"/></symbol>
 <symbol id="fm-icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14,6 20,12 14,18"/></symbol>
+<symbol id="fm-icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7,10 12,15 17,10"/><line x1="4" y1="20" x2="20" y2="20"/></symbol>
+<symbol id="fm-icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><polyline points="7,8 12,3 17,8"/><line x1="4" y1="20" x2="20" y2="20"/></symbol>
+<symbol id="fm-icon-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8.2" y1="10.8" x2="15.8" y2="7.2"/><line x1="8.2" y1="13.2" x2="15.8" y2="16.8"/></symbol>
+<symbol id="fm-icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+<symbol id="fm-icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="fm-icon-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="fm-icon-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
+<symbol id="fm-icon-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h3l2 5-2.5 2A12 12 0 0 0 14 15.5l2-2.5 5 2v3a2 2 0 0 1-2 2C10.5 20 4 13.5 4 5a2 2 0 0 1 2-2z"/></symbol>
+<symbol id="fm-icon-volume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,10 8,10 12,6 12,18 8,14 4,14"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></symbol>
+<symbol id="fm-icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></symbol>
+<symbol id="fm-icon-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,4 20,4 14,12 14,19 10,21 10,12"/></symbol>
+<symbol id="fm-icon-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><polyline points="3,17 9,11 14,16 17,13 21,17"/></symbol>
 </defs>
 </svg>`;
 
@@ -434,6 +446,15 @@ html,body{margin:0;background:var(--fm-bg);color:var(--fm-red-hot);min-height:10
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   text-shadow:0 0 14px var(--fm-glow);
   transition:background-color .6s ease;}
+/* contenido centrado por defecto — el <style> del modelo, que va después
+   en la cascada, puede pisar esto (por ejemplo con display:block) si la
+   app necesita otra disposición (una lista larga que se desplaza, etc). */
+body{min-height:100dvh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;}
+/* separación por defecto entre controles pegados uno al lado del otro —
+   así una fila de inputs o de botones no queda amontonada */
+:is(input,select,textarea,button,.fm-btn,.fm-label,.fm-label-main)
++ :is(input,select,textarea,button,.fm-btn,.fm-label,.fm-label-main){margin-top:.9em;}
 /* mientras las chispitas orbitan, esto se queda transparente para que se
    vea la nebulosa de fondo (si no, el fondo opaco de la propia app la tapa) */
 html.fm-orbiting,body.fm-orbiting{background:transparent;}
@@ -795,15 +816,17 @@ niveles de intensidad de glow, de más a menos fuerte:
   en ese botón puntual para agrandar la caja. Nunca lo vuelvas
   rectangular ni le agregues padding.
 - Íconos: ya existe un sprite de <symbol> (línea roja, sin relleno,
-  hereda el color). Para un botón circular donde una palabra no entra
-  bien (o un ícono se entiende más rápido que el texto), usalo así en
-  vez de una palabra:
+  hereda el color). PREFERÍ SIEMPRE un ícono de esta lista antes que
+  texto en un botón — evita botones con palabras siempre que haya un
+  ícono que represente bien la acción. Se usa así:
     <svg class="fm-icon"><use href="#fm-icon-NOMBRE"/></svg>
   Nombres disponibles — usa exactamente estos, no inventes otros:
   send, check, close, plus, minus, play, pause, mic, save, trash, edit,
   search, heart, star, home, settings, bell, lock, user, mail, clock,
-  refresh, arrow-left, arrow-right. Si ninguno encaja, usa texto corto;
-  no dibujes tu propio ícono SVG desde cero.
+  refresh, arrow-left, arrow-right, download, upload, share, copy, info,
+  alert, pin, phone, volume, calendar, filter, image.
+  Usa texto en el botón solo si ninguno de estos íconos encaja con la
+  acción; no dibujes tu propio ícono SVG desde cero.
 - Labels (clases .fm-label / .fm-label-main — NO el <label> de
   formulario): píldora redonda para mostrar texto corto, un valor o el
   título de un campo. Glow intermedio. Úsalas solo si la app necesita
@@ -813,6 +836,12 @@ niveles de intensidad de glow, de más a menos fuerte:
   más suave de los tres. No les agregues tu propio borde ni fondo.
 - Genera solo los componentes que la instrucción realmente pide: no
   fuerces un botón, un input o un label si la app no los necesita.
+- Centrá el contenido, tanto vertical como horizontalmente (el <body>
+  ya viene en flexbox centrado — si tu app necesita otra disposición,
+  como una lista larga que se desplaza, pisa ese display vos mismo).
+- Dejá separación clara entre controles: al menos ~16px entre un input
+  y el siguiente, entre botones, o entre un label y lo que sigue. No
+  los pegues unos a otros.
 - NO definas tu propia paleta de colores ni le pongas fondo a botones,
   tarjetas ni contenedores: todo es transparente sobre el fondo oscuro,
   delineado en rojo neón. Usa las etiquetas normales, o las clases
@@ -880,10 +909,11 @@ Reglas de uso:
   normales de JavaScript.
 - Si la instrucción pide crear un FORMULARIO (preguntar varios datos y
   guardarlos), sigue esta estructura:
-    1. Un input por cada dato que haya que pedir, con su label corto al
-       lado si hace falta (.fm-label-main para el dato principal, .fm-label
-       para el resto).
-    2. Un único botón circular al final para enviar (p.ej. "Enviar").
+    1. Un input por cada dato que haya que pedir. NO le pongas un label
+       aparte (ni .fm-label ni <label>): el placeholder del propio input
+       alcanza para decir qué se pide ahí.
+    2. Un único botón circular al final para enviar (p.ej. con el ícono
+       "send", o "Enviar" si ninguno encaja).
     3. Al tocarlo: deshabilita el botón y muestra un estado de carga breve
        (el propio botón puede decir "..." o atenuarse) mientras se guarda.
     4. Al terminar: reemplaza el formulario por una confirmación clara
@@ -1000,6 +1030,61 @@ async function airtableProbe() {
   return out;
 }
 
+/**
+ * Lo mismo que airtableProbe pero para la tabla de FM.saveForm — sin
+ * adjunto, así que es más corta. Sirve para distinguir "la tabla ia_forms
+ * no existe" de "el token no puede escribir ahí".
+ */
+async function airtableProbeForms() {
+  const key = process.env.AIRTABLE_TOKEN;
+  const out = { base: AT_BASE, tabla: AT_FORMS_TABLE };
+
+  if (!key) return { ...out, error: 'AIRTABLE_TOKEN no está configurada.' };
+  const auth = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+
+  try {
+    const r = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_FORMS_TABLE)}?pageSize=1`, { headers: auth });
+    if (!r.ok) {
+      out.lectura = { ok: false, detalle: `${r.status} ${(await r.text()).slice(0, 200)}` };
+      out.lectura.detalle += r.status === 404 ? ' — la tabla no existe todavía' : '';
+      return out;
+    }
+    const { records = [] } = await r.json();
+    out.lectura = { ok: true, registros: records.length, campos: Object.keys(records[0]?.fields || {}) };
+  } catch (err) {
+    out.lectura = { ok: false, detalle: err.message };
+    return out;
+  }
+
+  let id = null;
+  try {
+    const mk = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_FORMS_TABLE)}`, {
+      method: 'POST', headers: auth,
+      body: JSON.stringify({ records: [{ fields: { formulario: 'diag', respuestas: '{}' } }], typecast: true }),
+    });
+    if (!mk.ok) {
+      out.escritura = { ok: false, detalle: `${mk.status} ${(await mk.text()).slice(0, 300)}` };
+      return out;
+    }
+    id = (await mk.json()).records[0].id;
+    out.escritura = { ok: true, registroDePrueba: id };
+  } catch (err) {
+    out.escritura = { ok: false, detalle: err.message };
+    return out;
+  }
+
+  try {
+    const del = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_FORMS_TABLE)}/${id}`, {
+      method: 'DELETE', headers: auth,
+    });
+    out.limpieza = del.ok ? 'registro de prueba borrado' : `no se pudo borrar (${del.status}) — bórralo a mano: ${id}`;
+  } catch (err) {
+    out.limpieza = `no se pudo borrar: ${err.message} — bórralo a mano: ${id}`;
+  }
+
+  return out;
+}
+
 /** ¿Existe el modelo configurado para esta cuenta? Solo lectura. */
 async function modelOk(key) {
   const model = process.env.OPENAI_MODEL || 'gpt-4o';
@@ -1101,6 +1186,8 @@ export default async function handler(req, res) {
         // ?diag=write crea un registro vacío en ia_save y lo borra: es la
         // única forma de saber de verdad si el token puede escribir.
         airtable: req.query.diag === 'write' ? await airtableProbe() : null,
+        // lo mismo pero para la tabla de FM.saveForm (sin adjunto)
+        formularios: req.query.diag === 'write' ? await airtableProbeForms() : null,
       });
     }
 
