@@ -127,8 +127,10 @@
   50%      { scale: 1.2; }
 }
 
-/* generando: gira mucho más rápido y se enciende (20% más rápida que antes) */
-.stage.busy .orb {
+/* generando (o con las luces de la app orbitando): gira mucho más rápido
+   y se enciende (20% más rápida que antes) */
+.stage.busy .orb,
+.stage.orbiting .orb {
   --spin: 6;
   filter: blur(calc(var(--size) / 42)) saturate(1.8) contrast(1.3) brightness(1.2);
   transform: scale(1.07);
@@ -169,16 +171,24 @@
 }
 
 /* el shake del celular sacude el propio contenedor antes de que se cierre,
-   como confirmación de que el gesto se sintió */
+   como confirmación de que el gesto se sintió — movido de verdad: más
+   recorrido, con un poco de vaivén vertical y de giro */
 .app-frame.shaking {
-  animation: fm-shake .38s cubic-bezier(.36, .07, .19, .97) both;
+  animation: fm-shake .52s cubic-bezier(.36, .07, .19, .97) both;
 }
 @keyframes fm-shake {
-  0%, 100%     { transform: translate3d(0, 0, 0) scale(1); }
-  10%, 90%     { transform: translate3d(-3px, 0, 0) scale(1); }
-  20%, 80%     { transform: translate3d(6px, 0, 0) scale(1); }
-  30%, 50%, 70% { transform: translate3d(-10px, 0, 0) scale(1); }
-  40%, 60%     { transform: translate3d(10px, 0, 0) scale(1); }
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  8%       { transform: translate3d(-18px, 5px, 0) rotate(-2.4deg); }
+  16%      { transform: translate3d(16px, -7px, 0) rotate(2.2deg); }
+  24%      { transform: translate3d(-22px, 4px, 0) rotate(-3deg); }
+  32%      { transform: translate3d(20px, -6px, 0) rotate(2.8deg); }
+  40%      { transform: translate3d(-17px, 7px, 0) rotate(-2.2deg); }
+  48%      { transform: translate3d(15px, -5px, 0) rotate(1.8deg); }
+  56%      { transform: translate3d(-12px, 4px, 0) rotate(-1.5deg); }
+  64%      { transform: translate3d(10px, -3px, 0) rotate(1.1deg); }
+  72%      { transform: translate3d(-7px, 2px, 0) rotate(-.8deg); }
+  80%      { transform: translate3d(5px, -2px, 0) rotate(.5deg); }
+  88%      { transform: translate3d(-3px, 1px, 0) rotate(-.3deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   .app-frame.shaking { animation: none; }

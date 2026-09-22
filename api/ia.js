@@ -373,34 +373,45 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
 @media (prefers-reduced-motion: reduce){
   .fm-float{animation:none;}
 }
+
+/* el destello al aterrizar: un chispazo rojo, nunca blanco */
+.fm-flash{animation:fm-flash .45s ease-out both;}
+@keyframes fm-flash{
+  0%   {box-shadow:0 0 0 0 rgba(255,90,78,0);filter:brightness(1);}
+  12%  {box-shadow:0 0 55px 18px rgba(255,90,78,.95),0 0 110px 40px rgba(255,20,50,.7);filter:brightness(1.9);}
+  100% {box-shadow:0 0 0 0 rgba(255,90,78,0);filter:brightness(1);}
+}
 </style>`;
 
 /* ============================================================
-   Ensamblaje de entrada — órbita, no vuelo directo
+   Ensamblaje de entrada — luces en órbita, no formas
    ------------------------------------------------------------
    1. Todo arranca invisible (opacity 0).
-   2. Los elementos CON BORDE (button, input, .fm-panel...) orbitan
-      alrededor del centro de la pantalla, en elipses, cada uno con su
-      propio radio y velocidad — la nebulosa de fondo sigue girando,
-      no se apaga todavía.
-   3. Mientras orbitan, se hacen visibles como círculos: aparece el
-      borde y el glow, pero el texto se mantiene oculto (color y
-      text-shadow en transparente/none).
-   4. Tras un rato orbitando, se avisa al padre (postMessage) para que
-      recién ahí apague la nebulosa, y los elementos aterrizan: dejan
-      de orbitar y viajan a su posición y forma reales.
-   5. Ya aterrizados, aparece el texto (el color vuelve a su valor).
-      Los elementos sin borde (títulos, párrafos...) no orbitan: se
+   2. Los elementos CON BORDE (button, input, .fm-panel...) se
+      convierten en una lucecita roja (un punto de glow, sin su forma
+      ni su borde ni su texto reales) y orbitan alrededor del centro
+      de la pantalla, en elipses, rápido y cada una a su propia
+      velocidad. La nebulosa de fondo NO se apaga: gira más rápido
+      mientras dura esto.
+   3. Tras un rato orbitando, se avisa al padre (postMessage) para que
+      recién ahí apague la nebulosa, y cada luz aterriza: viaja a su
+      posición real. Al llegar, un pequeño destello (rojo, nunca
+      blanco) y ahí aparece el elemento real — forma, borde y texto de
+      golpe, no en fundido.
+   4. Los elementos sin borde (títulos, párrafos...) no orbitan: se
       quedan invisibles hasta este mismo momento y solo hacen fade-in.
-   6. Por último, cada uno empieza a flotar con su propio ritmo.
+   5. Por último, cada uno empieza a flotar con su propio ritmo.
+   Si la app ya existía (se está retomando, no creando de nuevo) se
+   salta todo esto: lo marca `window.__fmSkipEntrance`, puesto por
+   ia.js antes de que corra este script.
    No se toca `position` en ningún momento: todo es `transform`
    calculado con getBoundingClientRect(), así el layout real no cambia.
    ============================================================ */
 const ASSEMBLE_JS = `<script>(function(){
   var ORBIT_MS = 1900;   // cuánto orbitan antes de aterrizar
-  var LAND_MS  = 850;    // duración del aterrizaje
+  var LAND_MS  = 750;    // duración del aterrizaje
 
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (window.__fmSkipEntrance || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     parent.postMessage({ __fm: 'nebula-fade' }, '*');
     return;
   }
@@ -434,9 +445,10 @@ const ASSEMBLE_JS = `<script>(function(){
         var rx = Math.min(innerWidth, innerHeight) * (0.16 + Math.random() * 0.24);
         orbiters.push({
           el: el, baseX: baseX, baseY: baseY,
-          finalRadius: cs.borderRadius, finalColor: cs.color,
+          finalRadius: cs.borderRadius, finalColor: cs.color, finalBorderColor: cs.borderColor,
           rx: rx, ry: rx * (0.45 + Math.random() * 0.35),
-          speed: (Math.random() < 0.5 ? -1 : 1) * (Math.PI * 2 / (2.2 + Math.random() * 2.0)),
+          // rápido, y cada luz a una velocidad bien distinta
+          speed: (Math.random() < 0.5 ? -1 : 1) * (Math.PI * 2 / (0.9 + Math.random() * 1.3)),
           phase: Math.random() * Math.PI * 2,
         });
       } else {
@@ -452,14 +464,18 @@ const ASSEMBLE_JS = `<script>(function(){
       el.style.transition = 'none';
       el.style.opacity = '0';
       el.style.borderRadius = '50%';
+      el.style.borderColor = 'transparent';
       el.style.color = 'transparent';
       el.style.textShadow = 'none';
-      el.style.transform = 'translate(' + (-o.baseX) + 'px,' + (-o.baseY) + 'px)';
+      // nada de su forma real: solo un glow rojo va a hacer de "luz"
+      el.style.boxShadow =
+        '0 0 55px 18px rgba(255,90,78,.9), 0 0 110px 40px rgba(224,16,43,.45)';
+      el.style.transform = 'translate(' + (-o.baseX) + 'px,' + (-o.baseY) + 'px) scale(.3)';
     });
     texters.forEach(function(el){ el.style.transition = 'none'; el.style.opacity = '0'; });
     void document.body.offsetWidth;   // fuerza el layout con el estado inicial ya pintado
 
-    // ---- fase 1: a orbitar (todavía invisibles) ----
+    // ---- fase 1: a orbitar como lucecitas ----
     var start = performance.now(), raf;
     function tick(now){
       var t = (now - start) / 1000;
@@ -467,22 +483,21 @@ const ASSEMBLE_JS = `<script>(function(){
         var a = o.phase + t * o.speed;
         var dx = -o.baseX + o.rx * Math.cos(a);
         var dy = -o.baseY + o.ry * Math.sin(a);
-        o.lastDx = dx; o.lastDy = dy;
-        o.el.style.transform = 'translate(' + dx.toFixed(2) + 'px,' + dy.toFixed(2) + 'px)';
+        o.el.style.transform = 'translate(' + dx.toFixed(2) + 'px,' + dy.toFixed(2) + 'px) scale(.3)';
       });
       raf = requestAnimationFrame(tick);
     }
     raf = requestAnimationFrame(tick);
 
-    // ---- fase 2: mientras orbitan, se hacen visibles como círculos ----
+    // se hacen visibles casi de inmediato, ya orbitando
     orbiters.forEach(function(o, i){
       setTimeout(function(){
-        o.el.style.transition = 'opacity .55s ease';
+        o.el.style.transition = 'opacity .4s ease';
         o.el.style.opacity = '1';
-      }, 120 + i * 70);
+      }, 60 + i * 50);
     });
 
-    // ---- fase 3: la nebulosa empieza a apagarse, y aterrizan ----
+    // ---- fase 2: la nebulosa empieza a apagarse, y aterrizan ----
     setTimeout(function(){
       parent.postMessage({ __fm: 'nebula-fade' }, '*');
       cancelAnimationFrame(raf);
@@ -490,19 +505,25 @@ const ASSEMBLE_JS = `<script>(function(){
       orbiters.forEach(function(o, i){
         var el = o.el, delay = i * 40;
         el.style.transition =
-          'transform ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms, ' +
-          'border-radius ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms';
+          'transform ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms';
         el.style.transform = '';
-        el.style.borderRadius = o.finalRadius;
 
         el.addEventListener('transitionend', function land(ev){
           if (ev.propertyName !== 'transform') return;
           el.removeEventListener('transitionend', land);
-          // ---- fase 4: ya en su lugar, aparece el texto ----
-          el.style.transition = 'color .5s ease';
+          // ---- destello, y aparece el elemento real de golpe ----
+          el.style.transition = 'none';
+          el.style.borderRadius = o.finalRadius;
+          el.style.borderColor = o.finalBorderColor;
           el.style.color = o.finalColor;
           el.style.textShadow = '';
-          setTimeout(function(){ floatify(el); }, 520);
+          el.style.boxShadow = '';
+          el.classList.add('fm-flash');
+          el.addEventListener('animationend', function flashDone(){
+            el.removeEventListener('animationend', flashDone);
+            el.classList.remove('fm-flash');
+            floatify(el);
+          });
         });
       });
 
