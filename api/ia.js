@@ -523,6 +523,17 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
   box-shadow:0 0 13px -2px var(--fm-glow),0 0 28px 0 var(--fm-glow-soft);}
 .fm-label-main{min-width:60%;padding-left:1.6em;padding-right:1.6em;}
 
+/* Sin esto, la app terminada se ve completa un instante (mientras el
+   iframe carga y antes de que el ensamblaje de entrada, que recién
+   corre con "load", alcance a esconder cada elemento) y recién ahí
+   "desaparece" para empezar a orbitar — un flash feo. Lo real arranca
+   invisible desde el primer pintado, por CSS puro; ASSEMBLE_JS saca
+   esta clase de <html> apenas toma control (o de una, si se salta la
+   animación), momento en el que ya dejó cada elemento en opacity:0 por
+   su cuenta — el traspaso no se nota. Las chispitas del ensamblaje no
+   son hijas afectadas por esta regla (se agregan recién después). */
+html:not(.fm-ready) body>*{opacity:0!important;}
+
 /* flotación sutil en reposo, una vez que el elemento ya se acomodó —
    cada uno con su propio ritmo (duración, retraso y altura), así no
    flotan parejo: el JS de abajo pone los tres al azar por elemento */
@@ -601,6 +612,7 @@ const ASSEMBLE_JS = `<script>(function(){
   var NEBULA_LEAD_MS = 200;    // cuánto antes de aterrizar se avisa a la nebulosa que se apague
 
   if (window.__fmSkipEntrance || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.documentElement.classList.add('fm-ready');
     parent.postMessage({ __fm: 'nebula-fade' }, '*');
     return;
   }
@@ -650,7 +662,10 @@ const ASSEMBLE_JS = `<script>(function(){
       document.body.classList.remove('fm-orbiting');
     }
 
-    if (!all.length) { endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
+    if (!all.length) {
+      document.documentElement.classList.add('fm-ready');
+      endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return;
+    }
 
     var cx = innerWidth / 2, cy = innerHeight / 2;
     var orbiters = [];
@@ -671,10 +686,15 @@ const ASSEMBLE_JS = `<script>(function(){
       });
     });
 
-    if (!orbiters.length) { endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
+    if (!orbiters.length) {
+      document.documentElement.classList.add('fm-ready');
+      endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return;
+    }
 
-    // ---- estado inicial: el elemento real, invisible ----
+    // ---- estado inicial: el elemento real, invisible (ya lo estaba por
+    // CSS desde el primer pintado; a partir de acá lo controla esto) ----
     orbiters.forEach(function(o){ o.el.style.transition = 'none'; o.el.style.opacity = '0'; });
+    document.documentElement.classList.add('fm-ready');
 
     // ---- una chispita por elemento, aparte del layout: entra desde
     // bien afuera de la pantalla y viaja hasta su punto de órbita ----
