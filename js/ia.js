@@ -4,7 +4,6 @@
    ============================================================ */
 
 const POLL_MS = 2000;
-const STORE   = 'fm.ia.app.v1';
 
 /* El meta viewport (user-scalable=no) ya no alcanza: Safari moderno lo
    ignora por accesibilidad. Sin esto, el pellizco con dos dedos hace zoom
@@ -172,18 +171,6 @@ function tickIdle() {
   idleRaf = requestAnimationFrame(tickIdle);
 }
 
-/* ---------------- lo guardado ---------------- */
-function load() {
-  try { return JSON.parse(localStorage.getItem(STORE)) || null; } catch { return null; }
-}
-function save(entry) {
-  try { localStorage.setItem(STORE, JSON.stringify(entry)); } catch { /* modo privado */ }
-}
-function markClosed() {
-  const s = load();
-  if (s) save({ ...s, closed: true });
-}
-
 /* ---------------- pantalla ---------------- */
 function setBusy(on) {
   busy = on;
@@ -265,7 +252,6 @@ function dismissRemote(id) {
 
 function dismissApp() {
   dismissRemote(shownId);
-  markClosed();
   closeApp();
 }
 
@@ -520,8 +506,7 @@ async function generate(id, prompt) {
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     if (!json.app?.html) throw new Error('respuesta sin código');
 
-    const entry = { id: json.app.id, html: json.app.html, token: json.app.token, prompt, at: json.app.at, closed: false };
-    save(entry);
+    const entry = { id: json.app.id, html: json.app.html, token: json.app.token, prompt, at: json.app.at };
     showApp(entry);
     console.log(`[ia] app lista (${entry.html.length} chars) para: ${prompt}`);
   } catch (err) {
@@ -531,16 +516,18 @@ async function generate(id, prompt) {
   }
 }
 
-/** Trae el código de una app que el servidor ya tenía hecha. */
-async function adopt(appId, prompt) {
+/** Trae el código de una app que el servidor ya tenía hecha (otro
+ *  dispositivo la generó, o esta misma pestaña se recargó). skipEntrance
+ *  es para el segundo caso: no hace falta que las chispitas vuelvan a
+ *  orbitar por algo que ya se estaba viendo. */
+async function adopt(appId, prompt, { skipEntrance = false } = {}) {
   try {
     const res = await fetch('/api/ia?app=1', { cache: 'no-store' });
     const { app } = await res.json();
     if (!app?.html || app.id !== appId) return false;
 
-    const entry = { id: app.id, html: app.html, token: app.token, prompt: app.prompt || prompt, at: app.at, closed: false };
-    save(entry);
-    showApp(entry);
+    const entry = { id: app.id, html: app.html, token: app.token, prompt: app.prompt || prompt, at: app.at };
+    showApp(entry, { skipEntrance });
     return true;
   } catch {
     return false;
@@ -565,7 +552,6 @@ async function poll() {
   // la que tengo abierta se borró desde otro dispositivo (o desde acá mismo,
   // por las dudas): se cierra también en esta pantalla
   if (shownId && dismissedId === shownId) {
-    markClosed();
     closeApp();
     return;
   }
@@ -578,6 +564,11 @@ async function poll() {
   if (!latest?.text) return;
 
   if (latest.id === handledId) return;
+
+  // se descartó a propósito (acá o en otro dispositivo): no revivirla solo
+  // porque esta pestaña todavía no la había marcado como vista
+  if (latest.id === dismissedId) { handledId = latest.id; return; }
+
   handledId = latest.id;
 
   console.log(latest.text);
@@ -589,42 +580,24 @@ async function poll() {
 }
 
 /* ---------------- arranque ---------------- */
-/* Antes de retomar lo que quedó en localStorage hay que preguntarle al
-   servidor si sigue vigente: si el shake la borró desde el celular
-   mientras esta pestaña estaba cerrada (o sin mirar), el localStorage de
-   ESTA pestaña nunca se enteró — nadie le avisó — y sin este chequeo
-   mostraría la app vieja igual, aunque ya no exista en ningún otro lado. */
+/* Nada de localStorage: lo que haya que retomar se pregunta siempre al
+   servidor (ver el estado compartido en api/ia.js). Así no hace falta
+   entrar a mano al localStorage cuando el caché local queda desincronizado
+   del servidor — no hay caché local que desincronizar. */
 async function boot() {
-  const saved = load();
-
   let data = null;
   try {
     const res = await fetch('/api/ia', { cache: 'no-store' });
     if (res.ok) data = await res.json();
-  } catch { /* sin conexión: seguimos con lo que había en caché, mejor que nada */ }
+  } catch { /* sin conexión: arranca en la nebulosa, el sondeo reintenta solo */ }
 
-  if (saved?.html && !saved.closed) {
-    if (data && data.dismissedId === saved.id) {
-      // se borró en otro dispositivo mientras esta pestaña no miraba
-      markClosed();
-      handledId = saved.id;
-    } else {
-      // ya existía: no hace falta que las luces vuelvan a orbitar de nuevo
-      showApp(saved, { skipEntrance: true });
-      handledId = saved.id;
-      // el token dura 24h: si el servidor ya nos lo dio en el estado general, listo
-      if (data?.app?.id === saved.id && data.app.token) {
-        token = data.app.token;
-        save({ ...saved, token: data.app.token });
-      } else {
-        fetch('/api/ia?app=1', { cache: 'no-store' })
-          .then((r) => r.json())
-          .then(({ app }) => { if (app?.id === saved.id && app.token) { token = app.token; save({ ...saved, token: app.token }); } })
-          .catch(() => { /* seguimos con el que había */ });
-      }
-    }
-  } else if (saved?.id) {
-    handledId = saved.id;           // ya la vimos y la cerramos: no regenerar
+  if (data?.app && data.app.id !== data.dismissedId) {
+    // ya había una app vigente (se recargó la página, u otro dispositivo
+    // la generó): la traemos sin repetir la animación de entrada
+    const ok = await adopt(data.app.id, data.app.prompt, { skipEntrance: true });
+    if (ok) handledId = data.app.id;
+  } else if (data?.latest?.id === data?.dismissedId) {
+    handledId = data.latest.id;   // ya se había descartado: no regenerar de una
   }
 
   // si no se retomó ninguna app, la nebulosa arranca en espera: que orbiten

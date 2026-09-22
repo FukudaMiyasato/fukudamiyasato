@@ -257,9 +257,13 @@ que llega de fuera, así que corre en un origen opaco: puede usar JS y verse
 a pantalla completa, pero no puede leer el `localStorage` del sitio, ni las
 cookies, ni llamar a `/api/ia`.
 
-La app generada se guarda en el `localStorage` del navegador, así que
-sobrevive a recargas. Si la cierras con la X, se recuerda que la cerraste y
-la próxima carga arranca en la nebulosa.
+La app generada NO se guarda en el navegador (ni localStorage ni nada
+parecido): si recargás la página, `ia.html` le pregunta al servidor si hay
+una app vigente (el mismo estado compartido de arriba) y la retoma sin
+repetir la animación de entrada. Si la cerraste con el shake, el servidor
+ya sabe que se descartó, así que la próxima carga arranca en la nebulosa
+— no hay caché local que pueda quedar desincronizada ni que haya que
+limpiar a mano.
 
 ## Capacidades · el objeto FM
 
