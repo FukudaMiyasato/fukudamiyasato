@@ -500,7 +500,7 @@ const ASSEMBLE_JS = `<script>(function(){
         // rápido, y cada chispita a una velocidad bien distinta
         speed: (Math.random() < 0.5 ? -1 : 1) * (Math.PI * 2 / (0.9 + Math.random() * 1.3)),
         phase: Math.random() * Math.PI * 2,
-        size: 46 + Math.random() * 40,
+        size: 78 + Math.random() * 64,
         entered: false,
         landing: false,
       });

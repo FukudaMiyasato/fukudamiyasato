@@ -168,7 +168,12 @@
   pointer-events: auto;
   transform: scale(1);
   clip-path: circle(150% at 50% 50%);
-  /* sin borde: solo un resplandor suave alrededor, nada de contorno */
+}
+/* el resplandor rojo alrededor del contenedor, solo una vez aterrizado
+   todo: mientras orbitan las chispitas, el fondo va transparente (ver
+   .app-frame.orbiting) y este glow encima se veía como un fondo rojo
+   raro peleándose con la nebulosa de atrás */
+.app-frame.show:not(.orbiting) {
   box-shadow: 0 0 70px -10px var(--red-glow);
 }
 
