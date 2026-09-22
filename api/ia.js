@@ -190,6 +190,10 @@ const AT_BASE  = process.env.AIRTABLE_BASE || 'appU39PYosvxt8FfG';
 const AT_TABLE = process.env.AIRTABLE_SAVE_TABLE || 'ia_save';
 const AT_FIELD = process.env.AIRTABLE_SAVE_FIELD || 'file';
 
+/* Tabla para FM.saveForm: un registro por envío, sin adjuntos. Columnas
+   esperadas: "formulario" (texto) y "respuestas" (texto largo, JSON). */
+const AT_FORMS_TABLE = process.env.AIRTABLE_FORMS_TABLE || 'ia_forms';
+
 /* Vercel corta los cuerpos en 4.5MB; dejamos margen. */
 const MAX_B64 = 3_600_000;
 
@@ -253,6 +257,44 @@ async function airtableSave({ filename, contentType, data }) {
   return { id: recordId, filename: att.filename || filename, url: att.url || null, size: att.size ?? null };
 }
 
+/** Guarda las respuestas de un formulario como un registro nuevo, sin
+ *  adjuntos: la tabla es genérica (mismas dos columnas para cualquier
+ *  formulario), así no hace falta crear columnas nuevas por cada uno. */
+async function airtableSaveForm({ name, fields }) {
+  const key = process.env.AIRTABLE_TOKEN;
+  if (!key) throw Object.assign(new Error('AIRTABLE_TOKEN no está configurada.'), { code: 501 });
+
+  const auth = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+  const record = {
+    fields: {
+      formulario: String(name || 'Formulario').slice(0, 200),
+      respuestas: JSON.stringify(fields ?? {}, null, 2).slice(0, 90000),
+    },
+  };
+
+  const r = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_FORMS_TABLE)}`, {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ records: [record], typecast: true }),
+  });
+  if (!r.ok) {
+    const detail = await r.text();
+    console.error('[api/ia] Airtable guardar formulario', r.status, detail.slice(0, 400));
+    throw Object.assign(
+      new Error(r.status === 403
+        ? `El token de Airtable no tiene permiso de escritura sobre la tabla "${AT_FORMS_TABLE}".`
+        : r.status === 404
+        ? `No existe la tabla "${AT_FORMS_TABLE}" en la base. Créala con las columnas "formulario" (texto) y "respuestas" (texto largo).`
+        : `Airtable respondió ${r.status} al guardar el formulario.`),
+      { code: 502 },
+    );
+  }
+
+  const saved = (await r.json()).records[0];
+  console.log(`[api/ia] formulario guardado en ${AT_FORMS_TABLE}: ${record.fields.formulario} -> ${saved.id}`);
+  return { id: saved.id, name: saved.fields.formulario, fields, createdTime: saved.createdTime };
+}
+
 async function airtableList(limit = 20) {
   const key = process.env.AIRTABLE_TOKEN;
   if (!key) throw Object.assign(new Error('AIRTABLE_TOKEN no está configurada.'), { code: 501 });
@@ -306,6 +348,7 @@ const SDK = `<script>(function(){
     saveFile:  function(blob, filename){ return call('save', { blob: blob, filename: filename }); },
     saveText:  function(text, filename){ return call('save', { text: String(text), filename: filename || 'nota.txt', contentType: 'text/plain' }); },
     saveJSON:  function(obj, filename){ return call('save', { text: JSON.stringify(obj, null, 2), filename: filename || 'datos.json', contentType: 'application/json' }); },
+    saveForm:  function(name, fields){ return call('save-form', { name: name, fields: fields || {} }); },
     listFiles: function(limit){ return call('list', { limit: limit || 20 }); },
     record: {
       start: function(){ return call('rec-start', {}); },
@@ -326,6 +369,9 @@ const SDK = `<script>(function(){
    que inventarse una paleta ni un tema: botones, inputs y demás ya
    salen vestidos con contorno rojo y glow, sin relleno. Las reglas
    del modelo, que van después, pueden sobreescribirlas si hace falta.
+
+   Tres niveles de intensidad de glow, de más a menos fuerte:
+     botones (círculo perfecto) > labels (píldora, .fm-label*) > inputs
    ============================================================ */
 const NEON_CSS = `<style id="fm-base">
 :root{
@@ -343,26 +389,56 @@ html,body{margin:0;background:var(--fm-bg);color:var(--fm-red-hot);min-height:10
 html.fm-orbiting,body.fm-orbiting{background:transparent;}
 ::selection{background:var(--fm-red);color:#000;}
 h1,h2,h3,h4,h5,h6{text-shadow:0 0 22px var(--fm-glow);}
+
+/* botones: círculo perfecto por defecto — caja cuadrada + radio al máximo,
+   sin padding (el contenido se centra solo). Es el glow más fuerte de los
+   tres. --fm-btn-size lo puede agrandar un botón puntual si el texto no
+   entra; nunca hay que volverlo rectangular ni agregarle padding. */
 button,.fm-btn,input[type=button],input[type=submit]{
-  font:inherit;color:var(--fm-red-hot);cursor:pointer;border-radius:10px;padding:.6em 1.1em;
+  font:inherit;color:var(--fm-red-hot);cursor:pointer;
+  width:var(--fm-btn-size,4.6em);height:var(--fm-btn-size,4.6em);
+  padding:0;margin:0;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  text-align:center;line-height:1.1;
   background:transparent;border:1px solid var(--fm-red-hot);
   text-shadow:0 0 10px var(--fm-glow);
-  box-shadow:0 0 10px -1px var(--fm-glow),0 0 26px 1px var(--fm-glow-soft);
+  box-shadow:0 0 16px -1px var(--fm-glow),0 0 38px 3px var(--fm-glow-soft);
   transition:box-shadow .25s ease,transform .25s ease,border-color .25s ease,color .25s ease;}
 button:hover,.fm-btn:hover,input[type=button]:hover,input[type=submit]:hover{
-  box-shadow:0 0 26px 2px var(--fm-glow),0 0 46px 6px var(--fm-glow-soft);border-color:#fff;color:#fff;transform:translateY(-1px);}
+  box-shadow:0 0 30px 2px var(--fm-glow),0 0 54px 8px var(--fm-glow-soft);border-color:#fff;color:#fff;transform:translateY(-1px);}
 button:active,.fm-btn:active{transform:translateY(0) scale(.97);}
 button:disabled,.fm-btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;transform:none;}
+
+/* inputs: sin caja, solo la línea inferior — el glow más suave de los
+   tres, confinado abajo con blur + spread negativo (un box-shadow normal
+   rodearía el rectángulo entero). */
 input,select,textarea{
   font:inherit;color:var(--fm-red-hot);background:transparent;
-  border:1px solid var(--fm-line);border-radius:8px;padding:.55em .8em;
-  box-shadow:0 0 12px -3px var(--fm-glow);}
+  border:none;border-bottom:1px solid var(--fm-red-hot);border-radius:0;
+  padding:.55em .2em;
+  box-shadow:0 5px 10px -6px var(--fm-glow),0 10px 20px -9px var(--fm-glow-soft);}
 input:focus,select:focus,textarea:focus{
-  outline:none;border-color:var(--fm-red-hot);box-shadow:0 0 18px -1px var(--fm-glow);}
+  outline:none;border-color:#fff;
+  box-shadow:0 6px 16px -5px var(--fm-glow),0 12px 28px -8px var(--fm-glow-soft);}
+input::placeholder,textarea::placeholder{color:var(--fm-line);}
+
 a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
 .fm-panel,.card,.panel{background:transparent;border:1px solid var(--fm-line);border-radius:14px;
   box-shadow:0 0 22px -5px var(--fm-glow);}
 .fm-neon,.glow{text-shadow:0 0 18px var(--fm-glow);}
+
+/* labels: NO el <label> de formulario — una píldora redonda para mostrar
+   texto corto (un valor, un estado, el título de un campo). Glow a medio
+   camino entre el botón (fuerte) y el input (suave). Si hay varias
+   juntas, exactamente una lleva .fm-label-main (más ancha) y el resto
+   .fm-label. */
+.fm-label,.fm-label-main{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:.5em 1.2em;border-radius:999px;white-space:nowrap;
+  border:1px solid var(--fm-red-hot);color:var(--fm-red-hot);
+  text-shadow:0 0 12px var(--fm-glow);
+  box-shadow:0 0 13px -2px var(--fm-glow),0 0 28px 0 var(--fm-glow-soft);}
+.fm-label-main{min-width:60%;padding-left:1.6em;padding-right:1.6em;}
 
 /* flotación sutil en reposo, una vez que el elemento ya se acomodó —
    cada uno con su propio ritmo (duración, retraso y altura), así no
@@ -649,13 +725,27 @@ Reglas estrictas:
 DISEÑO — ya viene puesto, no lo reconstruyas
 Antes de tu HTML se inyecta una hoja de estilos base: fondo casi negro
 (--fm-bg #0a0a0c) y todo lo demás sin relleno — nada de paneles ni
-botones con fondo de color. Los elementos (button, input, select,
-textarea, a, h1..h6) ya salen con contorno rojo neón, texto rojo y un
-glow sutil (--fm-glow) que se intensifica en hover/focus.
+botones con fondo de color. Los controles ya salen vestidos en tres
+niveles de intensidad de glow, de más a menos fuerte:
+- Botones (button, .fm-btn, input[type=button|submit]): círculo
+  perfecto — caja cuadrada, radio al 100%, sin padding. Es el glow más
+  intenso. Si el texto no entra, ajusta el font-size inline (más corto
+  = más grande, más largo = más chico) o sube la variable --fm-btn-size
+  en ese botón puntual para agrandar la caja. Nunca lo vuelvas
+  rectangular ni le agregues padding.
+- Labels (clases .fm-label / .fm-label-main — NO el <label> de
+  formulario): píldora redonda para mostrar texto corto, un valor o el
+  título de un campo. Glow intermedio. Úsalas solo si la app necesita
+  destacar un texto así; si hay varias juntas, exactamente una lleva
+  .fm-label-main (más ancha) y el resto .fm-label.
+- input/select/textarea: sin caja, solo una línea inferior con el glow
+  más suave de los tres. No les agregues tu propio borde ni fondo.
+- Genera solo los componentes que la instrucción realmente pide: no
+  fuerces un botón, un input o un label si la app no los necesita.
 - NO definas tu propia paleta de colores ni le pongas fondo a botones,
   tarjetas ni contenedores: todo es transparente sobre el fondo oscuro,
   delineado en rojo neón. Usa las etiquetas normales, o las clases
-  .fm-btn / .fm-panel / .card / .panel / .fm-neon si te hacen falta.
+  .fm-panel / .card / .panel / .fm-neon si te hacen falta.
 - Tu <style> es solo para el layout propio de la app (posiciones,
   tamaños, espaciados, grids) y detalles muy específicos que la base no
   cubre. Cuanto menos CSS de tema escribas, mejor.
@@ -688,6 +778,12 @@ envuélvelas en try/catch y muestra el error en pantalla.
   await FM.saveJSON(objeto, 'datos.json')
       Lo mismo para texto y para datos estructurados.
 
+  await FM.saveForm('Nombre del formulario', { pregunta1: 'valor1', pregunta2: 'valor2' })
+      Guarda las respuestas de un formulario como un registro nuevo en
+      Airtable — no como archivo. Primer argumento: un nombre corto para
+      identificar qué formulario es. Segundo: un objeto plano, una clave
+      por pregunta. Devuelve { id, name, fields, createdTime }.
+
   await FM.listFiles(20)
       Lo guardado antes, lo más reciente primero:
       [{ id, filename, url, size, type, createdTime }].
@@ -710,7 +806,20 @@ Reglas de uso:
   guardado y, cuando tenga sentido, la lista de FM.listFiles().
 - Si la app NO necesita guardar nada (una calculadora, un contador, un
   temporizador), ignora FM por completo y guarda el estado en variables
-  normales de JavaScript.`;
+  normales de JavaScript.
+- Si la instrucción pide crear un FORMULARIO (preguntar varios datos y
+  guardarlos), sigue esta estructura:
+    1. Un input por cada dato que haya que pedir, con su label corto al
+       lado si hace falta (.fm-label-main para el dato principal, .fm-label
+       para el resto).
+    2. Un único botón circular al final para enviar (p.ej. "Enviar").
+    3. Al tocarlo: deshabilita el botón y muestra un estado de carga breve
+       (el propio botón puede decir "..." o atenuarse) mientras se guarda.
+    4. Al terminar: reemplaza el formulario por una confirmación clara
+       (p.ej. un .fm-label-main con "Listo ✓"), no lo dejes ahí tal cual.
+       Si falla, muestra el error y deja reintentar.
+    5. Guarda las respuestas con FM.saveForm(nombreDelFormulario, campos) —
+       nunca con FM.saveJSON ni con fetch propio.`;
 
 /** Quita las vallas de markdown si el modelo las mete igual. */
 function cleanHtml(out) {
@@ -1053,6 +1162,23 @@ export default async function handler(req, res) {
       return res.status(200).json(saved);
     } catch (err) {
       console.error('[api/ia] fallo guardando:', err.message);
+      return res.status(err.code || 500).json({ error: err.message });
+    }
+  }
+
+  /* ---------- capacidades: guardar un formulario (registro, sin adjunto) ---------- */
+  if (req.query?.saveForm) {
+    let body = {};
+    try { body = JSON.parse(await readRaw(req)) || {}; } catch { /* sin body */ }
+
+    if (!verifyToken(body.token)) {
+      return res.status(401).json({ error: 'Token de la app inválido o vencido.' });
+    }
+    try {
+      const saved = await airtableSaveForm({ name: body.name, fields: body.fields });
+      return res.status(200).json(saved);
+    } catch (err) {
+      console.error('[api/ia] fallo guardando formulario:', err.message);
       return res.status(err.code || 500).json({ error: err.message });
     }
   }

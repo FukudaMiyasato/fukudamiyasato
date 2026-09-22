@@ -246,6 +246,21 @@ async function guardar({ blob, text, filename, contentType }) {
   return json;
 }
 
+async function guardarForm({ name, fields }) {
+  if (!token) throw new Error('Esta app no tiene permiso para guardar.');
+
+  const res = await fetch('/api/ia?saveForm=1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, name, fields }),
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  console.log(`[ia] formulario guardado: ${json.name}`, json.id);
+  return json;
+}
+
 async function listar(limit) {
   const res = await fetch(`/api/ia?files=1&limit=${Number(limit) || 20}`, { cache: 'no-store' });
   const json = await res.json();
@@ -304,6 +319,7 @@ function grabarFin({ save = true, filename } = {}) {
 
 const ACCIONES = {
   save:        (p) => guardar(p),
+  'save-form': (p) => guardarForm(p),
   list:        (p) => listar(p?.limit),
   'rec-start': () => grabarInicio(),
   'rec-stop':  (p) => grabarFin(p),

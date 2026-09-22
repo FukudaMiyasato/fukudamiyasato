@@ -247,6 +247,7 @@ código de guardado o grabación:
 await FM.saveFile(blob, 'audio.webm')   // -> { id, filename, url, size }
 await FM.saveText('hola', 'nota.txt')
 await FM.saveJSON({ a: 1 }, 'datos.json')
+await FM.saveForm('Contacto', { nombre: 'Ana', tel: '999' })  // -> { id, name, fields, createdTime }
 await FM.listFiles(20)                  // lo guardado antes, con sus urls
 await FM.record.start()
 await FM.record.stop({ save: true })    // -> { id, url, seconds, ... }
@@ -260,6 +261,7 @@ viven en la página contenedora**, que sí está en el dominio:
 
 ```
 app (iframe)  --postMessage-->  ia.html  --fetch-->  /api/ia?save=1  -->  Airtable
+app (iframe)  --postMessage-->  ia.html  --fetch-->  /api/ia?saveForm=1  -->  Airtable
 ```
 
 `ia.html` solo atiende mensajes de su propio iframe (compara
@@ -280,6 +282,14 @@ acepta base64. Configurable con `AIRTABLE_SAVE_TABLE` y
 
 Límite por archivo: ~2.7 MB, porque Vercel corta los cuerpos de request en
 4.5 MB y el base64 crece un tercio.
+
+**`FM.saveForm`** usa una tabla aparte, **`ia_forms`** (configurable con
+`AIRTABLE_FORMS_TABLE`), sin adjuntos: un registro por envío, con dos
+columnas fijas — `formulario` (texto corto, el nombre que le puso GPT) y
+`respuestas` (texto largo, el objeto de respuestas como JSON). Es genérica
+a propósito: así cualquier formulario que se le pida a la IA se guarda sin
+tener que crear columnas nuevas por cada uno. Si la tabla no existe
+todavía, hay que crearla a mano en Airtable con esas dos columnas.
 
 ### El token de guardado
 
