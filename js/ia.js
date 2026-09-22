@@ -96,6 +96,8 @@ let nebulaFadeTimer = null;
 const idleLayer = document.getElementById('idleSparks');
 const IDLE_SPARK_COUNT = 5;
 const IDLE_SPEED_BUSY  = 6;
+const IDLE_SPEED_SLOW  = 0.8 * 0.85;   // 20% más lento, y otro 15% más sobre eso
+const IDLE_REVERSE_COUNT = 2;          // cuántos de los destellos giran al revés del resto
 
 const IDLE_SPARK_SVG = '<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">' +
   '<defs>' +
@@ -142,12 +144,15 @@ function spawnIdleSparks() {
     el.style.animationDuration =
       (0.9 + Math.random() * 0.8).toFixed(2) + 's, ' + (0.9 + Math.random() * 0.7).toFixed(2) + 's';
     idleLayer.appendChild(el);
+    // los primeros IDLE_REVERSE_COUNT giran al revés del resto, siempre —
+    // no queda librado al azar que por casualidad salgan todos parejo
+    const dir = i < IDLE_REVERSE_COUNT ? -1 : 1;
     idleSparks.push({
       el,
       rx: 0.14 + Math.random() * 0.2,   // fracción del lado menor de la pantalla
       ry: 0.09 + Math.random() * 0.16,
       phase: Math.random() * Math.PI * 2,
-      speed: (Math.random() < 0.5 ? -1 : 1) * (0.1 + Math.random() * 0.08) * 0.8,   // 20% más lento
+      speed: dir * (0.1 + Math.random() * 0.08) * IDLE_SPEED_SLOW,
     });
   }
   idleStart = performance.now();
