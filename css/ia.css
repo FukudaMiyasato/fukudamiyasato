@@ -208,10 +208,14 @@
   .app-frame.shaking { animation: none; }
 }
 
-/* la nebulosa se disuelve hacia la app, y vuelve a aparecer al revés */
+/* la nebulosa se disuelve hacia la app, y vuelve a aparecer al revés — de
+   forma lenta y gradual (no es un corte): se queda visible unos segundos
+   después de creada la app (ver NEBULA_STAY_MS en api/ia.js) y recién ahí
+   arranca esta transición larga a transparencia */
 .stage.oculta .orb {
   opacity: 0;
   transform: scale(.4);
+  transition: opacity 2.4s var(--ease), transform 2.4s var(--ease);
 }
 .stage.oculta .orb i { animation-play-state: paused; }
 

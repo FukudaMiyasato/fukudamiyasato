@@ -409,19 +409,46 @@ async function poll() {
 }
 
 /* ---------------- arranque ---------------- */
-const saved = load();
-if (saved?.html && !saved.closed) {
-  // ya existía: no hace falta que las luces vuelvan a orbitar de nuevo
-  showApp(saved, { skipEntrance: true });
-  handledId = saved.id;
-  // el token dura 24h: al volver pedimos uno fresco para la misma app
-  fetch('/api/ia?app=1', { cache: 'no-store' })
-    .then((r) => r.json())
-    .then(({ app }) => { if (app?.id === saved.id && app.token) { token = app.token; save({ ...saved, token: app.token }); } })
-    .catch(() => { /* seguimos con el que había */ });
-} else if (saved?.id) {
-  handledId = saved.id;           // ya la vimos y la cerramos: no regenerar
+/* Antes de retomar lo que quedó en localStorage hay que preguntarle al
+   servidor si sigue vigente: si el shake la borró desde el celular
+   mientras esta pestaña estaba cerrada (o sin mirar), el localStorage de
+   ESTA pestaña nunca se enteró — nadie le avisó — y sin este chequeo
+   mostraría la app vieja igual, aunque ya no exista en ningún otro lado. */
+async function boot() {
+  const saved = load();
+
+  let data = null;
+  try {
+    const res = await fetch('/api/ia', { cache: 'no-store' });
+    if (res.ok) data = await res.json();
+  } catch { /* sin conexión: seguimos con lo que había en caché, mejor que nada */ }
+
+  if (saved?.html && !saved.closed) {
+    if (data && data.dismissedId === saved.id) {
+      // se borró en otro dispositivo mientras esta pestaña no miraba
+      markClosed();
+      handledId = saved.id;
+    } else {
+      // ya existía: no hace falta que las luces vuelvan a orbitar de nuevo
+      showApp(saved, { skipEntrance: true });
+      handledId = saved.id;
+      // el token dura 24h: si el servidor ya nos lo dio en el estado general, listo
+      if (data?.app?.id === saved.id && data.app.token) {
+        token = data.app.token;
+        save({ ...saved, token: data.app.token });
+      } else {
+        fetch('/api/ia?app=1', { cache: 'no-store' })
+          .then((r) => r.json())
+          .then(({ app }) => { if (app?.id === saved.id && app.token) { token = app.token; save({ ...saved, token: app.token }); } })
+          .catch(() => { /* seguimos con el que había */ });
+      }
+    }
+  } else if (saved?.id) {
+    handledId = saved.id;           // ya la vimos y la cerramos: no regenerar
+  }
+
+  poll();
+  setInterval(poll, POLL_MS);
 }
 
-poll();
-setInterval(poll, POLL_MS);
+boot();

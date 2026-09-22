@@ -417,13 +417,15 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
       y se achica) todo el tiempo que está en movimiento, cada una a
       su propia velocidad. El elemento real se queda invisible
       mientras tanto: la chispita ocupa su lugar visualmente.
-   3. Recién ahí — cuando esto termina — se avisa al padre para que
-      apague la nebulosa. Pero no todas las chispitas aterrizan juntas:
-      cada una viaja a la posición real de su elemento en un momento
-      propio, separado por un par de segundos al azar del resto. Al
-      llegar: revienta en un destello y desaparece, y en ese mismo
-      instante aparece el elemento real (con su propio flash).
-   4. Por último, cada uno empieza a flotar con su propio ritmo.
+   3. No todas las chispitas aterrizan juntas: cada una viaja a la
+      posición real de su elemento en un momento propio, separado por
+      un par de segundos al azar del resto. Al llegar: revienta en un
+      destello y desaparece, y en ese mismo instante aparece el
+      elemento real (con su propio flash).
+   4. Recién cuando casi todas ya aparecieron (unos segundos después de
+      que "se creó" la app) se avisa al padre para que apague la
+      nebulosa — y esa transición es lenta, no un corte (ver ia.css).
+   5. Por último, cada uno empieza a flotar con su propio ritmo.
    Si la app ya existía (se está retomando, no creando de nuevo) se
    salta todo esto: lo marca `window.__fmSkipEntrance`, puesto por
    ia.js antes de que corra este script.
@@ -431,9 +433,11 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
    tocan el layout real de la app.
    ============================================================ */
 const ASSEMBLE_JS = `<script>(function(){
-  var ORBIT_MS = 1900;   // cuánto orbitan antes de aterrizar
-  var ENTER_MS = 420;    // cuánto tarda en llegar desde afuera hasta su órbita
-  var LAND_MS  = 750;    // duración del viaje a su posición real
+  var ORBIT_MS       = 1900;   // cuánto orbitan antes de que empiecen a aterrizar
+  var ENTER_MS       = 420;    // cuánto tarda en llegar desde afuera hasta su órbita
+  var LAND_MS        = 750;    // duración del viaje a su posición real
+  var LAND_SPREAD_MS = 2600;   // separación al azar entre una conversión y la siguiente
+  var NEBULA_STAY_MS = 900;    // cuánto se queda la nebulosa después de que ya aterrizaron todas
 
   if (window.__fmSkipEntrance || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     parent.postMessage({ __fm: 'nebula-fade' }, '*');
@@ -493,7 +497,7 @@ const ASSEMBLE_JS = `<script>(function(){
     all.forEach(function(el){
       var r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
-      var rx = Math.min(innerWidth, innerHeight) * (0.16 + Math.random() * 0.24);
+      var rx = Math.min(innerWidth, innerHeight) * (0.26 + Math.random() * 0.32);
       orbiters.push({
         el: el, targetX: r.left + r.width / 2, targetY: r.top + r.height / 2,
         rx: rx, ry: rx * (0.45 + Math.random() * 0.35),
@@ -540,7 +544,7 @@ const ASSEMBLE_JS = `<script>(function(){
       var delay = i * 35;
       wrap.style.transition =
         'transform ' + (ENTER_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms, ' +
-        'opacity .3s ease ' + delay + 'ms';
+        'opacity .7s ease ' + delay + 'ms';   // fade de 0 a 1 bien suave: nada de aparición brusca
       wrap.style.opacity = '1';
       wrap.style.transform = 'translate(' + inX.toFixed(1) + 'px,' + inY.toFixed(1) + 'px)';
 
@@ -568,15 +572,14 @@ const ASSEMBLE_JS = `<script>(function(){
 
     // ---- fase 2: recién ahora empiezan a aparecer los elementos — pero no
     // todas de una: cada chispita aterriza en un momento propio, separado
-    // por un par de segundos al azar de la anterior ----
+    // por un par de segundos al azar de la anterior. La nebulosa recién se
+    // entera de que puede apagarse más adelante (ver más abajo), así se
+    // queda un rato visible mientras esto termina de pasar ----
     setTimeout(function(){
-      parent.postMessage({ __fm: 'nebula-fade' }, '*');
-      endOrbitBg();
-
       var pending = orbiters.length;
 
       orbiters.forEach(function(o, i){
-        var extra = Math.random() * 2600;   // el "algunos segundos" de separación
+        var extra = Math.random() * LAND_SPREAD_MS;   // el "algunos segundos" de separación
         setTimeout(function(){
           o.landing = true;
           var delay = i * 40;
@@ -606,6 +609,13 @@ const ASSEMBLE_JS = `<script>(function(){
           if (pending <= 0) cancelAnimationFrame(raf);
         }, extra);
       });
+
+      // recién ahora, con casi todas ya aparecidas, se avisa a la nebulosa —
+      // y en ia.css su propia transición de apagado es lenta, no un corte
+      setTimeout(function(){
+        parent.postMessage({ __fm: 'nebula-fade' }, '*');
+        endOrbitBg();
+      }, LAND_SPREAD_MS + NEBULA_STAY_MS);
     }, ORBIT_MS);
   }
 
