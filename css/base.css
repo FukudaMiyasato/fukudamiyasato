@@ -122,8 +122,11 @@ input, select { font: inherit; color: inherit; }
    ============================================================ */
 .back-btn {
   position: fixed;
-  top: 22px;
-  left: 22px;
+  /* viewport-fit=cover hace que el contenido llegue hasta el notch/Dynamic
+     Island; sin este margen el botón queda debajo o pegado al borde y no
+     se puede tocar en iOS. env() da 0 en dispositivos sin muesca. */
+  top: calc(22px + env(safe-area-inset-top, 0px));
+  left: calc(22px + env(safe-area-inset-left, 0px));
   z-index: 200;
   width: 46px;
   height: 46px;
@@ -200,5 +203,10 @@ input, select { font: inherit; color: inherit; }
 @media (max-width: 720px) {
   :root { --shell: calc(100% - 32px); }
   .page { padding: 76px 0 72px; }
-  .back-btn { top: 14px; left: 14px; width: 42px; height: 42px; }
+  .back-btn {
+    top: calc(14px + env(safe-area-inset-top, 0px));
+    left: calc(14px + env(safe-area-inset-left, 0px));
+    width: 42px;
+    height: 42px;
+  }
 }
