@@ -450,10 +450,19 @@ const NEON_CSS = `<style id="fm-base">
   --fm-glow:rgba(255,31,61,.65);--fm-glow-soft:rgba(255,31,61,.3);
 }
 *{box-sizing:border-box;background-color:transparent;}
-html,body{margin:0;background:var(--fm-bg);color:var(--fm-red-hot);min-height:100%;
+html,body{margin:0;background:transparent;color:var(--fm-red-hot);min-height:100%;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   text-shadow:0 0 14px var(--fm-glow);
   transition:background-color .6s ease;}
+/* Transparente por defecto — desde el primer pintado, no recién cuando el
+   ensamblaje de entrada corra (con "load") — así nunca hay un instante
+   donde el fondo opaco de la propia app tapa la nebulosa de golpe y
+   después "salta" a transparente al revelarla: sería un corte feo, como
+   un cambio de página. Pasa a opaco solo cuando ya se sabe que no hace
+   falta seguir revelando la nebulosa: terminó de orbitar (fm-ready sin
+   fm-orbiting) o se saltó la animación (fm-ready solo). */
+html.fm-ready:not(.fm-orbiting){background:var(--fm-bg);}
+html.fm-ready:not(.fm-orbiting) body{background:var(--fm-bg);}
 /* contenido centrado por defecto — el <style> del modelo, que va después
    en la cascada, puede pisar esto (por ejemplo con display:block) si la
    app necesita otra disposición (una lista larga que se desplaza, etc). */
@@ -463,9 +472,6 @@ body{min-height:100dvh;display:flex;flex-direction:column;
    así una fila de inputs o de botones no queda amontonada */
 :is(input,select,textarea,button,.fm-btn,.fm-label,.fm-label-main)
 + :is(input,select,textarea,button,.fm-btn,.fm-label,.fm-label-main){margin-top:.9em;}
-/* mientras las chispitas orbitan, esto se queda transparente para que se
-   vea la nebulosa de fondo (si no, el fondo opaco de la propia app la tapa) */
-html.fm-orbiting,body.fm-orbiting{background:transparent;}
 ::selection{background:var(--fm-red);color:#000;}
 h1,h2,h3,h4,h5,h6{text-shadow:0 0 22px var(--fm-glow);}
 
@@ -574,11 +580,12 @@ html:not(.fm-ready) body>*{opacity:0!important;}
 /* ============================================================
    Ensamblaje de entrada — chispitas en órbita, no formas
    ------------------------------------------------------------
-   1. Todo arranca invisible (opacity 0). La nebulosa de fondo sigue
-      ahí, girando más rápido — y esta vez de verdad SE VE: mientras
-      dura esto, el fondo de la página (html/body) se queda
-      transparente (clase .fm-orbiting), porque si no el fondo opaco
-      de la propia app tapa la nebulosa aunque ella siga girando.
+   1. Todo arranca invisible (opacity 0, ya desde el CSS antes de que
+      esto corra — ver fm-ready). La nebulosa de fondo sigue ahí,
+      girando más rápido — y esta vez de verdad SE VE: el fondo de la
+      página (html/body) es transparente por defecto desde el primer
+      pintado, no recién con la clase .fm-orbiting, así nunca hay un
+      instante de fondo opaco tapando la nebulosa.
    2. CADA elemento (con borde o no: botones, textos, títulos, todo)
       tiene su propia chispita — un SVG de destello rojo, aparte del
       elemento real — que entra desde bien afuera de la pantalla,
