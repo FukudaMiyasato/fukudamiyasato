@@ -386,8 +386,8 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
   100% {box-shadow:0 0 0 0 rgba(255,90,78,0);filter:brightness(1);}
 }
 
-/* la chispita que orbita en vez de cada elemento con borde: gira, late,
-   y revienta (puesto todo inline desde el JS, por eso no hay clase acá) */
+/* la chispita que orbita en vez de cada elemento: gira, late, y revienta
+   (puesto todo inline desde el JS, por eso no hay clase acá) */
 @keyframes fm-spark-spin{to{rotate:360deg;}}
 @keyframes fm-spark-pulse{0%,100%{scale:.7;}50%{scale:1.25;}}
 @keyframes fm-spark-burst{
@@ -405,21 +405,20 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
       dura esto, el fondo de la página (html/body) se queda
       transparente (clase .fm-orbiting), porque si no el fondo opaco
       de la propia app tapa la nebulosa aunque ella siga girando.
-   2. Por cada elemento CON BORDE (button, input, .fm-panel...) se crea
-      una chispita — un SVG de destello rojo, aparte del elemento real
-      — que orbita el centro de la pantalla en una elipse, girando
-      sobre sí misma y latiendo (crece y se achica), cada una a su
-      propia velocidad. El elemento real se queda invisible mientras
-      tanto: la chispita ocupa su lugar visualmente.
+   2. CADA elemento (con borde o no: botones, textos, títulos, todo)
+      tiene su propia chispita — un SVG de destello rojo, aparte del
+      elemento real — que entra desde bien afuera de la pantalla,
+      llega a su órbita y ahí se queda dando vueltas en una elipse
+      alrededor del centro, girando sobre sí misma y latiendo (crece
+      y se achica) todo el tiempo que está en movimiento, cada una a
+      su propia velocidad. El elemento real se queda invisible
+      mientras tanto: la chispita ocupa su lugar visualmente.
    3. Recién ahí — cuando esto termina — se avisa al padre para que
       apague la nebulosa, y cada chispita viaja a la posición real de
       su elemento. Al llegar: revienta en un destello y desaparece, y
       en ese mismo instante aparece el elemento real (con su propio
       flash de acompañamiento).
-   4. Los elementos sin borde (títulos, párrafos...) no tienen
-      chispita: se quedan invisibles hasta este mismo momento y solo
-      hacen fade-in.
-   5. Por último, cada uno empieza a flotar con su propio ritmo.
+   4. Por último, cada uno empieza a flotar con su propio ritmo.
    Si la app ya existía (se está retomando, no creando de nuevo) se
    salta todo esto: lo marca `window.__fmSkipEntrance`, puesto por
    ia.js antes de que corra este script.
@@ -428,6 +427,7 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
    ============================================================ */
 const ASSEMBLE_JS = `<script>(function(){
   var ORBIT_MS = 1900;   // cuánto orbitan antes de aterrizar
+  var ENTER_MS = 420;    // cuánto tarda en llegar desde afuera hasta su órbita
   var LAND_MS  = 750;    // duración del viaje a su posición real
 
   if (window.__fmSkipEntrance || matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -483,42 +483,36 @@ const ASSEMBLE_JS = `<script>(function(){
     if (!all.length) { endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
 
     var cx = innerWidth / 2, cy = innerHeight / 2;
-    var orbiters = [], texters = [];
+    var orbiters = [];
 
     all.forEach(function(el){
       var r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
-      var cs = getComputedStyle(el);
-      var bordered = cs.borderTopStyle !== 'none' && parseFloat(cs.borderTopWidth) > 0;
-
-      if (bordered) {
-        var rx = Math.min(innerWidth, innerHeight) * (0.16 + Math.random() * 0.24);
-        orbiters.push({
-          el: el, targetX: r.left + r.width / 2, targetY: r.top + r.height / 2,
-          rx: rx, ry: rx * (0.45 + Math.random() * 0.35),
-          // rápido, y cada chispita a una velocidad bien distinta
-          speed: (Math.random() < 0.5 ? -1 : 1) * (Math.PI * 2 / (0.9 + Math.random() * 1.3)),
-          phase: Math.random() * Math.PI * 2,
-          size: 46 + Math.random() * 40,
-        });
-      } else {
-        texters.push(el);
-      }
+      var rx = Math.min(innerWidth, innerHeight) * (0.16 + Math.random() * 0.24);
+      orbiters.push({
+        el: el, targetX: r.left + r.width / 2, targetY: r.top + r.height / 2,
+        rx: rx, ry: rx * (0.45 + Math.random() * 0.35),
+        // rápido, y cada chispita a una velocidad bien distinta
+        speed: (Math.random() < 0.5 ? -1 : 1) * (Math.PI * 2 / (0.9 + Math.random() * 1.3)),
+        phase: Math.random() * Math.PI * 2,
+        size: 46 + Math.random() * 40,
+        entered: false,
+      });
     });
 
-    if (!orbiters.length && !texters.length) { endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
+    if (!orbiters.length) { endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return; }
 
-    // ---- estado inicial: todo invisible ----
+    // ---- estado inicial: el elemento real, invisible ----
     orbiters.forEach(function(o){ o.el.style.transition = 'none'; o.el.style.opacity = '0'; });
-    texters.forEach(function(el){ el.style.transition = 'none'; el.style.opacity = '0'; });
 
-    // ---- una chispita por cada elemento con borde, aparte del layout ----
-    orbiters.forEach(function(o){
+    // ---- una chispita por elemento, aparte del layout: entra desde
+    // bien afuera de la pantalla y viaja hasta su punto de órbita ----
+    orbiters.forEach(function(o, i){
       var wrap = document.createElement('div');
       wrap.style.cssText =
         'position:fixed;left:0;top:0;width:' + o.size + 'px;height:' + o.size + 'px;' +
         'margin-left:-' + (o.size / 2) + 'px;margin-top:-' + (o.size / 2) + 'px;' +
-        'pointer-events:none;z-index:2147483647;';
+        'pointer-events:none;z-index:2147483647;opacity:0;';
       var spin = document.createElement('div');
       spin.style.cssText =
         'width:100%;height:100%;filter:drop-shadow(0 0 22px rgba(255,80,60,.85));' +
@@ -528,15 +522,35 @@ const ASSEMBLE_JS = `<script>(function(){
       wrap.appendChild(spin);
       document.body.appendChild(wrap);
       o.spark = wrap;
+
+      // punto de entrada: bien afuera de la pantalla, en línea con su
+      // propia órbita — y el punto donde arranca a orbitar de verdad
+      var outX = cx + o.rx * 2.6 * Math.cos(o.phase), outY = cy + o.ry * 2.6 * Math.sin(o.phase);
+      var inX = cx + o.rx * Math.cos(o.phase), inY = cy + o.ry * Math.sin(o.phase);
+      wrap.style.transform = 'translate(' + outX.toFixed(1) + 'px,' + outY.toFixed(1) + 'px)';
+      void wrap.offsetWidth;   // fuerza el layout con el punto de partida ya pintado
+
+      var delay = i * 35;
+      wrap.style.transition =
+        'transform ' + (ENTER_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms, ' +
+        'opacity .3s ease ' + delay + 'ms';
+      wrap.style.opacity = '1';
+      wrap.style.transform = 'translate(' + inX.toFixed(1) + 'px,' + inY.toFixed(1) + 'px)';
+
+      wrap.addEventListener('transitionend', function entered(ev){
+        if (ev.propertyName !== 'transform') return;
+        wrap.removeEventListener('transitionend', entered);
+        wrap.style.transition = 'none';
+        o.entered = true;   // recién ahora el tick de abajo la mueve
+      });
     });
 
-    void document.body.offsetWidth;   // fuerza el layout con el estado inicial ya pintado
-
-    // ---- fase 1: a orbitar, girando y latiendo ----
+    // ---- fase 1: ya en órbita, girando y latiendo mientras se trasladan ----
     var start = performance.now(), raf;
     function tick(now){
       var t = (now - start) / 1000;
       orbiters.forEach(function(o){
+        if (!o.entered) return;   // todavía viajando desde afuera
         var a = o.phase + t * o.speed;
         var x = cx + o.rx * Math.cos(a), y = cy + o.ry * Math.sin(a);
         o.spark.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
@@ -575,14 +589,6 @@ const ASSEMBLE_JS = `<script>(function(){
             floatify(o.el);
           });
         });
-      });
-
-      texters.forEach(function(el, i){
-        setTimeout(function(){
-          el.style.transition = 'opacity .6s ease';
-          el.style.opacity = '1';
-          setTimeout(function(){ floatify(el); }, 620);
-        }, i * 40);
       });
     }, ORBIT_MS);
   }

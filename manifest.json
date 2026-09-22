@@ -8,6 +8,7 @@
   "background_color": "#08080a",
   "theme_color": "#08080a",
   "icons": [
-    { "src": "assets/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    { "src": "assets/app-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/app-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
