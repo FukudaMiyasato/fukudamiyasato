@@ -247,7 +247,7 @@ código de guardado o grabación:
 await FM.saveFile(blob, 'audio.webm')   // -> { id, filename, url, size }
 await FM.saveText('hola', 'nota.txt')
 await FM.saveJSON({ a: 1 }, 'datos.json')
-await FM.saveForm('Contacto', { nombre: 'Ana', tel: '999' })  // -> { id, name, fields, createdTime }
+await FM.saveForm('Contacto', { nombre: 'Ana', tel: '999' })  // -> { id, name, fields, url }
 await FM.listFiles(20)                  // lo guardado antes, con sus urls
 await FM.record.start()
 await FM.record.stop({ save: true })    // -> { id, url, seconds, ... }
@@ -283,20 +283,18 @@ acepta base64. Configurable con `AIRTABLE_SAVE_TABLE` y
 Límite por archivo: ~2.7 MB, porque Vercel corta los cuerpos de request en
 4.5 MB y el base64 crece un tercio.
 
-**`FM.saveForm`** usa una tabla aparte, **`ia_forms`** (configurable con
-`AIRTABLE_FORMS_TABLE`), sin adjuntos: un registro por envío, con dos
-columnas fijas — `formulario` (texto corto, el nombre que le puso GPT) y
-`respuestas` (texto largo, el objeto de respuestas como JSON). Es genérica
-a propósito: así cualquier formulario que se le pida a la IA se guarda sin
-tener que crear columnas nuevas por cada uno.
+**`FM.saveForm`** guarda en la MISMA tabla `ia_save` que todo lo demás, no
+en una tabla aparte: las respuestas del formulario se suben como un adjunto
+`.json` (mismo mecanismo que `FM.saveJSON`). Así no depende de una tabla ni
+de un scope adicional — si `ia_save` ya existe y ya guarda archivos,
+`FM.saveForm` funciona sin configuración extra.
 
-Si la tabla no existe todavía, el propio servidor la crea sola la primera
-vez que alguien guarda un formulario (con esas dos columnas) y reintenta el
-guardado — ninguna app generada tiene que ocuparse de esto. Para eso el
-`AIRTABLE_TOKEN` necesita, además de `data.records:write`, el scope
-**`schema.bases:write`**. Si no lo tiene, guardar devuelve un error que lo
-dice explícitamente; en ese caso creá la tabla a mano, con esas dos
-columnas, o agregá el scope al token.
+Si en algún momento `ia_save` tampoco existiera todavía, el servidor la
+crea sola (con su columna de adjuntos) y reintenta el guardado — para eso
+necesita, además de `data.records:write`, el scope **`schema.bases:write`**.
+Sin ese scope, guardar devuelve un error que lo dice explícitamente; en ese
+caso creá la tabla a mano (ver "Dónde se guarda" arriba) o agregá el scope
+al token.
 
 ### El token de guardado
 

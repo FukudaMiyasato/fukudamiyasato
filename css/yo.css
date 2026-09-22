@@ -7,7 +7,11 @@
   z-index: 1;
   width: min(760px, calc(100% - 44px));
   margin: 0 auto;
-  min-height: 100dvh;
+  /* svh (no dvh): así se centra contra el alto SIEMPRE visible, sin
+     asumir de entrada el alto grande (con la barra del navegador ya
+     retraída) — si no, queda un hueco abajo hasta el primer scroll,
+     que es lo que la retrae. */
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   justify-content: center;

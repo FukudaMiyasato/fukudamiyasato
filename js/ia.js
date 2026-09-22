@@ -16,6 +16,61 @@ const stage  = document.getElementById('stage');
 const frame  = document.getElementById('app-frame');
 const nav    = document.getElementById('nav');
 
+/* ============================================================
+   Nebulosa — el giro de cada capa se integra por JS, cuadro a cuadro
+   ------------------------------------------------------------
+   Antes esto era animation-duration atado a una variable CSS (--spin)
+   que hacía *transition*: cambiar animation-duration no acelera con
+   fluidez — el navegador recalcula la posición dentro del ciclo con la
+   nueva duración en cada frame, y eso se sentía como un salto o una
+   pausa justo al llegar una solicitud. Acá se acumula el ángulo/fase de
+   cada capa a mano; la velocidad (orbSpin) se acerca sola al objetivo
+   (rápido si stage está busy/orbiting, lento si no), así puede cambiar
+   sin que la posición salte nunca — nunca se pausa.
+   ============================================================ */
+const orbLayers = Array.from(document.querySelectorAll('#orb i'));
+const ORB_MOTION = [
+  { kind: 'rot', baseSec: 13, dir: 1 },
+  { kind: 'rot', baseSec: 22, dir: -1 },
+  { kind: 'rot', baseSec: 8, dir: 1 },
+  { kind: 'drift', baseSec: 19, dir: 1 },
+  { kind: 'driftBreathe', baseSec: 11, breatheSec: 6, dir: -1 },
+];
+const orbPhase = ORB_MOTION.map(() => 0);
+let orbSpin = 0.833;   // velocidad actual; arranca en reposo (20% más lenta)
+let orbLast = null;
+
+function tickOrb(now) {
+  if (orbLast == null) orbLast = now;
+  const dt = Math.min((now - orbLast) / 1000, 0.1);
+  orbLast = now;
+
+  const target = (stage.classList.contains('busy') || stage.classList.contains('orbiting')) ? 6 : 0.833;
+  orbSpin += (target - orbSpin) * Math.min(dt * 2.2, 1);   // se acerca sola, sin escalón
+
+  ORB_MOTION.forEach((m, i) => {
+    orbPhase[i] += (dt / m.baseSec) * m.dir * orbSpin;
+    const layer = orbLayers[i];
+    if (!layer) return;
+    const t = orbPhase[i] * Math.PI * 2;
+    if (m.kind === 'rot') {
+      layer.style.transform = `rotate(${((orbPhase[i] % 1) * 360).toFixed(2)}deg)`;
+    } else if (m.kind === 'drift') {
+      layer.style.transform =
+        `translate(${(Math.sin(t) * 6.5).toFixed(2)}%,${(Math.sin(t * 1.3 + 1) * 5.5).toFixed(2)}%)`;
+    } else if (m.kind === 'driftBreathe') {
+      const breathe = 1.1 - 0.1 * Math.cos((orbPhase[i] * m.baseSec / m.breatheSec) * Math.PI * 2);
+      layer.style.transform =
+        `translate(${(Math.sin(t) * 6.5).toFixed(2)}%,${(Math.sin(t * 1.3 + 1) * 5.5).toFixed(2)}%) scale(${breathe.toFixed(3)})`;
+    }
+  });
+
+  requestAnimationFrame(tickOrb);
+}
+if (orbLayers.length && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  requestAnimationFrame(tickOrb);
+}
+
 const CLOSE_ANIM_MS  = 760;   // debe cubrir la transición de .app-frame en ia.css
 const SHAKE_ANIM_MS  = 620;   // debe coincidir con @keyframes fm-shake en ia.css
 const NEBULA_FALLBACK_MS = 4500;  // por si la app nunca avisa que ya puede apagarse
