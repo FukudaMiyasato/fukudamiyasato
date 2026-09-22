@@ -163,15 +163,18 @@
   width: 100%;
   height: 100%;
   border: 0;
-  background: #0a0a0c;
+  /* transparente siempre, no solo mientras orbitan las chispitas: la app
+     creada queda con fondo transparente para siempre, así los destellos
+     de reposo (que ya nunca desaparecen del todo, ver ia.js) se siguen
+     viendo moviéndose detrás suyo */
+  background: transparent;
   opacity: 0;
   pointer-events: none;
   transform: scale(.92);
   clip-path: circle(0% at 50% 50%);
   box-shadow: 0 0 0 0 rgba(224, 16, 43, 0);
   transition: opacity .6s var(--ease), transform .75s var(--ease),
-              clip-path .75s var(--ease), box-shadow .75s var(--ease),
-              background-color .6s var(--ease);
+              clip-path .75s var(--ease), box-shadow .75s var(--ease);
 }
 .app-frame.show {
   opacity: 1;
@@ -180,17 +183,10 @@
   clip-path: circle(150% at 50% 50%);
 }
 /* el resplandor rojo alrededor del contenedor, solo una vez aterrizado
-   todo: mientras orbitan las chispitas, el fondo va transparente (ver
-   .app-frame.orbiting) y este glow encima se veía como un fondo rojo
-   raro peleándose con la nebulosa de atrás */
+   todo: mientras orbitan las chispitas este glow encima se veía como un
+   fondo rojo raro peleándose con la nebulosa de atrás */
 .app-frame.show:not(.orbiting) {
   box-shadow: 0 0 70px -10px var(--red-glow);
-}
-
-/* mientras las chispitas orbitan, el fondo del propio iframe se deja
-   transparente — si no, tapa la nebulosa aunque ella siga girando detrás */
-.app-frame.orbiting {
-  background: transparent;
 }
 
 /* el shake del celular sacude el propio contenedor antes de que se cierre,

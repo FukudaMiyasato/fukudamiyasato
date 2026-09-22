@@ -212,12 +212,13 @@ function showApp(entry, { skipEntrance = false } = {}) {
   frame.classList.add('show');
   // la nebulosa NO se apaga todavía: sigue girando (más rápido, "orbiting")
   // de fondo mientras la app se arma (las chispitas orbitan, aterrizan...).
-  // El fondo del propio iframe también se pone transparente mientras tanto
-  // (ver .app-frame.orbiting en ia.css) — si no, tapa la nebulosa aunque
-  // ella siga girando detrás. La propia app avisa por postMessage cuándo ya
-  // puede apagarse todo (ver el listener de 'nebula-fade' más abajo); esto
-  // es solo el respaldo por si ese aviso nunca llega (reduced-motion raro,
-  // una app rota, etc.) o si se saltó la animación entera (skipEntrance).
+  // El fondo del propio iframe es transparente siempre (ver api/ia.js), así
+  // que no hace falta esconder nada para que la nebulosa (y los destellos
+  // de reposo) se sigan viendo detrás. La propia app avisa por postMessage
+  // cuándo ya puede apagarse la nebulosa (ver el listener de 'nebula-fade'
+  // más abajo); esto es solo el respaldo por si ese aviso nunca llega
+  // (reduced-motion raro, una app rota, etc.) o si se saltó la animación
+  // entera (skipEntrance).
   stage.classList.add('orbiting');
   frame.classList.add('orbiting');
   clearTimeout(nebulaFadeTimer);

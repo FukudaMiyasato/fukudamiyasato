@@ -452,20 +452,13 @@ const NEON_CSS = `<style id="fm-base">
 *{box-sizing:border-box;background-color:transparent;}
 html,body{margin:0;background:transparent;color:var(--fm-red-hot);min-height:100%;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  text-shadow:0 0 14px var(--fm-glow);
-  transition:background-color 2.4s cubic-bezier(.22,1,.36,1);}
-/* Transparente por defecto — desde el primer pintado, no recién cuando el
-   ensamblaje de entrada corra (con "load") — así nunca hay un instante
-   donde el fondo opaco de la propia app tapa la nebulosa de golpe y
-   después "salta" a transparente al revelarla: sería un corte feo, como
-   un cambio de página. Pasa a opaco solo cuando ya se sabe que no hace
-   falta seguir revelando la nebulosa: terminó de orbitar (fm-ready sin
-   fm-orbiting) o se saltó la animación (fm-ready solo). La transición
-   dura lo mismo que el fade de la nebulosa en ia.css (2.4s): si esta
-   fuera más rápida, taparía la nebulosa de golpe antes de que termine
-   de desvanecerse — el mismo corte feo, pero al revés. */
-html.fm-ready:not(.fm-orbiting){background:var(--fm-bg);}
-html.fm-ready:not(.fm-orbiting) body{background:var(--fm-bg);}
+  text-shadow:0 0 14px var(--fm-glow);}
+/* Transparente siempre, no solo mientras se arma: la app creada tiene que
+   quedar con el fondo transparente para siempre, así lo que está detrás
+   (la nebulosa apagándose, y los destellos de reposo, que ya nunca se
+   quitan del todo — ver ia.js/ia.css) sigue viéndose a través suyo. El
+   contraste para que se lea el texto rojo lo pone el fondo oscuro de la
+   propia página contenedora (ia.css), no este documento. */
 /* contenido centrado por defecto — el <style> del modelo, que va después
    en la cascada, puede pisar esto (por ejemplo con display:block) si la
    app necesita otra disposición (una lista larga que se desplaza, etc). */
@@ -584,11 +577,10 @@ html:not(.fm-ready) body>*{opacity:0!important;}
    Ensamblaje de entrada — chispitas en órbita, no formas
    ------------------------------------------------------------
    1. Todo arranca invisible (opacity 0, ya desde el CSS antes de que
-      esto corra — ver fm-ready). La nebulosa de fondo sigue ahí,
-      girando más rápido — y esta vez de verdad SE VE: el fondo de la
-      página (html/body) es transparente por defecto desde el primer
-      pintado, no recién con la clase .fm-orbiting, así nunca hay un
-      instante de fondo opaco tapando la nebulosa.
+      esto corra — ver fm-ready). El fondo (html/body) es transparente
+      siempre, no solo durante esto — así no solo se ve la nebulosa
+      apagándose detrás, sino también los destellos de reposo (ia.js),
+      que ya nunca desaparecen del todo.
    2. CADA elemento (con borde o no: botones, textos, títulos, todo)
       tiene su propia chispita — un SVG de destello rojo, aparte del
       elemento real — que entra desde bien afuera de la pantalla,
@@ -660,21 +652,13 @@ const ASSEMBLE_JS = `<script>(function(){
   }
 
   function run(){
-    document.documentElement.classList.add('fm-orbiting');
-    document.body.classList.add('fm-orbiting');
-
     var all = Array.prototype.slice.call(document.querySelectorAll(
       'div, p, h1, h2, h3, h4, h5, h6, span, label, li, a, button, input, select, textarea'
     )).slice(0, 60);
 
-    function endOrbitBg(){
-      document.documentElement.classList.remove('fm-orbiting');
-      document.body.classList.remove('fm-orbiting');
-    }
-
     if (!all.length) {
       document.documentElement.classList.add('fm-ready');
-      endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return;
+      parent.postMessage({ __fm: 'nebula-fade' }, '*'); return;
     }
 
     var cx = innerWidth / 2, cy = innerHeight / 2;
@@ -698,7 +682,7 @@ const ASSEMBLE_JS = `<script>(function(){
 
     if (!orbiters.length) {
       document.documentElement.classList.add('fm-ready');
-      endOrbitBg(); parent.postMessage({ __fm: 'nebula-fade' }, '*'); return;
+      parent.postMessage({ __fm: 'nebula-fade' }, '*'); return;
     }
 
     // ---- estado inicial: el elemento real, invisible (ya lo estaba por
@@ -766,7 +750,6 @@ const ASSEMBLE_JS = `<script>(function(){
     // convertirse en elementos, ya está a mitad de su apagado lento ----
     setTimeout(function(){
       parent.postMessage({ __fm: 'nebula-fade' }, '*');
-      endOrbitBg();
     }, Math.max(0, ORBIT_MS - NEBULA_LEAD_MS));
 
     // ---- fase 2: recién ahora empiezan a aparecer los elementos — pero no
@@ -786,13 +769,15 @@ const ASSEMBLE_JS = `<script>(function(){
           o.spark.addEventListener('transitionend', function land(ev){
             if (ev.propertyName !== 'transform') return;
             o.spark.removeEventListener('transitionend', land);
-            // ---- la chispita revienta, y el elemento real aparece de golpe ----
+            // ---- la chispita revienta, y el elemento real se desvanece
+            // adentro con una transición corta (nada de opacity 0->1 de un
+            // frame al otro) ----
             // (el giro/latido de arriba está puesto inline, así que hay que
             // pisarlo con otra inline: una clase no le gana a un inline)
             o.spark.firstChild.style.animation = 'fm-spark-burst .35s ease-out both';
             setTimeout(function(){ o.spark.remove(); }, 380);
 
-            o.el.style.transition = 'none';
+            o.el.style.transition = 'opacity .32s ease-out';
             o.el.style.opacity = '1';
             o.el.classList.add('fm-flash');
             o.el.addEventListener('animationend', function flashDone(){
@@ -843,9 +828,11 @@ Reglas estrictas:
   directamente. Fallarían.
 
 DISEÑO — ya viene puesto, no lo reconstruyas
-Antes de tu HTML se inyecta una hoja de estilos base: fondo casi negro
-(--fm-bg #0a0a0c) y todo lo demás sin relleno — nada de paneles ni
-botones con fondo de color. Los controles ya salen vestidos en tres
+Antes de tu HTML se inyecta una hoja de estilos base: tu página queda con
+el fondo (html y body) SIEMPRE transparente — no le pongas vos un color
+de fondo. El look oscuro no lo pinta tu documento: lo pone la página que
+te contiene detrás. Todo lo demás también sin relleno — nada de paneles
+ni botones con fondo de color. Los controles ya salen vestidos en tres
 niveles de intensidad de glow, de más a menos fuerte:
 - Botones (button, .fm-btn, input[type=button|submit]): círculo
   perfecto — caja cuadrada, radio al 100%, sin padding. Es el glow más
