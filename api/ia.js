@@ -598,7 +598,7 @@ const ASSEMBLE_JS = `<script>(function(){
   var ENTER_MS       = 420;    // cuánto tarda en llegar desde afuera hasta su órbita
   var LAND_MS        = 750;    // duración del viaje a su posición real
   var LAND_SPREAD_MS = 2600;   // separación al azar entre una conversión y la siguiente
-  var NEBULA_LEAD_MS = 500;    // cuánto antes de aterrizar se avisa a la nebulosa que se apague
+  var NEBULA_LEAD_MS = 200;    // cuánto antes de aterrizar se avisa a la nebulosa que se apague
 
   if (window.__fmSkipEntrance || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     parent.postMessage({ __fm: 'nebula-fade' }, '*');

@@ -46,7 +46,9 @@ function tickOrb(now) {
   orbLast = now;
 
   const target = (stage.classList.contains('busy') || stage.classList.contains('orbiting')) ? 6 : 0.833;
-  orbSpin += (target - orbSpin) * Math.min(dt * 2.2, 1);   // se acerca sola, sin escalón
+  // se acerca sola al objetivo, sin escalón — más lento que antes (~1.2)
+  // para que de lento a rápido se sienta como una rampa, no un salto
+  orbSpin += (target - orbSpin) * Math.min(dt * 1.2, 1);
 
   ORB_MOTION.forEach((m, i) => {
     orbPhase[i] += (dt / m.baseSec) * m.dir * orbSpin;
