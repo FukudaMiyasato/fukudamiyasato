@@ -257,9 +257,40 @@ async function airtableSave({ filename, contentType, data }) {
   return { id: recordId, filename: att.filename || filename, url: att.url || null, size: att.size ?? null };
 }
 
-/** Guarda las respuestas de un formulario como un registro nuevo, sin
- *  adjuntos: la tabla es genérica (mismas dos columnas para cualquier
- *  formulario), así no hace falta crear columnas nuevas por cada uno. */
+/**
+ * Crea la tabla ia_forms si todavía no existe, con sus dos columnas fijas.
+ * Necesita el scope "schema.bases:write" además de "data.records:write" —
+ * si el token no lo tiene, tira un error que lo dice explícitamente en vez
+ * de fallar en silencio.
+ */
+async function createFormsTable(auth) {
+  const mk = await fetch(`https://api.airtable.com/v0/meta/bases/${AT_BASE}/tables`, {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      name: AT_FORMS_TABLE,
+      fields: [
+        { name: 'formulario', type: 'singleLineText' },
+        { name: 'respuestas', type: 'multilineText' },
+      ],
+    }),
+  });
+  if (!mk.ok) {
+    const detail = await mk.text();
+    console.error('[api/ia] Airtable crear tabla', mk.status, detail.slice(0, 400));
+    throw Object.assign(
+      new Error(mk.status === 403
+        ? `El token de Airtable no tiene permiso para crear tablas (falta el scope "schema.bases:write"). Creá la tabla "${AT_FORMS_TABLE}" a mano, con las columnas "formulario" y "respuestas".`
+        : `Airtable respondió ${mk.status} al crear la tabla "${AT_FORMS_TABLE}".`),
+      { code: 502 },
+    );
+  }
+  console.log(`[api/ia] tabla "${AT_FORMS_TABLE}" creada`);
+}
+
+/** Guarda las respuestas de un formulario; si la tabla todavía no existe,
+ *  la crea sola (una vez) y reintenta — así ninguna app generada tiene que
+ *  ocuparse de esto. */
 async function airtableSaveForm({ name, fields }) {
   const key = process.env.AIRTABLE_TOKEN;
   if (!key) throw Object.assign(new Error('AIRTABLE_TOKEN no está configurada.'), { code: 501 });
@@ -272,19 +303,24 @@ async function airtableSaveForm({ name, fields }) {
     },
   };
 
-  const r = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_FORMS_TABLE)}`, {
+  const insert = () => fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_FORMS_TABLE)}`, {
     method: 'POST',
     headers: auth,
     body: JSON.stringify({ records: [record], typecast: true }),
   });
+
+  let r = await insert();
+  if (r.status === 404) {
+    // la tabla no existe todavía: la creamos una vez y reintentamos
+    await createFormsTable(auth);
+    r = await insert();
+  }
   if (!r.ok) {
     const detail = await r.text();
     console.error('[api/ia] Airtable guardar formulario', r.status, detail.slice(0, 400));
     throw Object.assign(
       new Error(r.status === 403
         ? `El token de Airtable no tiene permiso de escritura sobre la tabla "${AT_FORMS_TABLE}".`
-        : r.status === 404
-        ? `No existe la tabla "${AT_FORMS_TABLE}" en la base. Créala con las columnas "formulario" (texto) y "respuestas" (texto largo).`
         : `Airtable respondió ${r.status} al guardar el formulario.`),
       { code: 502 },
     );
@@ -1283,7 +1319,10 @@ export default async function handler(req, res) {
     if (inflight && inflight.id === latest.id) {
       try {
         await inflight.promise;
-        return res.status(200).json({ app, cache: true });
+        // sin el token acá, esta app quedaba sin permiso para guardar: la
+        // pedía otra pestaña/dispositivo mientras la primera ya estaba
+        // generando, y esta respuesta se lo olvidaba
+        return res.status(200).json({ app: { ...app, token: signToken(app.id) }, cache: true });
       } catch { /* cae al intento de abajo */ }
     }
 

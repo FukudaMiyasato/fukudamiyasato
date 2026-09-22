@@ -288,8 +288,15 @@ Límite por archivo: ~2.7 MB, porque Vercel corta los cuerpos de request en
 columnas fijas — `formulario` (texto corto, el nombre que le puso GPT) y
 `respuestas` (texto largo, el objeto de respuestas como JSON). Es genérica
 a propósito: así cualquier formulario que se le pida a la IA se guarda sin
-tener que crear columnas nuevas por cada uno. Si la tabla no existe
-todavía, hay que crearla a mano en Airtable con esas dos columnas.
+tener que crear columnas nuevas por cada uno.
+
+Si la tabla no existe todavía, el propio servidor la crea sola la primera
+vez que alguien guarda un formulario (con esas dos columnas) y reintenta el
+guardado — ninguna app generada tiene que ocuparse de esto. Para eso el
+`AIRTABLE_TOKEN` necesita, además de `data.records:write`, el scope
+**`schema.bases:write`**. Si no lo tiene, guardar devuelve un error que lo
+dice explícitamente; en ese caso creá la tabla a mano, con esas dos
+columnas, o agregá el scope al token.
 
 ### El token de guardado
 
