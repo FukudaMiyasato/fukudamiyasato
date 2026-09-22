@@ -158,7 +158,7 @@
   pointer-events: none;
   transform: scale(.92);
   clip-path: circle(0% at 50% 50%);
-  box-shadow: inset 0 0 0 0 rgba(224, 16, 43, 0), 0 0 0 0 rgba(224, 16, 43, 0);
+  box-shadow: 0 0 0 0 rgba(224, 16, 43, 0);
   transition: opacity .6s var(--ease), transform .75s var(--ease),
               clip-path .75s var(--ease), box-shadow .75s var(--ease),
               background-color .6s var(--ease);
@@ -168,7 +168,8 @@
   pointer-events: auto;
   transform: scale(1);
   clip-path: circle(150% at 50% 50%);
-  box-shadow: inset 0 0 0 1px rgba(224, 16, 43, .35), 0 0 70px -10px var(--red-glow);
+  /* sin borde: solo un resplandor suave alrededor, nada de contorno */
+  box-shadow: 0 0 70px -10px var(--red-glow);
 }
 
 /* mientras las chispitas orbitan, el fondo del propio iframe se deja

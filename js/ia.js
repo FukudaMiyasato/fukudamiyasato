@@ -86,10 +86,28 @@ function closeApp() {
   }, CLOSE_ANIM_MS);
 }
 
+/** Le avisa al servidor que esta app se descartó, para que desaparezca
+ *  también en cualquier otro dispositivo que la tenga abierta — si no,
+ *  el shake solo la borraba en este celular. Mejor esfuerzo: si falla
+ *  (sin conexión), igual se cierra acá; no bloquea nada. */
+function dismissRemote(id) {
+  if (!id) return;
+  fetch('/api/ia?dismiss=1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  }).catch(() => { /* mejor esfuerzo */ });
+}
+
+function dismissApp() {
+  dismissRemote(shownId);
+  markClosed();
+  closeApp();
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && frame.classList.contains('show')) {
-    markClosed();
-    closeApp();
+    dismissApp();
   }
 });
 
@@ -123,8 +141,7 @@ function shakeDetected() {
   frame.classList.add('shaking');
   setTimeout(() => {
     frame.classList.remove('shaking');
-    markClosed();
-    closeApp();
+    dismissApp();
   }, SHAKE_ANIM_MS);
 }
 
@@ -354,11 +371,6 @@ async function adopt(appId, prompt) {
 async function poll() {
   if (busy) return;
 
-  // ya hay una app en pantalla: no se crea otra encima. Sigue vigente
-  // como "sin procesar" (no se toca handledId) — en cuanto se cierre con
-  // el shake, el siguiente sondeo la recoge y recién ahí se genera.
-  if (frame.classList.contains('show')) return;
-
   let data;
   try {
     const res = await fetch('/api/ia', { cache: 'no-store' });
@@ -368,7 +380,21 @@ async function poll() {
     return;                       // sin conexión: la nebulosa sigue girando
   }
 
-  const { latest, app } = data;
+  const { latest, app, dismissedId } = data;
+
+  // la que tengo abierta se borró desde otro dispositivo (o desde acá mismo,
+  // por las dudas): se cierra también en esta pantalla
+  if (shownId && dismissedId === shownId) {
+    markClosed();
+    closeApp();
+    return;
+  }
+
+  // ya hay una app en pantalla: no se crea otra encima. Sigue vigente
+  // como "sin procesar" (no se toca handledId) — en cuanto se cierre con
+  // el shake, el siguiente sondeo la recoge y recién ahí se genera.
+  if (frame.classList.contains('show')) return;
+
   if (!latest?.text) return;
 
   if (latest.id === handledId) return;

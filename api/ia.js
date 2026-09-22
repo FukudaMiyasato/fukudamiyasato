@@ -12,6 +12,9 @@
    POST /api/ia?test=1           { key, text } -> simula el webhook, para
                                  probar desde /test/sendOrder/ sin exponer
                                  INDEX_AUT en el navegador
+   POST /api/ia?dismiss=1        { id } -> se borró con el shake: que
+                                 desaparezca también en cualquier otro
+                                 dispositivo que la tenga abierta
 
    El POST de generación NO lleva Authorization a propósito: lo llama el
    navegador. Para que no sea un generador abierto (y no se te vaya el
@@ -35,6 +38,7 @@ export const maxDuration = 60;          // generar puede tardar
 let latest = null;      // última transcripción
 let app = null;         // { id, at, prompt, html }
 let inflight = null;    // { id, promise } para no generar dos veces a la vez
+let dismissedId = null; // último id borrado con el shake, para avisarle a los demás dispositivos
 
 /* ---------------- auth ---------------- */
 function safeEqual(a, b) {
@@ -389,7 +393,7 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
 /* la chispita que orbita en vez de cada elemento: gira, late, y revienta
    (puesto todo inline desde el JS, por eso no hay clase acá) */
 @keyframes fm-spark-spin{to{rotate:360deg;}}
-@keyframes fm-spark-pulse{0%,100%{scale:.7;}50%{scale:1.25;}}
+@keyframes fm-spark-pulse{0%,100%{scale:.55;}50%{scale:1.4;}}
 @keyframes fm-spark-burst{
   0%   {opacity:1;scale:1;}
   45%  {opacity:1;scale:2.3;}
@@ -414,10 +418,11 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
       su propia velocidad. El elemento real se queda invisible
       mientras tanto: la chispita ocupa su lugar visualmente.
    3. Recién ahí — cuando esto termina — se avisa al padre para que
-      apague la nebulosa, y cada chispita viaja a la posición real de
-      su elemento. Al llegar: revienta en un destello y desaparece, y
-      en ese mismo instante aparece el elemento real (con su propio
-      flash de acompañamiento).
+      apague la nebulosa. Pero no todas las chispitas aterrizan juntas:
+      cada una viaja a la posición real de su elemento en un momento
+      propio, separado por un par de segundos al azar del resto. Al
+      llegar: revienta en un destello y desaparece, y en ese mismo
+      instante aparece el elemento real (con su propio flash).
    4. Por último, cada uno empieza a flotar con su propio ritmo.
    Si la app ya existía (se está retomando, no creando de nuevo) se
    salta todo esto: lo marca `window.__fmSkipEntrance`, puesto por
@@ -438,17 +443,17 @@ const ASSEMBLE_JS = `<script>(function(){
   var SPARK_SVG = '<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">' +
     '<defs>' +
       '<radialGradient id="fmSparkCore" cx="50%" cy="50%" r="50%">' +
-        '<stop offset="0%" stop-color="#fff8f3"/>' +
-        '<stop offset="30%" stop-color="#ff8a72"/>' +
-        '<stop offset="60%" stop-color="#ff1f3d"/>' +
+        '<stop offset="0%" stop-color="#ffd9cf"/>' +
+        '<stop offset="20%" stop-color="#ff5a4e"/>' +
+        '<stop offset="50%" stop-color="#ff1f3d"/>' +
         '<stop offset="100%" stop-color="rgba(224,16,43,0)"/>' +
       '</radialGradient>' +
       '<linearGradient id="fmSparkRay" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0%" stop-color="rgba(255,90,78,0)"/>' +
-        '<stop offset="45%" stop-color="#ff5a4e"/>' +
-        '<stop offset="50%" stop-color="#fff8f3"/>' +
-        '<stop offset="55%" stop-color="#ff5a4e"/>' +
-        '<stop offset="100%" stop-color="rgba(255,90,78,0)"/>' +
+        '<stop offset="0%" stop-color="rgba(255,31,61,0)"/>' +
+        '<stop offset="42%" stop-color="#ff1f3d"/>' +
+        '<stop offset="50%" stop-color="#ff8a72"/>' +
+        '<stop offset="58%" stop-color="#ff1f3d"/>' +
+        '<stop offset="100%" stop-color="rgba(255,31,61,0)"/>' +
       '</linearGradient>' +
     '</defs>' +
     '<g transform="translate(100,100)">' +
@@ -497,6 +502,7 @@ const ASSEMBLE_JS = `<script>(function(){
         phase: Math.random() * Math.PI * 2,
         size: 46 + Math.random() * 40,
         entered: false,
+        landing: false,
       });
     });
 
@@ -515,7 +521,8 @@ const ASSEMBLE_JS = `<script>(function(){
         'pointer-events:none;z-index:2147483647;opacity:0;';
       var spin = document.createElement('div');
       spin.style.cssText =
-        'width:100%;height:100%;filter:drop-shadow(0 0 22px rgba(255,80,60,.85));' +
+        'width:100%;height:100%;' +
+        'filter:drop-shadow(0 0 16px rgba(255,31,61,.95)) drop-shadow(0 0 34px rgba(255,20,50,.6));' +
         'animation:fm-spark-spin ' + (0.7 + Math.random() * 0.6).toFixed(2) + 's linear infinite,' +
         'fm-spark-pulse ' + (0.6 + Math.random() * 0.5).toFixed(2) + 's ease-in-out infinite;';
       spin.innerHTML = SPARK_SVG;
@@ -550,7 +557,7 @@ const ASSEMBLE_JS = `<script>(function(){
     function tick(now){
       var t = (now - start) / 1000;
       orbiters.forEach(function(o){
-        if (!o.entered) return;   // todavía viajando desde afuera
+        if (!o.entered || o.landing) return;   // viajando desde afuera, o ya aterrizando
         var a = o.phase + t * o.speed;
         var x = cx + o.rx * Math.cos(a), y = cy + o.ry * Math.sin(a);
         o.spark.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
@@ -559,36 +566,45 @@ const ASSEMBLE_JS = `<script>(function(){
     }
     raf = requestAnimationFrame(tick);
 
-    // ---- fase 2: recién ahora empiezan a aparecer los elementos: se
-    // avisa a la nebulosa, y cada chispita viaja a su destino real ----
+    // ---- fase 2: recién ahora empiezan a aparecer los elementos — pero no
+    // todas de una: cada chispita aterriza en un momento propio, separado
+    // por un par de segundos al azar de la anterior ----
     setTimeout(function(){
       parent.postMessage({ __fm: 'nebula-fade' }, '*');
       endOrbitBg();
-      cancelAnimationFrame(raf);
+
+      var pending = orbiters.length;
 
       orbiters.forEach(function(o, i){
-        var delay = i * 40;
-        o.spark.style.transition = 'transform ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms';
-        o.spark.style.transform = 'translate(' + o.targetX.toFixed(1) + 'px,' + o.targetY.toFixed(1) + 'px)';
+        var extra = Math.random() * 2600;   // el "algunos segundos" de separación
+        setTimeout(function(){
+          o.landing = true;
+          var delay = i * 40;
+          o.spark.style.transition = 'transform ' + (LAND_MS / 1000) + 's cubic-bezier(.22,1,.36,1) ' + delay + 'ms';
+          o.spark.style.transform = 'translate(' + o.targetX.toFixed(1) + 'px,' + o.targetY.toFixed(1) + 'px)';
 
-        o.spark.addEventListener('transitionend', function land(ev){
-          if (ev.propertyName !== 'transform') return;
-          o.spark.removeEventListener('transitionend', land);
-          // ---- la chispita revienta, y el elemento real aparece de golpe ----
-          // (el giro/latido de arriba está puesto inline, así que hay que
-          // pisarlo con otra inline: una clase no le gana a un inline)
-          o.spark.firstChild.style.animation = 'fm-spark-burst .35s ease-out both';
-          setTimeout(function(){ o.spark.remove(); }, 380);
+          o.spark.addEventListener('transitionend', function land(ev){
+            if (ev.propertyName !== 'transform') return;
+            o.spark.removeEventListener('transitionend', land);
+            // ---- la chispita revienta, y el elemento real aparece de golpe ----
+            // (el giro/latido de arriba está puesto inline, así que hay que
+            // pisarlo con otra inline: una clase no le gana a un inline)
+            o.spark.firstChild.style.animation = 'fm-spark-burst .35s ease-out both';
+            setTimeout(function(){ o.spark.remove(); }, 380);
 
-          o.el.style.transition = 'none';
-          o.el.style.opacity = '1';
-          o.el.classList.add('fm-flash');
-          o.el.addEventListener('animationend', function flashDone(){
-            o.el.removeEventListener('animationend', flashDone);
-            o.el.classList.remove('fm-flash');
-            floatify(o.el);
+            o.el.style.transition = 'none';
+            o.el.style.opacity = '1';
+            o.el.classList.add('fm-flash');
+            o.el.addEventListener('animationend', function flashDone(){
+              o.el.removeEventListener('animationend', flashDone);
+              o.el.classList.remove('fm-flash');
+              floatify(o.el);
+            });
           });
-        });
+
+          pending--;
+          if (pending <= 0) cancelAnimationFrame(raf);
+        }, extra);
       });
     }, ORBIT_MS);
   }
@@ -912,12 +928,26 @@ export default async function handler(req, res) {
     return res.status(200).json({
       latest,
       app: app ? { id: app.id, at: app.at, prompt: app.prompt, chars: app.html.length } : null,
+      dismissedId,
     });
   }
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
     return res.status(405).json({ error: 'Método no permitido' });
+  }
+
+  /* ---------- se borró con el shake: avisarle a los demás dispositivos ---------- */
+  if (req.query?.dismiss) {
+    let body = {};
+    try { body = JSON.parse(await readRaw(req)) || {}; } catch { /* sin body */ }
+
+    const id = String(body.id || '');
+    if (id) {
+      dismissedId = id;
+      if (app && app.id === id) app = null;
+    }
+    return res.status(200).json({ ok: true });
   }
 
   /* ---------- ruta de prueba: manda texto como si fuera el webhook ---------- */
