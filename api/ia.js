@@ -35,10 +35,21 @@ import crypto from 'node:crypto';
 export const config = { api: { bodyParser: false } };
 export const maxDuration = 60;          // generar puede tardar
 
-let latest = null;      // última transcripción
-let app = null;         // { id, at, prompt, html }
-let inflight = null;    // { id, promise } para no generar dos veces a la vez
-let dismissedId = null; // último id borrado con el shake, para avisarle a los demás dispositivos
+/* `latest`/`app`/`dismissedId` YA NO viven en variables de módulo: Vercel
+   no garantiza que dos requests caigan en la misma instancia (ni que una
+   instancia siga viva entre una y otra — se reciclan solas tras un rato
+   sin tráfico). Guardarlos en memoria común hacía que el shake dijera
+   "listo" en un dispositivo y otro (atendido por otra instancia, o por
+   una instancia nueva) nunca se enterara: seguía mostrando la app vieja
+   para siempre, o a veces se quedaba "atorado" regenerando de más. Ahora
+   viven en Airtable (ver readSharedState/writeSharedState, tabla
+   ia_state) — la única instancia de estado que ven TODAS las instancias
+   de la función por igual. `inflight` sí sigue siendo solo de esta
+   instancia: como mucho evita una llamada a OpenAI duplicada cuando dos
+   requests caen en la misma instancia a la vez; entre instancias
+   distintas, en el peor caso se genera dos veces (gasta de más, pero no
+   rompe nada) — eso es aceptable para el volumen de uso de esta app. */
+let inflight = null;    // { id, promise } para no generar dos veces a la vez EN ESTA instancia
 
 /* ---------------- auth ---------------- */
 function safeEqual(a, b) {
@@ -190,6 +201,12 @@ const AT_BASE  = process.env.AIRTABLE_BASE || 'appU39PYosvxt8FfG';
 const AT_TABLE = process.env.AIRTABLE_SAVE_TABLE || 'ia_save';
 const AT_FIELD = process.env.AIRTABLE_SAVE_FIELD || 'file';
 
+/* Tabla de estado compartido: un solo registro con la última
+   transcripción, la última app generada y el último id descartado con
+   el shake — lo único que todas las instancias de la función necesitan
+   ver igual. Ver readSharedState/writeSharedState más abajo. */
+const AT_STATE_TABLE = process.env.AIRTABLE_STATE_TABLE || 'ia_state';
+
 /* Vercel corta los cuerpos en 4.5MB; dejamos margen. */
 const MAX_B64 = 3_600_000;
 
@@ -230,6 +247,93 @@ async function createAirtableTable(auth, tableName, fields) {
     );
   }
   console.log(`[api/ia] tabla "${tableName}" creada`);
+}
+
+function safeParseJSON(s) {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+/**
+ * Lee el único registro de ia_state. Sin AIRTABLE_TOKEN, o si la tabla
+ * todavía no existe, devuelve todo en blanco — la app sigue funcionando
+ * (para una sola instancia, sin sincronizar con otras) en vez de romperse.
+ */
+async function readSharedState() {
+  const key = process.env.AIRTABLE_TOKEN;
+  if (!key) return { recordId: null, latest: null, app: null, dismissedId: null };
+
+  const auth = { Authorization: `Bearer ${key}` };
+  let r;
+  try {
+    r = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_STATE_TABLE)}?maxRecords=1`, { headers: auth });
+  } catch (err) {
+    console.error('[api/ia] no se pudo leer ia_state:', err.message);
+    return { recordId: null, latest: null, app: null, dismissedId: null };
+  }
+  if (!r.ok) {
+    if (r.status !== 404) console.error('[api/ia] ia_state respondió', r.status);
+    return { recordId: null, latest: null, app: null, dismissedId: null };
+  }
+
+  const { records = [] } = await r.json();
+  const f = records[0]?.fields || {};
+  return {
+    recordId: records[0]?.id || null,
+    latest: safeParseJSON(f.latestJSON),
+    app: safeParseJSON(f.appJSON),
+    dismissedId: f.dismissedId || null,
+  };
+}
+
+/**
+ * Actualiza solo los campos que vengan en `patch` ({ latest, app,
+ * dismissedId }), sin tocar los demás — como no hay un id de registro
+ * confiable entre instancias, primero busca el único registro que debería
+ * existir y lo crea (con la tabla, si hace falta) si todavía no hay
+ * ninguno. Mejor esfuerzo: si Airtable no está configurado o falla, solo
+ * loguea — un request no debería romperse porque no se pudo avisar a las
+ * demás instancias.
+ */
+async function writeSharedState(patch) {
+  const key = process.env.AIRTABLE_TOKEN;
+  if (!key) return;
+
+  const fields = {};
+  if ('latest' in patch) fields.latestJSON = patch.latest ? JSON.stringify(patch.latest) : '';
+  if ('app' in patch) fields.appJSON = patch.app ? JSON.stringify(patch.app) : '';
+  if ('dismissedId' in patch) fields.dismissedId = patch.dismissedId || '';
+
+  const auth = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+  const find = () => fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_STATE_TABLE)}?maxRecords=1`, { headers: auth });
+
+  try {
+    let r = await find();
+    if (r.status === 404) {
+      await createAirtableTable(auth, AT_STATE_TABLE, [
+        { name: 'latestJSON', type: 'multilineText' },
+        { name: 'appJSON', type: 'multilineText' },
+        { name: 'dismissedId', type: 'singleLineText' },
+      ]);
+      r = await find();
+    }
+    if (!r.ok) { console.error('[api/ia] no se pudo leer ia_state para escribir', r.status); return; }
+
+    const { records = [] } = await r.json();
+    const existing = records[0];
+
+    const res = existing
+      ? await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_STATE_TABLE)}/${existing.id}`, {
+          method: 'PATCH', headers: auth, body: JSON.stringify({ fields, typecast: true }),
+        })
+      : await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_STATE_TABLE)}`, {
+          method: 'POST', headers: auth, body: JSON.stringify({ records: [{ fields }], typecast: true }),
+        });
+
+    if (!res.ok) console.error('[api/ia] no se pudo guardar ia_state', res.status, (await res.text()).slice(0, 300));
+  } catch (err) {
+    console.error('[api/ia] fallo escribiendo ia_state:', err.message);
+  }
 }
 
 async function airtableSave({ filename, contentType, data }) {
@@ -1160,6 +1264,7 @@ export default async function handler(req, res) {
        solo si existen y de qué largo son. */
     if (req.query?.diag) {
       const key = process.env.OPENAI_API_KEY || '';
+      const state = await readSharedState();
       return res.status(200).json({
         entorno: process.env.VERCEL_ENV || '(local)',
         region: process.env.VERCEL_REGION || null,
@@ -1171,8 +1276,12 @@ export default async function handler(req, res) {
           espaciosSobrantes: key !== key.trim(),
         },
         OPENAI_MODEL: process.env.OPENAI_MODEL || '(por defecto: gpt-4o)',
-        hayTranscripcion: Boolean(latest?.text),
-        hayApp: Boolean(app?.html),
+        estadoCompartido: {
+          tabla: AT_STATE_TABLE,
+          conectado: state.recordId !== null || Boolean(process.env.AIRTABLE_TOKEN),
+        },
+        hayTranscripcion: Boolean(state.latest?.text),
+        hayApp: Boolean(state.app?.html),
         // ?diag=models comprueba contra OpenAI que el modelo existe para
         // esta cuenta. Es una llamada de solo lectura, no gasta tokens.
         modeloDisponible: req.query.diag === 'models' ? await modelOk(key) : null,
@@ -1192,13 +1301,17 @@ export default async function handler(req, res) {
     }
 
     if (req.query?.app) {
+      const { app } = await readSharedState();
       return res.status(200).json({ app: app ? { ...app, token: signToken(app.id) } : null });
     }
-    return res.status(200).json({
-      latest,
-      app: app ? { id: app.id, at: app.at, prompt: app.prompt, chars: app.html.length } : null,
-      dismissedId,
-    });
+    {
+      const { latest, app, dismissedId } = await readSharedState();
+      return res.status(200).json({
+        latest,
+        app: app ? { id: app.id, at: app.at, prompt: app.prompt, chars: app.html.length } : null,
+        dismissedId,
+      });
+    }
   }
 
   if (req.method !== 'POST') {
@@ -1213,8 +1326,10 @@ export default async function handler(req, res) {
 
     const id = String(body.id || '');
     if (id) {
-      dismissedId = id;
-      if (app && app.id === id) app = null;
+      const state = await readSharedState();
+      const patch = { dismissedId: id };
+      if (state.app && state.app.id === id) patch.app = null;
+      await writeSharedState(patch);
     }
     return res.status(200).json({ ok: true });
   }
@@ -1238,7 +1353,7 @@ export default async function handler(req, res) {
 
     const mock = Boolean(body.mock);
 
-    latest = {
+    const latestObj = {
       id: `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       at: new Date().toISOString(),
       text,
@@ -1249,14 +1364,16 @@ export default async function handler(req, res) {
       raw: null,
       mock,   // "Probar gratis": el ?generate=1 de abajo no toca OpenAI
     };
+    await writeSharedState({ latest: latestObj });
 
     console.log(`[api/ia] orden de prueba${mock ? ' (mock)' : ''} (${text.length} chars): ${text}`);
-    return res.status(200).json({ ok: true, id: latest.id });
+    return res.status(200).json({ ok: true, id: latestObj.id });
   }
 
   /* ---------- generación, disparada por el navegador ---------- */
   if (req.query?.generate) {
-    if (!latest || !latest.text) {
+    const state = await readSharedState();
+    if (!state.latest || !state.latest.text) {
       return res.status(409).json({ error: 'No hay ninguna transcripción guardada.' });
     }
 
@@ -1264,32 +1381,38 @@ export default async function handler(req, res) {
     try { body = JSON.parse(await readRaw(req)) || {}; } catch { /* sin body */ }
 
     // solo la transcripción vigente: así nadie puede mandar prompts sueltos
-    if (body.id !== latest.id) {
-      return res.status(409).json({ error: 'Ese id ya no es el vigente.', vigente: latest.id });
+    if (body.id !== state.latest.id) {
+      return res.status(409).json({ error: 'Ese id ya no es el vigente.', vigente: state.latest.id });
     }
 
-    if (app && app.id === latest.id) {
-      return res.status(200).json({ app: { ...app, token: signToken(app.id) }, cache: true });
+    if (state.app && state.app.id === state.latest.id) {
+      return res.status(200).json({ app: { ...state.app, token: signToken(state.app.id) }, cache: true });
     }
 
-    if (inflight && inflight.id === latest.id) {
+    // este `inflight` solo dedup dentro de ESTA instancia — entre
+    // instancias distintas puede pasar que se genere dos veces; gasta de
+    // más pero no rompe nada (ver comentario junto a `let inflight`)
+    if (inflight && inflight.id === state.latest.id) {
       try {
-        await inflight.promise;
+        const html = await inflight.promise;
+        const appObj = { id: state.latest.id, at: new Date().toISOString(), prompt: state.latest.text, html };
+        await writeSharedState({ app: appObj });
         // sin el token acá, esta app quedaba sin permiso para guardar: la
         // pedía otra pestaña/dispositivo mientras la primera ya estaba
         // generando, y esta respuesta se lo olvidaba
-        return res.status(200).json({ app: { ...app, token: signToken(app.id) }, cache: true });
+        return res.status(200).json({ app: { ...appObj, token: signToken(appObj.id) }, cache: true });
       } catch { /* cae al intento de abajo */ }
     }
 
-    const id = latest.id;
-    const prompt = latest.text;
-    inflight = { id, promise: latest.mock ? mockGenerate() : generate(prompt) };
+    const id = state.latest.id;
+    const prompt = state.latest.text;
+    inflight = { id, promise: state.latest.mock ? mockGenerate() : generate(prompt) };
 
     try {
       const html = await inflight.promise;
-      app = { id, at: new Date().toISOString(), prompt, html };
-      return res.status(200).json({ app: { ...app, token: signToken(id) } });
+      const appObj = { id, at: new Date().toISOString(), prompt, html };
+      await writeSharedState({ app: appObj });
+      return res.status(200).json({ app: { ...appObj, token: signToken(id) } });
     } catch (err) {
       console.error('[api/ia] fallo generando:', err.message);
       return res.status(err.code || 500).json({ error: err.message });
@@ -1353,7 +1476,7 @@ export default async function handler(req, res) {
 
   const recordedAt = Number(fields.recordedAt ?? fields.recordedat);
 
-  latest = {
+  const latestObj = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     at: new Date().toISOString(),
     text,
@@ -1363,6 +1486,7 @@ export default async function handler(req, res) {
     bytes: Buffer.byteLength(raw, 'utf8'),
     raw: text ? null : raw.slice(0, 4000),
   };
+  await writeSharedState({ latest: latestObj });
 
   if (text) {
     console.log(`[api/ia] transcription (${formato}, ${text.length} chars): ${text}`);
@@ -1371,5 +1495,5 @@ export default async function handler(req, res) {
     console.warn(`[api/ia] body: ${raw.slice(0, 2000)}`);
   }
 
-  return res.status(200).json({ ok: true, id: latest.id, chars: text.length, formato });
+  return res.status(200).json({ ok: true, id: latestObj.id, chars: text.length, formato });
 }

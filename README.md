@@ -186,6 +186,31 @@ GET  /api/ia?diag=models     lo mismo + comprueba el modelo contra OpenAI
 GET  /api/ia?diag=write      prueba Airtable de punta a punta
 ```
 
+### Estado compartido (ia_state) — por qué existe
+
+La última transcripción, la app generada y el último id descartado con el
+shake NO viven en variables del proceso: Vercel no garantiza que dos
+requests caigan en la misma instancia de la función, ni que una instancia
+siga viva entre una y otra (se reciclan solas tras un rato sin tráfico).
+Guardar ese estado en memoria hacía que el shake dijera "listo" en un
+celular y otro dispositivo (atendido por otra instancia, o por una
+instancia nueva que nunca se enteró) siguiera mostrando la app vieja para
+siempre — o que a veces pareciera "atorarse" regenerando de más.
+
+Ahora ese estado vive en Airtable, tabla **`ia_state`** (configurable con
+`AIRTABLE_STATE_TABLE`): un único registro con tres columnas —
+`latestJSON`, `appJSON` (la transcripción y la app, serializadas como
+JSON) y `dismissedId` (texto simple). Se lee en cada poll y se escribe
+cuando cambia algo (webhook, generación, dismiss) — no hace falta crearla
+a mano, se crea sola la primera vez que hace falta escribir (mismo
+mecanismo que `ia_save`/`ia_forms`, necesita el scope
+`schema.bases:write` además de `data.records:write`).
+
+Lo único que sigue viviendo solo en memoria es el `inflight` que evita
+llamar dos veces seguidas a OpenAI para el mismo id — pero solo dentro de
+una misma instancia; entre instancias distintas, en el peor caso se
+genera dos veces (gasta de más, no rompe nada).
+
 ### `/test/sendOrder/` — probar sin hablarle al webhook
 
 Un formulario con una clave y un textarea: manda el texto a
