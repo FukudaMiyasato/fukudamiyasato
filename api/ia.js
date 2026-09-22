@@ -449,10 +449,15 @@ const NEON_CSS = `<style id="fm-base">
   --fm-red:#e0102b;--fm-red-hot:#ff1f3d;
   --fm-glow:rgba(255,31,61,.65);--fm-glow-soft:rgba(255,31,61,.3);
 }
-*{box-sizing:border-box;background-color:transparent;}
+*{box-sizing:border-box;background-color:transparent;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;background:transparent;color:var(--fm-red-hot);min-height:100%;
+  overflow-x:hidden;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   text-shadow:0 0 14px var(--fm-glow);}
+/* celular en vertical, con el dedo — sin el resalte gris del tap ni el
+   delay de 300ms antes del click, y sin que un elemento angosto se pase
+   del ancho de la pantalla y meta scroll horizontal por accidente */
+button,.fm-btn,input,select,textarea,a{touch-action:manipulation;}
 /* Transparente siempre, no solo mientras se arma: la app creada tiene que
    quedar con el fondo transparente para siempre, así lo que está detrás
    (la nebulosa apagándose, y los destellos de reposo, que ya nunca se
@@ -884,10 +889,28 @@ niveles de intensidad de glow, de más a menos fuerte:
   de página: pisarían la que ya corre). Tu CSS puede animar cosas propias
   de la interacción (un botón que se presiona, un contador que cambia),
   no la entrada de los elementos.
-- Tiene que verse bien a pantalla completa y también en móvil.
 - Es una app usable, no una maqueta: los botones hacen lo que dicen.
 - Si la instrucción es ambigua o muy corta, elige la interpretación más
   simple y útil, y hazla completa.
+
+PANTALLA — celular, vertical, con el dedo
+Esto se usa siempre en un celular, de pie (vertical), a pantalla completa
+como una app. No diseñes pensando en desktop ni en landscape.
+- Todo el contenido tiene que entrar en esa pantalla angosta (~380-430px
+  de ancho) sin scroll horizontal. Si hay mucho contenido, hacelo más
+  compacto en vez de agregar scroll — salvo que sea de verdad una lista
+  larga donde desplazarse tenga sentido.
+- Todo se usa con el dedo: tap, mantener presionado, arrastrar. No
+  diseñes pensando en que haya un teclado físico ni en que el usuario
+  escriba mucho texto.
+- Si necesitás que el usuario dé un valor (un número, elegir entre
+  opciones), preferí controles táctiles — botones +/-, un
+  <input type="range">, chips para elegir, un contador que se toca — en
+  vez de un <input type="text"> que abre el teclado. Reservá los inputs
+  de texto para cuando de verdad hace falta escribir (un formulario que
+  pide un nombre o una nota corta), y ahí usá el type/inputmode más
+  simple posible (number, inputmode="numeric", etc.) para que el teclado
+  que aparezca sea el más chico que se pueda.
 
 CAPACIDADES YA DISPONIBLES — el objeto global FM
 Ya existe en la página. NO lo reimplementes, no lo redefinas y no escribas
