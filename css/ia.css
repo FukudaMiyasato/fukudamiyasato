@@ -144,6 +144,41 @@
 }
 
 /* ============================================================
+   Destellos de reposo
+   ------------------------------------------------------------
+   El mismo destello que usan los elementos al aparecer (api/ia.js),
+   pero acá orbitando siempre, despacio, alrededor del centro de la
+   pantalla mientras la nebulosa espera. ia.js los mueve por JS (misma
+   técnica que el ensamblaje de una app: elipse + rotate + pulse); esta
+   hoja solo pone la forma, el glow y las animaciones de giro/latido.
+   ============================================================ */
+.idle-sparks {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.idle-spark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  margin-top: -32px;
+  opacity: .8;
+  filter: drop-shadow(0 0 14px rgba(255, 31, 61, .85)) drop-shadow(0 0 30px rgba(255, 20, 50, .55));
+  animation: fm-idle-spin 1.3s linear infinite, fm-idle-pulse 1.1s ease-in-out infinite;
+  transition: opacity .5s ease;
+}
+.idle-sparks.fading .idle-spark { opacity: 0; }
+@keyframes fm-idle-spin { to { rotate: 360deg; } }
+@keyframes fm-idle-pulse { 0%, 100% { scale: .6; } 50% { scale: 1.25; } }
+@media (prefers-reduced-motion: reduce) {
+  .idle-spark { animation: none; }
+}
+
+/* ============================================================
    La app generada, a pantalla completa
    ============================================================ */
 .app-frame {

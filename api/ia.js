@@ -320,6 +320,18 @@ async function airtableList(limit = 20) {
 }
 
 /* ============================================================
+   Sin zoom con los dedos
+   ------------------------------------------------------------
+   La app generada vive en su propio documento (iframe): el bloqueo de
+   pellizco de ia.js no le llega. El meta viewport tampoco alcanza en
+   Safari moderno, así que va también por JS acá.
+   ============================================================ */
+const NO_ZOOM_JS = `<script>
+document.addEventListener('touchmove', function(e){ if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
+<\/script>`;
+
+/* ============================================================
    El SDK que se inyecta en cada app generada
    ------------------------------------------------------------
    La app corre en un iframe de origen opaco: no puede llamar a
@@ -361,6 +373,44 @@ const SDK = `<script>(function(){
    iframe de la app corre en sandbox sin "allow-same-origin" (origen
    opaco), y el navegador le bloquea el sensor de movimiento sin importar
    el permiso que se le pida. Ver ia.js para el porqué. */
+
+/* ============================================================
+   Librería de íconos — línea roja, sin relleno
+   ------------------------------------------------------------
+   Un sprite de <symbol> propios (nada de CDN ni descargas: la app
+   tiene que quedar autocontenida). Sirven para que un botón circular
+   no dependa de que una palabra entre en el círculo: un ícono
+   comunica lo mismo en menos espacio. El prompt (SYSTEM) documenta
+   los nombres disponibles y cómo usarlos con <use>.
+   ============================================================ */
+const ICON_SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0" aria-hidden="true">
+<defs>
+<symbol id="fm-icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="21,3 3,10 11,13 14,21"/><line x1="11" y1="13" x2="21" y2="3"/></symbol>
+<symbol id="fm-icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,13 9,18 20,6"/></symbol>
+<symbol id="fm-icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></symbol>
+<symbol id="fm-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="20"/><line x1="4" y1="12" x2="20" y2="12"/></symbol>
+<symbol id="fm-icon-minus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/></symbol>
+<symbol id="fm-icon-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6,4 20,12 6,20"/></symbol>
+<symbol id="fm-icon-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="4" x2="8" y2="20"/><line x1="16" y1="4" x2="16" y2="20"/></symbol>
+<symbol id="fm-icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></symbol>
+<symbol id="fm-icon-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 4v6h8V4"/><rect x="8" y="14" width="8" height="6"/></symbol>
+<symbol id="fm-icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><path d="M6 7v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></symbol>
+<symbol id="fm-icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3-11 11-1 4z"/><line x1="14" y1="6" x2="17" y2="9"/></symbol>
+<symbol id="fm-icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><line x1="21" y1="21" x2="14.5" y2="14.5"/></symbol>
+<symbol id="fm-icon-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.35-9.5-9C.9 7.5 3 4 6.5 4 9 4 11 6 12 7c1-1 3-3 5.5-3 3.5 0 5.6 3.5 4 7-2.5 4.65-9.5 9-9.5 9z"/></symbol>
+<symbol id="fm-icon-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 15,9 22,9.5 16.5,14 18,21 12,17 6,21 7.5,14 2,9.5 9,9"/></symbol>
+<symbol id="fm-icon-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/></symbol>
+<symbol id="fm-icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.6" y1="4.6" x2="6.7" y2="6.7"/><line x1="17.3" y1="17.3" x2="19.4" y2="19.4"/><line x1="4.6" y1="19.4" x2="6.7" y2="17.3"/><line x1="17.3" y1="6.7" x2="19.4" y2="4.6"/></symbol>
+<symbol id="fm-icon-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+<symbol id="fm-icon-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+<symbol id="fm-icon-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></symbol>
+<symbol id="fm-icon-mail" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3,7 12,13 21,7"/></symbol>
+<symbol id="fm-icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></symbol>
+<symbol id="fm-icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 14-5.3"/><polyline points="18,3 18,7 14,7"/><path d="M20 12a8 8 0 0 1-14 5.3"/><polyline points="6,21 6,17 10,17"/></symbol>
+<symbol id="fm-icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="20" y1="12" x2="4" y2="12"/><polyline points="10,6 4,12 10,18"/></symbol>
+<symbol id="fm-icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"/><polyline points="14,6 20,12 14,18"/></symbol>
+</defs>
+</svg>`;
 
 /* ============================================================
    Estilos base — solo bordes neón rojo, sin fondos
@@ -408,6 +458,10 @@ button:hover,.fm-btn:hover,input[type=button]:hover,input[type=submit]:hover{
   box-shadow:0 0 30px 2px var(--fm-glow),0 0 54px 8px var(--fm-glow-soft);border-color:#fff;color:#fff;transform:translateY(-1px);}
 button:active,.fm-btn:active{transform:translateY(0) scale(.97);}
 button:disabled,.fm-btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;transform:none;}
+/* ícono dentro de un botón circular, en vez de texto que no entra */
+.fm-icon{width:1.6em;height:1.6em;fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;
+  filter:drop-shadow(0 0 8px var(--fm-glow));}
 
 /* inputs: sin caja, solo la línea inferior — el glow más suave de los
    tres, confinado abajo con blur + spread negativo (un box-shadow normal
@@ -498,9 +552,11 @@ a{color:var(--fm-red-hot);text-shadow:0 0 10px var(--fm-glow);}
       un par de segundos al azar del resto. Al llegar: revienta en un
       destello y desaparece, y en ese mismo instante aparece el
       elemento real (con su propio flash).
-   4. Recién cuando casi todas ya aparecieron (unos segundos después de
-      que "se creó" la app) se avisa al padre para que apague la
-      nebulosa — y esa transición es lenta, no un corte (ver ia.css).
+   4. La nebulosa empieza a apagarse un poco ANTES de que arranque el
+      aterrizaje (no después): se avisa al padre justo antes de que las
+      chispitas empiecen a convertirse en los elementos reales, y esa
+      transición es lenta, no un corte (ver ia.css) — para cuando termina
+      de apagarse, el aterrizaje ya está en marcha o casi.
    5. Por último, cada uno empieza a flotar con su propio ritmo.
    Si la app ya existía (se está retomando, no creando de nuevo) se
    salta todo esto: lo marca `window.__fmSkipEntrance`, puesto por
@@ -513,7 +569,7 @@ const ASSEMBLE_JS = `<script>(function(){
   var ENTER_MS       = 420;    // cuánto tarda en llegar desde afuera hasta su órbita
   var LAND_MS        = 750;    // duración del viaje a su posición real
   var LAND_SPREAD_MS = 2600;   // separación al azar entre una conversión y la siguiente
-  var NEBULA_STAY_MS = 900;    // cuánto se queda la nebulosa después de que ya aterrizaron todas
+  var NEBULA_LEAD_MS = 500;    // cuánto antes de aterrizar se avisa a la nebulosa que se apague
 
   if (window.__fmSkipEntrance || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     parent.postMessage({ __fm: 'nebula-fade' }, '*');
@@ -646,11 +702,17 @@ const ASSEMBLE_JS = `<script>(function(){
     }
     raf = requestAnimationFrame(tick);
 
+    // ---- la nebulosa se avisa un poco ANTES de que arranque el
+    // aterrizaje, no después: para cuando las chispitas empiezan a
+    // convertirse en elementos, ya está a mitad de su apagado lento ----
+    setTimeout(function(){
+      parent.postMessage({ __fm: 'nebula-fade' }, '*');
+      endOrbitBg();
+    }, Math.max(0, ORBIT_MS - NEBULA_LEAD_MS));
+
     // ---- fase 2: recién ahora empiezan a aparecer los elementos — pero no
     // todas de una: cada chispita aterriza en un momento propio, separado
-    // por un par de segundos al azar de la anterior. La nebulosa recién se
-    // entera de que puede apagarse más adelante (ver más abajo), así se
-    // queda un rato visible mientras esto termina de pasar ----
+    // por un par de segundos al azar de la anterior ----
     setTimeout(function(){
       var pending = orbiters.length;
 
@@ -685,13 +747,6 @@ const ASSEMBLE_JS = `<script>(function(){
           if (pending <= 0) cancelAnimationFrame(raf);
         }, extra);
       });
-
-      // recién ahora, con casi todas ya aparecidas, se avisa a la nebulosa —
-      // y en ia.css su propia transición de apagado es lenta, no un corte
-      setTimeout(function(){
-        parent.postMessage({ __fm: 'nebula-fade' }, '*');
-        endOrbitBg();
-      }, LAND_SPREAD_MS + NEBULA_STAY_MS);
     }, ORBIT_MS);
   }
 
@@ -701,10 +756,16 @@ const ASSEMBLE_JS = `<script>(function(){
 
 /** Mete el SDK, los estilos base y el ensamblaje de entrada dentro del <head>. */
 function injectSdk(html) {
-  const inject = NEON_CSS + SDK + ASSEMBLE_JS;
-  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + inject);
-  if (/<html[^>]*>/i.test(html)) return html.replace(/<html[^>]*>/i, (m) => `${m}<head>${inject}</head>`);
-  return inject + html;
+  const headInject = NEON_CSS + NO_ZOOM_JS + SDK + ASSEMBLE_JS;
+  let out = html;
+  if (/<head[^>]*>/i.test(out)) out = out.replace(/<head[^>]*>/i, (m) => m + headInject);
+  else if (/<html[^>]*>/i.test(out)) out = out.replace(/<html[^>]*>/i, (m) => `${m}<head>${headInject}</head>`);
+  else out = headInject + out;
+
+  // el sprite de íconos es SVG: no es válido dentro de <head> (el parser
+  // lo cerraría de golpe si lo mete ahí), así que va justo después de <body>.
+  if (/<body[^>]*>/i.test(out)) return out.replace(/<body[^>]*>/i, (m) => m + ICON_SPRITE);
+  return ICON_SPRITE + out;
 }
 
 /* ============================================================
@@ -733,6 +794,16 @@ niveles de intensidad de glow, de más a menos fuerte:
   = más grande, más largo = más chico) o sube la variable --fm-btn-size
   en ese botón puntual para agrandar la caja. Nunca lo vuelvas
   rectangular ni le agregues padding.
+- Íconos: ya existe un sprite de <symbol> (línea roja, sin relleno,
+  hereda el color). Para un botón circular donde una palabra no entra
+  bien (o un ícono se entiende más rápido que el texto), usalo así en
+  vez de una palabra:
+    <svg class="fm-icon"><use href="#fm-icon-NOMBRE"/></svg>
+  Nombres disponibles — usa exactamente estos, no inventes otros:
+  send, check, close, plus, minus, play, pause, mic, save, trash, edit,
+  search, heart, star, home, settings, bell, lock, user, mail, clock,
+  refresh, arrow-left, arrow-right. Si ninguno encaja, usa texto corto;
+  no dibujes tu propio ícono SVG desde cero.
 - Labels (clases .fm-label / .fm-label-main — NO el <label> de
   formulario): píldora redonda para mostrar texto corto, un valor o el
   título de un campo. Glow intermedio. Úsalas solo si la app necesita

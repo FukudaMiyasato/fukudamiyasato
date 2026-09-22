@@ -6,6 +6,12 @@
 const POLL_MS = 2000;
 const STORE   = 'fm.ia.app.v1';
 
+/* El meta viewport (user-scalable=no) ya no alcanza: Safari moderno lo
+   ignora por accesibilidad. Sin esto, el pellizco con dos dedos hace zoom
+   sobre la nebulosa o la app a pantalla completa. */
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+
 const stage  = document.getElementById('stage');
 const frame  = document.getElementById('app-frame');
 const nav    = document.getElementById('nav');
@@ -18,6 +24,93 @@ let handledId = null;     // transcripción ya procesada
 let shownId   = null;     // app que se está viendo
 let busy      = false;
 let nebulaFadeTimer = null;
+
+/* ============================================================
+   Destellos de reposo
+   ------------------------------------------------------------
+   El mismo destello que usan los elementos al aparecer dentro de una
+   app generada (ver SPARK_SVG en api/ia.js), pero acá orbitando
+   siempre, despacio, alrededor del centro de la pantalla mientras la
+   nebulosa espera. Al llegar una solicitud aceleran junto con ella
+   (mismo múltiplo que --spin en ia.css) y no bajan el ritmo hasta que
+   la app está lista; ahí desaparecen del todo y solo vuelven a
+   aparecer cuando se regresa a la espera (closeApp).
+   ============================================================ */
+const idleLayer = document.getElementById('idleSparks');
+const IDLE_SPARK_COUNT = 5;
+const IDLE_SPEED_BUSY  = 6;
+
+const IDLE_SPARK_SVG = '<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">' +
+  '<defs>' +
+    '<radialGradient id="fmIdleCore" cx="50%" cy="50%" r="50%">' +
+      '<stop offset="0%" stop-color="#ffd9cf"/>' +
+      '<stop offset="20%" stop-color="#ff5a4e"/>' +
+      '<stop offset="50%" stop-color="#ff1f3d"/>' +
+      '<stop offset="100%" stop-color="rgba(224,16,43,0)"/>' +
+    '</radialGradient>' +
+    '<linearGradient id="fmIdleRay" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="rgba(255,31,61,0)"/>' +
+      '<stop offset="42%" stop-color="#ff1f3d"/>' +
+      '<stop offset="50%" stop-color="#ff8a72"/>' +
+      '<stop offset="58%" stop-color="#ff1f3d"/>' +
+      '<stop offset="100%" stop-color="rgba(255,31,61,0)"/>' +
+    '</linearGradient>' +
+  '</defs>' +
+  '<g transform="translate(100,100)">' +
+    '<rect x="-2" y="-100" width="4" height="200" fill="url(#fmIdleRay)"/>' +
+    '<rect x="-100" y="-2" width="200" height="4" fill="url(#fmIdleRay)"/>' +
+    '<rect x="-1.2" y="-70" width="2.4" height="140" fill="url(#fmIdleRay)" transform="rotate(45)"/>' +
+    '<rect x="-1.2" y="-70" width="2.4" height="140" fill="url(#fmIdleRay)" transform="rotate(-45)"/>' +
+    '<circle r="30" fill="url(#fmIdleCore)"/>' +
+  '</g>' +
+'</svg>';
+
+let idleSparks   = [];
+let idleRaf      = null;
+let idleStart    = 0;
+let idleSpeedMul = 1;
+
+function spawnIdleSparks() {
+  if (idleSparks.length || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (let i = 0; i < IDLE_SPARK_COUNT; i++) {
+    const el = document.createElement('div');
+    el.className = 'idle-spark';
+    el.innerHTML = IDLE_SPARK_SVG;
+    // cada una a su propio ritmo de giro/latido, como las de la entrada
+    el.style.animationDuration =
+      (0.9 + Math.random() * 0.8).toFixed(2) + 's, ' + (0.9 + Math.random() * 0.7).toFixed(2) + 's';
+    idleLayer.appendChild(el);
+    idleSparks.push({
+      el,
+      rx: 0.14 + Math.random() * 0.2,   // fracción del lado menor de la pantalla
+      ry: 0.09 + Math.random() * 0.16,
+      phase: Math.random() * Math.PI * 2,
+      speed: (Math.random() < 0.5 ? -1 : 1) * (0.1 + Math.random() * 0.08),
+    });
+  }
+  idleStart = performance.now();
+  tickIdle();
+}
+
+function tickIdle() {
+  const t = (performance.now() - idleStart) / 1000;
+  const cx = innerWidth / 2, cy = innerHeight / 2;
+  const base = Math.min(innerWidth, innerHeight);
+  idleSparks.forEach((s) => {
+    const a = s.phase + t * s.speed * idleSpeedMul;
+    const x = cx + base * s.rx * Math.cos(a);
+    const y = cy + base * s.ry * Math.sin(a);
+    s.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+  });
+  idleRaf = requestAnimationFrame(tickIdle);
+}
+
+function clearIdleSparks() {
+  cancelAnimationFrame(idleRaf);
+  idleRaf = null;
+  idleSparks.forEach((s) => s.el.remove());
+  idleSparks = [];
+}
 
 /* ---------------- lo guardado ---------------- */
 function load() {
@@ -35,6 +128,9 @@ function markClosed() {
 function setBusy(on) {
   busy = on;
   stage.classList.toggle('busy', on);
+  // los destellos de reposo aceleran junto con la nebulosa mientras se
+  // genera, y no bajan el ritmo hasta que la app aparece (showApp los quita)
+  idleSpeedMul = on ? IDLE_SPEED_BUSY : 1;
 }
 
 /** Mete un flag al principio del <head> para que el ensamblaje de entrada
@@ -47,6 +143,7 @@ function withEntranceFlag(html, skip) {
 }
 
 function showApp(entry, { skipEntrance = false } = {}) {
+  clearIdleSparks();   // la app ya está lista: los destellos falsos desaparecen
   shownId = entry.id;
   token = entry.token || null;
   frame.srcdoc = withEntranceFlag(entry.html, skipEntrance);   // no hay que escapar nada
@@ -81,6 +178,7 @@ function closeApp() {
   stage.classList.remove('orbiting');
   shownId = null;
   token = null;
+  spawnIdleSparks();   // de vuelta a la espera: que vuelvan a orbitar
   setTimeout(() => {
     if (shownId === null) frame.srcdoc = '';
   }, CLOSE_ANIM_MS);
@@ -462,6 +560,9 @@ async function boot() {
   } else if (saved?.id) {
     handledId = saved.id;           // ya la vimos y la cerramos: no regenerar
   }
+
+  // si no se retomó ninguna app, la nebulosa arranca en espera: que orbiten
+  if (!frame.classList.contains('show')) spawnIdleSparks();
 
   poll();
   setInterval(poll, POLL_MS);
