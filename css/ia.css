@@ -168,6 +168,22 @@
   box-shadow: inset 0 0 0 1px rgba(224, 16, 43, .35), 0 0 70px -10px var(--red-glow);
 }
 
+/* el shake del celular sacude el propio contenedor antes de que se cierre,
+   como confirmación de que el gesto se sintió */
+.app-frame.shaking {
+  animation: fm-shake .38s cubic-bezier(.36, .07, .19, .97) both;
+}
+@keyframes fm-shake {
+  0%, 100%     { transform: translate3d(0, 0, 0) scale(1); }
+  10%, 90%     { transform: translate3d(-3px, 0, 0) scale(1); }
+  20%, 80%     { transform: translate3d(6px, 0, 0) scale(1); }
+  30%, 50%, 70% { transform: translate3d(-10px, 0, 0) scale(1); }
+  40%, 60%     { transform: translate3d(10px, 0, 0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-frame.shaking { animation: none; }
+}
+
 /* la nebulosa se disuelve hacia la app, y vuelve a aparecer al revés */
 .stage.oculta .orb {
   opacity: 0;

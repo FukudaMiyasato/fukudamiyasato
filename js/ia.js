@@ -11,6 +11,7 @@ const frame  = document.getElementById('app-frame');
 const nav    = document.getElementById('nav');
 
 const CLOSE_ANIM_MS = 760;  // debe cubrir la transición de .app-frame en ia.css
+const SHAKE_ANIM_MS = 380;  // debe coincidir con @keyframes fm-shake en ia.css
 
 let handledId = null;     // transcripción ya procesada
 let shownId   = null;     // app que se está viendo
@@ -86,10 +87,16 @@ function shakeDetected() {
   const now = Date.now();
   if (now - lastShakeAt <= SHAKE_COOLDOWN) return;
   lastShakeAt = now;
-  if (frame.classList.contains('show')) {
+  if (!frame.classList.contains('show')) return;
+
+  if (navigator.vibrate) navigator.vibrate([40, 30, 40]);  // sin soporte en iOS: no hace nada
+
+  frame.classList.add('shaking');
+  setTimeout(() => {
+    frame.classList.remove('shaking');
     markClosed();
     closeApp();
-  }
+  }, SHAKE_ANIM_MS);
 }
 
 function onDeviceMotion(e) {
@@ -305,6 +312,11 @@ async function adopt(appId, prompt) {
 /* ---------------- sondeo ---------------- */
 async function poll() {
   if (busy) return;
+
+  // ya hay una app en pantalla: no se crea otra encima. Sigue vigente
+  // como "sin procesar" (no se toca handledId) — en cuanto se cierre con
+  // el shake, el siguiente sondeo la recoge y recién ahí se genera.
+  if (frame.classList.contains('show')) return;
 
   let data;
   try {
