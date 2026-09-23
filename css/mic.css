@@ -11,6 +11,84 @@
 /* el degradado rojo de base.css estorba acá */
 .mic-body::before { display: none; }
 
+/* ---------------- portón: pide la clave antes de mostrar nada ---------------- */
+.mic-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+/* sin esto, el display:flex de arriba le gana al [hidden] del navegador
+   (misma especificidad, pero el estilo del autor pisa al del user-agent) */
+.mic-gate[hidden] { display: none; }
+
+.mic-gate-card {
+  display: flex;
+  flex-direction: column;
+  width: min(300px, 100%);
+  padding: 28px 24px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 20px 60px -20px rgba(0, 0, 0, .6);
+}
+
+.mic-gate-card label {
+  font-size: 11px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+}
+
+.mic-gate-card input {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14.5px;
+  font-family: inherit;
+  text-align: center;
+  transition: border-color .25s var(--ease), box-shadow .25s var(--ease);
+}
+.mic-gate-card input:focus {
+  outline: none;
+  border-color: var(--red-hot);
+  box-shadow: 0 0 0 4px var(--red-glow);
+}
+
+.mic-gate-card button {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 99px;
+  border: 1px solid var(--red-hot);
+  background: linear-gradient(160deg, var(--red) 0%, var(--red-deep) 100%);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  transition: box-shadow .25s var(--ease), transform .25s var(--ease), opacity .25s var(--ease);
+}
+.mic-gate-card button:hover { box-shadow: 0 0 0 6px var(--red-glow); }
+.mic-gate-card button:active { transform: scale(.97); }
+.mic-gate-card button:disabled { opacity: .5; cursor: default; box-shadow: none; }
+
+.mic-gate-note {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-faint);
+  min-height: 1.2em;
+}
+.mic-gate-note.err { color: var(--red-hot); }
+
+/* ---------------- la página en sí, oculta hasta pasar el portón ---------------- */
+.mic-app[hidden] { display: none; }
+
 .mic-stage {
   position: fixed;
   inset: 0;
@@ -20,22 +98,6 @@
   justify-content: center;
   gap: 28px;
   padding: 24px;
-}
-
-.mic-key {
-  width: min(280px, 80vw);
-  padding: 10px 4px;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--line);
-  color: var(--text);
-  font-size: 14px;
-  text-align: center;
-  transition: border-color .25s var(--ease);
-}
-.mic-key:focus {
-  outline: none;
-  border-color: var(--red-hot);
 }
 
 /* botón circular grande: mantener presionado graba, soltar manda a
@@ -83,12 +145,14 @@
 }
 .mic-note.err { color: var(--red-hot); }
 
-/* mismo tratamiento que .back-btn (arriba-izquierda), pero arriba a la
-   derecha: borra la app actual, como el shake en IA */
+/* arriba centrado (no arriba-izquierda como el back-btn de otras páginas:
+   esta página no tiene botón de volver) — borra la app actual, como el
+   shake en IA */
 .mic-clear {
   position: fixed;
   top: calc(22px + env(safe-area-inset-top, 0px));
-  right: calc(22px + env(safe-area-inset-right, 0px));
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 200;
   width: 46px;
   height: 46px;
@@ -110,13 +174,12 @@
   color: #fff;
   box-shadow: 0 0 0 6px var(--red-glow);
 }
-.mic-clear:active { transform: scale(.95); }
+.mic-clear:active { transform: translateX(-50%) scale(.95); }
 .mic-clear:disabled { opacity: .5; box-shadow: none; }
 
 @media (max-width: 620px) {
   .mic-clear {
     top: calc(14px + env(safe-area-inset-top, 0px));
-    right: calc(14px + env(safe-area-inset-right, 0px));
     width: 42px;
     height: 42px;
   }

@@ -1,32 +1,93 @@
 /* ============================================================
-   mic.js — mantener presionado graba, soltar manda el audio a Whisper
-   y deja el texto como la transcripción vigente (lo mismo que el
-   webhook real, o /test/sendOrder/, pero grabado acá con el dedo).
-   El botón de borrar hace lo mismo que el shake en IA: descarta la
-   app vigente para todos los dispositivos que la tengan abierta.
+   mic.js — portón de clave, y después: mantener presionado graba,
+   soltar manda el audio a Whisper y deja el texto como la
+   transcripción vigente (lo mismo que el webhook real, o
+   /test/sendOrder/, pero grabado acá con el dedo). El botón de
+   borrar hace lo mismo que el shake en IA: descarta la app vigente
+   para todos los dispositivos que la tengan abierta.
    ============================================================ */
 
 const KEY_STORE = 'fm.mic.key.v1';
 
-const keyEl    = document.getElementById('mic-key');
+const gate       = document.getElementById('mic-gate');
+const gateForm   = document.getElementById('mic-gate-form');
+const gateKeyEl  = document.getElementById('mic-gate-key');
+const gateSubmit = document.getElementById('mic-gate-submit');
+const gateNote   = document.getElementById('mic-gate-note');
+
+const app      = document.getElementById('mic-app');
 const micBtn   = document.getElementById('mic-btn');
 const clearBtn = document.getElementById('mic-clear');
 const note     = document.getElementById('mic-note');
 
-// comodidad para pruebas repetidas: la clave se recuerda en esta pestaña,
-// nunca se manda a ningún lado salvo en el propio POST de abajo
-try {
-  const saved = sessionStorage.getItem(KEY_STORE);
-  if (saved) keyEl.value = saved;
-} catch { /* modo privado */ }
-
-let recorder = null;
-let chunks = [];
+let verifiedKey = null;   // solo se guarda acá una vez que el servidor la confirmó
 
 function setNote(text, isError = false) {
   note.textContent = text;
   note.classList.toggle('err', isError);
 }
+function setGateNote(text, isError = false) {
+  gateNote.textContent = text;
+  gateNote.classList.toggle('err', isError);
+}
+
+/** Le pregunta al servidor si la clave es correcta — no gasta Whisper. */
+async function checkKey(key) {
+  const res = await fetch('/api/ia?micAuth=1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+}
+
+function unlock(key) {
+  verifiedKey = key;
+  try { sessionStorage.setItem(KEY_STORE, key); } catch { /* modo privado */ }
+  gate.hidden = true;
+  app.hidden = false;
+}
+
+/* ---------------- portón ---------------- */
+gateForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const key = gateKeyEl.value.trim();
+  if (!key) return;
+
+  gateSubmit.disabled = true;
+  setGateNote('Comprobando…');
+  try {
+    await checkKey(key);
+    unlock(key);
+  } catch (err) {
+    setGateNote(err.message, true);
+    gateKeyEl.select();
+  } finally {
+    gateSubmit.disabled = false;
+  }
+});
+
+// si ya se había entrado antes en esta pestaña, lo confirma solo (sin que
+// haga falta escribir la clave de nuevo) — pero la página sigue oculta
+// hasta que el servidor la confirme: nada de mostrarla optimistamente
+(async function tryStoredKey() {
+  let saved = null;
+  try { saved = sessionStorage.getItem(KEY_STORE); } catch { /* modo privado */ }
+  if (!saved) return;
+
+  setGateNote('Comprobando…');
+  try {
+    await checkKey(saved);
+    unlock(saved);
+  } catch {
+    setGateNote('');   // la clave guardada ya no sirve: que la escriba de nuevo
+  }
+})();
+
+/* ---------------- grabar ---------------- */
+let recorder = null;
+let chunks = [];
 
 /** Blob -> base64, por trozos para no reventar la pila (igual que en ia.js). */
 async function toBase64(blob) {
@@ -40,10 +101,6 @@ async function toBase64(blob) {
 
 async function startRecording() {
   if (recorder) return;
-  if (!keyEl.value.trim()) {
-    setNote('Escribí la clave primero.', true);
-    return;
-  }
   if (!navigator.mediaDevices?.getUserMedia) {
     setNote('Este navegador no da acceso al micrófono.', true);
     return;
@@ -71,7 +128,6 @@ async function startRecording() {
 async function sendRecording(blob) {
   if (!blob.size) { setNote('No se grabó nada.'); return; }
 
-  const key = keyEl.value.trim();
   setNote('Transcribiendo…');
   micBtn.disabled = true;
 
@@ -80,12 +136,11 @@ async function sendRecording(blob) {
     const res = await fetch('/api/ia?mic=1', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, data, contentType: blob.type, filename: 'orden.webm' }),
+      body: JSON.stringify({ key: verifiedKey, data, contentType: blob.type, filename: 'orden.webm' }),
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
 
-    try { sessionStorage.setItem(KEY_STORE, key); } catch { /* modo privado */ }
     setNote(`"${json.text}" — abriendo IA…`);
     location.href = '/ia.html';
   } catch (err) {

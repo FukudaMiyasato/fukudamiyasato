@@ -21,6 +21,8 @@
                                  el texto como transcripción vigente, para
                                  /mic (grabar con el dedo en vez de
                                  hablarle al webhook externo)
+   POST /api/ia?micAuth=1        { key } -> solo valida la clave de /mic,
+                                 para el modal de entrada de esa página
 
    El POST de generación NO lleva Authorization a propósito: lo llama el
    navegador. Para que no sea un generador abierto (y no se te vaya el
@@ -1433,6 +1435,23 @@ export default async function handler(req, res) {
 
     console.log(`[api/ia] orden de prueba${mock ? ' (mock)' : ''} (${text.length} chars): ${text}`);
     return res.status(200).json({ ok: true, id: latestObj.id });
+  }
+
+  /* ---------- /mic: solo valida la clave, sin transcribir nada ----------
+     Para el modal de entrada de la página: confirma la clave antes de
+     mostrar el contenido, sin gastar una llamada a Whisper solo para
+     probarla. */
+  if (req.query?.micAuth) {
+    const expected = process.env.MIC_KEY;
+    if (!expected) {
+      return res.status(501).json({ error: 'MIC_KEY no está configurada en este entorno.' });
+    }
+    let body = {};
+    try { body = JSON.parse(await readRaw(req)) || {}; } catch { /* sin body */ }
+    if (!safeEqual(String(body.key || ''), expected)) {
+      return res.status(401).json({ error: 'Clave inválida.' });
+    }
+    return res.status(200).json({ ok: true });
   }
 
   /* ---------- /mic: audio grabado en el navegador -> Whisper -> latest ---------- */
