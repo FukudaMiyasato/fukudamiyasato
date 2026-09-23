@@ -141,10 +141,10 @@ async function sendRecording(blob) {
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
 
-    setNote(`"${json.text}" — abriendo IA…`);
-    location.href = '/ia.html';
+    setNote(`"${json.text}" — enviado, generando en IA.`);
   } catch (err) {
     setNote(err.message, true);
+  } finally {
     micBtn.disabled = false;
   }
 }
