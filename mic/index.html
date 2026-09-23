@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Mic — fukudamiyasato</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#08080a">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/mic.css">
+</head>
+<body class="mic-body">
+
+<a class="back-btn" href="/index.html" aria-label="Volver al inicio">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.5 5.5L8 12l6.5 6.5"/>
+  </svg>
+</a>
+
+<button class="mic-clear" id="mic-clear" type="button" aria-label="Borrar la app actual">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <line x1="4" y1="7" x2="20" y2="7"/>
+    <path d="M6 7v13a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/>
+    <path d="M9 7V4h6v3"/>
+    <line x1="10" y1="11" x2="10" y2="17"/>
+    <line x1="14" y1="11" x2="14" y2="17"/>
+  </svg>
+</button>
+
+<main class="mic-stage">
+  <input type="password" id="mic-key" class="mic-key" placeholder="Clave" autocomplete="off">
+
+  <button class="mic-btn" id="mic-btn" type="button" aria-label="Mantené presionado para grabar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="2" width="6" height="12" rx="3"/>
+      <path d="M5 11a7 7 0 0 0 14 0"/>
+      <line x1="12" y1="18" x2="12" y2="22"/>
+      <line x1="8" y1="22" x2="16" y2="22"/>
+    </svg>
+  </button>
+
+  <p class="mic-note" id="mic-note" role="status">Mantené presionado para grabar</p>
+</main>
+
+<script type="module" src="/js/mic.js"></script>
+</body>
+</html>

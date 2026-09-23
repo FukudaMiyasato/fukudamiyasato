@@ -12,9 +12,15 @@
    POST /api/ia?test=1           { key, text } -> simula el webhook, para
                                  probar desde /test/sendOrder/ sin exponer
                                  INDEX_AUT en el navegador
-   POST /api/ia?dismiss=1        { id } -> se borró con el shake: que
-                                 desaparezca también en cualquier otro
-                                 dispositivo que la tenga abierta
+   POST /api/ia?dismiss=1        { id } -> se borró con el shake (o desde
+                                 /mic): que desaparezca también en
+                                 cualquier otro dispositivo que la tenga
+                                 abierta
+   POST /api/ia?mic=1            { key, data, contentType, filename } ->
+                                 manda el audio (base64) a Whisper y deja
+                                 el texto como transcripción vigente, para
+                                 /mic (grabar con el dedo en vez de
+                                 hablarle al webhook externo)
 
    El POST de generación NO lleva Authorization a propósito: lo llama el
    navegador. Para que no sea un generador abierto (y no se te vaya el
@@ -28,6 +34,8 @@
      TEST_ORDER_KEY   clave para /test/sendOrder/ (aparte de INDEX_AUT:
                       así la página de prueba no conoce el secreto real
                       del webhook, solo esta)
+     MIC_KEY          clave para /mic (misma idea que TEST_ORDER_KEY: una
+                      clave aparte, no el secreto real del webhook)
    ============================================================ */
 
 import crypto from 'node:crypto';
@@ -254,36 +262,50 @@ function safeParseJSON(s) {
   try { return JSON.parse(s); } catch { return null; }
 }
 
+/* Respaldo en memoria de ESTA instancia — lo único que hay si
+   AIRTABLE_TOKEN no está configurada, y lo que se usa si Airtable falla o
+   todavía no tiene nada guardado. Sin este respaldo, el flujo básico
+   (webhook -> generar) quedaba roto por completo en cualquier entorno sin
+   Airtable armado (por ejemplo, probando local): antes de que existiera
+   ia_state esto SIEMPRE vivía en memoria y funcionaba solo, así que no
+   tiene sentido que ahora dependa por completo de un token opcional. */
+let localState = { latest: null, app: null, dismissedId: null };
+
 /**
- * Lee el único registro de ia_state. Sin AIRTABLE_TOKEN, o si la tabla
- * todavía no existe, devuelve todo en blanco — la app sigue funcionando
- * (para una sola instancia, sin sincronizar con otras) en vez de romperse.
+ * Lee el estado compartido. Si Airtable está configurado y responde con
+ * un registro, esa es la versión que manda (y actualiza el respaldo local
+ * de paso). Si no hay token, la tabla está vacía/no existe todavía, o
+ * Airtable falla, cae al respaldo en memoria — mejor una instancia sin
+ * sincronizar con las demás que una completamente muda.
  */
 async function readSharedState() {
   const key = process.env.AIRTABLE_TOKEN;
-  if (!key) return { recordId: null, latest: null, app: null, dismissedId: null };
+  if (!key) return { recordId: null, ...localState };
 
-  const auth = { Authorization: `Bearer ${key}` };
   let r;
   try {
-    r = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_STATE_TABLE)}?maxRecords=1`, { headers: auth });
+    r = await fetch(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_STATE_TABLE)}?maxRecords=1`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
   } catch (err) {
-    console.error('[api/ia] no se pudo leer ia_state:', err.message);
-    return { recordId: null, latest: null, app: null, dismissedId: null };
+    console.error('[api/ia] no se pudo leer ia_state, sigo con la copia local:', err.message);
+    return { recordId: null, ...localState };
   }
   if (!r.ok) {
-    if (r.status !== 404) console.error('[api/ia] ia_state respondió', r.status);
-    return { recordId: null, latest: null, app: null, dismissedId: null };
+    if (r.status !== 404) console.error('[api/ia] ia_state respondió', r.status, '— sigo con la copia local');
+    return { recordId: null, ...localState };
   }
 
   const { records = [] } = await r.json();
-  const f = records[0]?.fields || {};
-  return {
-    recordId: records[0]?.id || null,
+  if (!records[0]) return { recordId: null, ...localState };   // tabla creada pero todavía vacía
+
+  const f = records[0].fields || {};
+  localState = {
     latest: safeParseJSON(f.latestJSON),
     app: safeParseJSON(f.appJSON),
     dismissedId: f.dismissedId || null,
   };
+  return { recordId: records[0].id, ...localState };
 }
 
 /**
@@ -296,6 +318,12 @@ async function readSharedState() {
  * demás instancias.
  */
 async function writeSharedState(patch) {
+  // el respaldo local se actualiza siempre, primero — así el flujo básico
+  // funciona igual aunque Airtable no esté configurado o falle
+  if ('latest' in patch) localState.latest = patch.latest;
+  if ('app' in patch) localState.app = patch.app;
+  if ('dismissedId' in patch) localState.dismissedId = patch.dismissedId;
+
   const key = process.env.AIRTABLE_TOKEN;
   if (!key) return;
 
@@ -1229,6 +1257,43 @@ async function generate(text) {
   return html;
 }
 
+/* Límite del audio que manda /mic: base64 crece un tercio, y Vercel corta
+   el cuerpo del request en 4.5MB — mismo margen que MAX_B64 (guarda). */
+const MAX_AUDIO_B64 = MAX_B64;
+
+/** Manda el audio a Whisper y devuelve el texto transcripto. */
+async function transcribeAudio({ data, contentType, filename }) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw Object.assign(new Error('OPENAI_API_KEY no está configurada.'), { code: 501 });
+  if (!data) throw Object.assign(new Error('No llegó ningún audio.'), { code: 400 });
+  if (data.length > MAX_AUDIO_B64) {
+    throw Object.assign(new Error(`El audio es muy largo (máx ~${Math.round(MAX_AUDIO_B64 * 0.75 / 1e6)}MB).`), { code: 413 });
+  }
+
+  const form = new FormData();
+  form.append('file', new Blob([Buffer.from(data, 'base64')], { type: contentType || 'audio/webm' }), filename || 'orden.webm');
+  form.append('model', 'whisper-1');
+
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const detail = await res.text();
+    console.error('[api/ia] Whisper', res.status, detail.slice(0, 400));
+    throw Object.assign(new Error(`OpenAI (Whisper) respondió ${res.status}`), { code: 502 });
+  }
+
+  const json = await res.json();
+  const text = String(json.text || '').trim();
+  if (!text) throw Object.assign(new Error('No se entendió nada en el audio.'), { code: 422 });
+
+  console.log(`[api/ia] transcripción de /mic (${text.length} chars): ${text}`);
+  return text;
+}
+
 /* ============================================================
    Generación falsa, para /test/sendOrder/ → "Probar gratis"
    ------------------------------------------------------------
@@ -1368,6 +1433,46 @@ export default async function handler(req, res) {
 
     console.log(`[api/ia] orden de prueba${mock ? ' (mock)' : ''} (${text.length} chars): ${text}`);
     return res.status(200).json({ ok: true, id: latestObj.id });
+  }
+
+  /* ---------- /mic: audio grabado en el navegador -> Whisper -> latest ---------- */
+  if (req.query?.mic) {
+    const expected = process.env.MIC_KEY;
+    if (!expected) {
+      return res.status(501).json({ error: 'MIC_KEY no está configurada en este entorno.' });
+    }
+
+    let body = {};
+    try { body = JSON.parse(await readRaw(req)) || {}; } catch { /* sin body */ }
+
+    if (!safeEqual(String(body.key || ''), expected)) {
+      return res.status(401).json({ error: 'Clave inválida.' });
+    }
+
+    try {
+      const text = await transcribeAudio({
+        data: body.data,
+        contentType: String(body.contentType || 'audio/webm').slice(0, 120),
+        filename: String(body.filename || 'orden.webm').slice(0, 120),
+      });
+
+      const latestObj = {
+        id: `mic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        at: new Date().toISOString(),
+        text,
+        client: 'mic',
+        recordedAt: null,
+        formato: 'mic',
+        bytes: Buffer.byteLength(text, 'utf8'),
+        raw: null,
+      };
+      await writeSharedState({ latest: latestObj });
+
+      return res.status(200).json({ ok: true, id: latestObj.id, text });
+    } catch (err) {
+      console.error('[api/ia] fallo transcribiendo /mic:', err.message);
+      return res.status(err.code || 500).json({ error: err.message });
+    }
   }
 
   /* ---------- generación, disparada por el navegador ---------- */

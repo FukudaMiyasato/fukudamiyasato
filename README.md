@@ -9,14 +9,17 @@ works.html      grilla de aplicativos con filtros de año y tipo
 ia.html         consola de transcripciones que llegan por webhook
 todo.html       lista de pendientes por día — SIN acceso desde la portada
 yo.html         perfil + links
+mic/            grabar con el dedo en vez de hablarle al webhook externo —
+                SIN acceso desde la portada
 ```
 
 Todas las páginas internas llevan una **flecha fija arriba a la izquierda**
 que regresa a la portada.
 
-`todo.html` está oculto: la portada ya no lo enlaza, pero la página sigue
-viva y funcionando si entras por la URL directa. Para volver a mostrarlo,
-descomenta su acceso en `index.html` — la grilla se reacomoda sola.
+`todo.html` y `mic/` están ocultas: la portada no las enlaza, pero
+siguen vivas y funcionando si entras por la URL directa. Para volver a
+mostrar `todo.html`, descomenta su acceso en `index.html` — la grilla se
+reacomoda sola.
 
 ---
 
@@ -335,9 +338,35 @@ vigencia, y se verifica sin necesidad de estado compartido.
 > la página obtiene un token válido. Para un dispositivo personal alcanza;
 > si esto se vuelve público conviene ponerle algo más.
 
-> Igual que antes, la transcripción y el código viven en memoria de la
-> función. Si Vercel levanta otra instancia se pierden, pero la app ya
-> guardada en el navegador sigue ahí.
+> La transcripción y la app generada viven en Airtable (`ia_state`, ver
+> "Estado compartido" más arriba) con un respaldo en memoria si Airtable
+> no está configurado — no en el navegador: recargar la página, o abrirla
+> en otro dispositivo, siempre pregunta al servidor qué está vigente.
+
+---
+
+## /mic — grabar con el dedo, sin pasar por el webhook externo
+
+Página aparte, pensada para el propio celular: un botón circular grande
+que mientras lo mantenés presionado graba con el micrófono del navegador,
+y al soltarlo manda el audio a Whisper. El texto que devuelve se guarda
+como transcripción vigente — el mismo lugar que llena el webhook real o
+`/test/sendOrder/` — así que dispara la generación de la app exactamente
+igual, pasando por la misma función que le habla a GPT.
+
+También tiene un botón de borrar (ícono de tacho, arriba a la derecha)
+que hace lo mismo que sacudir el celular en IA: descarta la app vigente
+para todos los dispositivos que la tengan abierta.
+
+```
+POST /api/ia?mic=1   { key, data (base64), contentType, filename }
+```
+
+Necesita `OPENAI_API_KEY` (la misma que usa la generación) y una clave
+propia, **`MIC_KEY`** — misma idea que `TEST_ORDER_KEY`: una clave aparte
+para que esta página no tenga que conocer el secreto real del webhook.
+Sin `MIC_KEY` configurada, el endpoint responde `501` y la página no
+funciona.
 
 ---
 
