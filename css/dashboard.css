@@ -19,7 +19,7 @@
 /* ---------- cabecera ---------- */
 .board-top {
   flex: none;
-  padding: calc(10px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) 14px calc(20px + env(safe-area-inset-left, 0px));
+  padding: calc(6px + env(safe-area-inset-top, 0px)) calc(18px + env(safe-area-inset-right, 0px)) 8px calc(18px + env(safe-area-inset-left, 0px));
   border-bottom: 1px solid var(--line-soft);
   background: linear-gradient(180deg, rgba(8, 8, 10, .92), rgba(8, 8, 10, .7));
   backdrop-filter: blur(10px);
@@ -31,21 +31,22 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-bottom: 6px;
-  font-size: 11px;
+  margin-bottom: 2px;
+  font-size: 10.5px;
   color: var(--text-faint);
   transition: color .2s;
 }
 .exit svg { width: 13px; height: 13px; }
 .exit:hover { color: var(--red-hot); }
 
-.board-head { display: flex; align-items: center; gap: 14px; }
-.board-head .dash-ico { width: 44px; height: 44px; flex: none; border-radius: 11px; }
-.board-head .dash-ico svg { width: 26px; height: 26px; }
+.board-head { display: flex; align-items: center; gap: 11px; }
+.board-head .dash-ico { width: 34px; height: 34px; flex: none; border-radius: 9px; }
+.board-head .dash-ico svg { width: 20px; height: 20px; }
+.board-head .dash-ico .mono { font-size: 13px; }
 .board-head .dash-ico { overflow: hidden; }
 .board-head .dash-ico img { width: 100%; height: 100%; object-fit: cover; }
-.board-title .kicker { margin: 0 0 3px; font-size: 9.5px; }
-.board-title h1 { margin: 0; font-size: clamp(20px, 3vw, 26px); font-weight: 800; letter-spacing: .01em; line-height: 1.1; }
+.board-title .kicker { margin: 0 0 1px; font-size: 8.5px; }
+.board-title h1 { margin: 0; font-size: clamp(17px, 2.2vw, 21px); font-weight: 800; letter-spacing: .01em; line-height: 1.1; }
 
 /* ---------- lienzo ---------- */
 .board {
@@ -219,31 +220,33 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
 }
 .board-side .dash-user { margin-left: 0; }
+.board-side .icon-btn { width: 28px; height: 28px; }
+.board-side .icon-btn svg { width: 15px; height: 15px; }
 
 /* ---------- integrantes (amos) ---------- */
 .members { position: relative; }
 .members-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 34px;
-  padding: 0 12px;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
   border-radius: 99px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 500;
   transition: border-color .2s, color .2s;
 }
-.members-btn svg { width: 16px; height: 16px; }
+.members-btn svg { width: 14px; height: 14px; }
 .members-btn b {
-  min-width: 20px;
-  height: 20px;
+  min-width: 18px;
+  height: 18px;
   display: grid;
   place-items: center;
   padding: 0 6px;

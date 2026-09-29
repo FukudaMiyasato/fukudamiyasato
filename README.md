@@ -443,7 +443,9 @@ Cada dashboard (`/dashboards/?d=<id>`) es un lienzo con rejilla de puntos:
 
 - **Moverse:** arrastrar el fondo (o la rueda / el trackpad). Todos pueden.
 - **Ojo de pez:** lo del centro se ve más grande y lo de los bordes más chico
-  (widgets y puntos), sin que los vecinos se encimen. La intensidad la elige
+  (widgets y puntos), sin que los vecinos se encimen; además los widgets se
+  inclinan en 3D, de frente al centro y cada vez más de costado hacia los
+  bordes, como sobre una superficie curva. La intensidad la elige
   el amo supremo en *Panel → Configuración* (de −20 a 20; 0 = sin efecto,
   negativo = al revés) y aplica a todos los dashboards. Se guarda en Redis
   (`fm:config`, `api/config.js`); el cálculo está en `js/fisheye.js`.

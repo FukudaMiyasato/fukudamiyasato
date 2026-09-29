@@ -2,7 +2,9 @@
    fisheye.js — el ojo de pez del lienzo
    ------------------------------------------------------------
    Lo usan el dashboard y la vista previa de Configuración, así los
-   dos se ven igual. `amount` es la intensidad en fracción:
+   dos se ven igual. Los widgets crecen, se separan y se inclinan en 3D
+   (lensTransform); los puntos se agrandan y se separan (drawDots).
+   `amount` es la intensidad en fracción:
      0.07  → lo del centro 7% más grande y lo de los bordes 7% más chico
      0     → sin efecto
      -0.07 → al revés: el centro se achica y los bordes crecen
@@ -20,12 +22,25 @@ export function lens(sx, sy, w, h) {
 /** Escala en un punto de lens() = f. */
 export const zoomAt = (f, amount) => 1 - amount + 2 * amount * f;
 
-/** Transform de algo cuyo centro en pantalla es (cx, cy): crece y se corre
-    hacia afuera en la misma proporción, así los vecinos no se enciman. */
+/* Grados que se inclina un widget en el borde de la pantalla por cada
+   unidad de intensidad: con la normal (0.07) son ~14°. */
+const TILT_PER_AMOUNT = 200;
+const PERSPECTIVE = 900; // px: más chico = perspectiva más marcada
+
+/** Transform de algo cuyo centro en pantalla es (cx, cy), como si estuviera
+    pegado a una superficie curva vista con lente:
+    · crece hacia el centro y se corre hacia afuera en la misma proporción
+      (así los vecinos no se enciman);
+    · se inclina en 3D: de frente al centro y cada vez más de costado hacia
+      los bordes. Con intensidad negativa, al revés (superficie cóncava). */
 export function lensTransform(cx, cy, w, h, amount) {
   const s = zoomAt(lens(clamp(cx, -w, 2 * w), clamp(cy, -h, 2 * h), w, h), amount);
   const dx = (cx - w / 2) * (s - 1), dy = (cy - h / 2) * (s - 1);
-  return `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${s.toFixed(4)})`;
+  const nx = clamp((cx - w / 2) / (w / 2), -1.4, 1.4), ny = clamp((cy - h / 2) / (h / 2), -1.4, 1.4);
+  const tilt = amount * TILT_PER_AMOUNT;
+  const ry = nx * tilt, rx = -ny * tilt;
+  return `perspective(${PERSPECTIVE}px) translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) `
+    + `rotateY(${ry.toFixed(2)}deg) rotateX(${rx.toFixed(2)}deg) scale(${s.toFixed(4)})`;
 }
 
 /** Rejilla de puntos con la lente, en un canvas de w×h (px CSS). */
