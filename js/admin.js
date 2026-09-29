@@ -9,7 +9,7 @@
      varios dashboards  → lista para elegir
    ============================================================ */
 
-import { iconFor } from './dashboard-icons.js';
+import { iconFor, ICON_KEYS } from './dashboard-icons.js';
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = ['loading', 'login', 'denied', 'nodash', 'picker', 'admin'];
@@ -68,6 +68,48 @@ function enter(user) {
   dashes.forEach((d) => $('picker-list').append(dashLink(d)));
   show('picker');
 }
+
+/* ---------- nuevo dashboard ---------- */
+
+let pickedIcon = ICON_KEYS[0];
+
+function renderIconPicker() {
+  const box = $('new-dash-icons');
+  box.innerHTML = '';
+  for (const k of ICON_KEYS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(k === pickedIcon));
+    b.setAttribute('aria-label', k);
+    b.innerHTML = iconFor(k);
+    b.addEventListener('click', () => { pickedIcon = k; renderIconPicker(); });
+    box.append(b);
+  }
+}
+
+$('new-dash-btn').addEventListener('click', () => {
+  $('new-dash').hidden = false;
+  renderIconPicker();
+  $('new-dash-name').focus();
+});
+$('new-dash-cancel').addEventListener('click', () => { $('new-dash').hidden = true; });
+
+$('new-dash').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('new-dash-name').value.trim();
+  if (!name) return;
+  $('new-dash-save').disabled = true;
+  const r = await api('/api/dash', { method: 'POST', body: JSON.stringify({ name, icon: pickedIcon }) });
+  $('new-dash-save').disabled = false;
+  if (!r.ok) {
+    $('new-dash-msg').textContent = r.data.error || 'No se pudo crear.';
+    $('new-dash-msg').classList.add('err');
+    return;
+  }
+  // directo al dashboard nuevo, para subirle su primer CSV
+  location.href = r.data.dashboard.url;
+});
 
 /* ---------- pestañas del panel ---------- */
 

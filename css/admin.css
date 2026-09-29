@@ -297,29 +297,53 @@
   .dash-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
 
-/* ---------- página de un dashboard ---------- */
-.dash-page {
-  position: relative;
-  z-index: 1;
-  width: var(--shell);
-  margin: 0 auto;
-  padding: calc(84px + env(safe-area-inset-top, 0px)) 0 60px;
-}
-.dash-top {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--line-soft);
-}
-.dash-top .dash-ico { width: 56px; height: 56px; flex: none; }
-.dash-top .dash-ico svg { width: 32px; height: 32px; }
-.dash-top .kicker { margin-bottom: 6px; }
-.dash-top h1 { margin: 0; font-size: clamp(24px, 4vw, 34px); font-weight: 800; letter-spacing: .02em; }
+/* ---------- usuario en la cabecera de un dashboard ---------- */
 .dash-user { margin-left: auto; display: flex; align-items: center; gap: 6px; min-width: 0; }
 .dash-user small { color: var(--text-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-body { padding-top: 28px; }
 
-@media (max-width: 620px) {
-  .dash-user small { display: none; }
+/* ---------- nuevo dashboard ---------- */
+.admin-head-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.new-dash {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  margin-top: 24px;
+  padding: 22px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--line);
 }
+.new-dash label, .new-dash-label {
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.new-dash input {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  margin-bottom: 8px;
+}
+.new-dash input:focus { border-color: var(--red-hot); }
+.icon-pick { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.icon-pick button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text-faint);
+  transition: border-color .2s, color .2s, background .2s;
+}
+.icon-pick button svg { width: 22px; height: 22px; }
+.icon-pick button:hover { color: var(--text); }
+.icon-pick button[aria-checked="true"] { border-color: var(--red-hot); color: var(--red-hot); background: rgba(224, 16, 43, .1); }
+.new-dash-actions { display: flex; align-items: center; gap: 16px; }

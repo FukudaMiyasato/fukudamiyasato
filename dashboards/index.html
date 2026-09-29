@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard — fukudamiyasato</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#08080a">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/app-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/admin.css">
+<link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<!-- Una sola página para todos los dashboards: /dashboards/?d=<id> -->
+<body class="board-body">
+
+<main class="gate-screen" id="v-loading">
+  <p class="gate-note">Cargando…</p>
+</main>
+
+<main class="gate-screen" id="v-denied" hidden>
+  <div class="gate-card">
+    <p class="kicker">Acceso</p>
+    <h1>No tienes permisos</h1>
+    <p class="gate-note" id="denied-msg">Tu cuenta no tiene acceso a este dashboard.</p>
+    <a class="ghost-btn" href="/admin/" style="display:inline-block">Volver</a>
+  </div>
+</main>
+
+<div class="board-app" id="v-dash" hidden>
+  <header class="board-top">
+    <a class="exit" href="/admin/" id="dash-back" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>
+      salir
+    </a>
+    <div class="board-head">
+      <span class="dash-ico" id="dash-ico"></span>
+      <div class="board-title">
+        <p class="kicker">Dashboard</p>
+        <h1 id="dash-title"></h1>
+      </div>
+      <div class="dash-user">
+        <small data-user-email></small>
+        <button class="icon-btn" id="dash-delete" type="button" aria-label="Eliminar dashboard" title="Eliminar dashboard" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/></svg>
+        </button>
+        <button class="icon-btn" data-logout type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- lienzo: rejilla de puntos + widgets. Se arrastra para moverse. -->
+  <main class="board" id="board" aria-label="Lienzo del dashboard">
+    <canvas class="dots" id="dots" aria-hidden="true"></canvas>
+    <div class="world" id="world"></div>
+    <p class="board-empty" id="board-empty" hidden></p>
+  </main>
+
+  <!-- herramientas (solo admin) -->
+  <nav class="dock" id="dock" aria-label="Herramientas" hidden></nav>
+</div>
+
+<!-- modal de la herramienta "tabla con IA" -->
+<div class="modal-layer" id="modal-layer" hidden>
+  <form class="modal" id="modal" autocomplete="off" novalidate>
+    <header class="modal-head">
+      <span class="modal-ico" id="modal-ico"></span>
+      <h2>Tabla con IA</h2>
+    </header>
+
+    <label class="m-label" for="m-file">Archivo CSV</label>
+    <label class="m-drop" id="m-drop" for="m-file">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+      <span><b id="m-file-name">Elige o arrastra un CSV</b><small id="m-file-meta">Máx. 2 MB</small></span>
+    </label>
+    <input type="file" id="m-file" accept=".csv,.tsv,.txt,text/csv" hidden>
+
+    <label class="m-label" for="m-prompt">¿Qué tabla quieres ver?</label>
+    <textarea id="m-prompt" rows="3" maxlength="2000" placeholder="Ej. Entradas vendidas por ciudad, de mayor a menor"></textarea>
+
+    <p class="m-err" id="m-err" role="alert"></p>
+
+    <div class="m-actions">
+      <button class="link-btn" type="button" id="m-cancel">Cancelar</button>
+      <button class="btn" type="submit" id="m-ok">Aceptar</button>
+    </div>
+
+    <div class="m-loading" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <b>Generando tabla…</b>
+      <small>La IA está leyendo tu archivo</small>
+    </div>
+  </form>
+</div>
+
+<script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>

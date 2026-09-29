@@ -15,7 +15,7 @@ support/        página de soporte para App Store / Google Play (FAQ + contacto)
 marketing/      landing de las apps
 privacy/        políticas de privacidad (una por app: privacy/kofres/)
 admin/          login con Google + panel (Dashboards · Permisos)
-dashboards/     un dashboard por carpeta (dashboards/proyecto-jazz/)
+dashboards/     una sola página para todos: /dashboards/?d=<id>
 ```
 
 `support/` y `marketing/` están en 6 idiomas (es, ja, en, it, fr, de) con
@@ -437,15 +437,28 @@ se vuelve a consultar en cada request. El único administrador es
 
 La sesión es una cookie `HttpOnly` firmada con `SESSION_SECRET` (7 días).
 
-### Crear un dashboard
+### Dashboards: lienzo de widgets
 
-1. Agrégalo al catálogo en `api/_lib/dashboards.js` (`id`, `name`, `icon`, `url`).
-2. Copia `dashboards/proyecto-jazz/` a `dashboards/<id>/` y cambia `data-dash`.
-3. Si usa un ícono nuevo, dibújalo en `js/dashboard-icons.js`.
+Cada dashboard (`/dashboards/?d=<id>`) es un lienzo con rejilla de puntos:
 
-La página del dashboard solo decide qué se *ve*. Cuando un dashboard traiga
-datos, su endpoint debe validar en el servidor con
-`canSeeDashboard(await currentUser(req), '<id>')` de `api/_lib/auth.js`.
+- **Moverse:** arrastrar el fondo (o la rueda / el trackpad). Todos pueden.
+- **Ojo de pez:** lo que está al centro se ve un poco más grande.
+- **Solo el admin:** ve el dock de herramientas abajo, mueve los widgets desde
+  su cabecera y los agranda desde la esquina; encajan en la rejilla y no se
+  pueden encimar (si chocan, vuelven a su lugar). Los clientes solo miran.
+- **Herramienta "Tabla con IA":** abre un modal con un CSV (máx. 2 MB) y un
+  pedido de texto. `/api/dash` se los pasa a OpenAI (`api/_lib/table-ai.js`,
+  salida estructurada) y la tabla resultante se guarda como widget. Si el
+  pedido está vacío, no tiene sentido o no se puede resolver con ese CSV, el
+  modal dice "No sirve tu tabla", tiembla y se borra. El CSV no se guarda:
+  solo la tabla que devolvió la IA. Archivos grandes se recortan a ~120k
+  caracteres antes de enviarlos.
+- **Crear / borrar dashboards:** en el panel → *Dashboards* → **+ Nuevo
+  dashboard**; se borran desde el ícono de papelera en su cabecera.
+  PROYECTO-JAZZ es fijo.
+
+Para agregar otra herramienta al dock: súmala a `TOOLS` en `js/dashboard.js`
+y su ícono a `TOOL_ICONS` en `js/dashboard-icons.js`.
 
 ### Configuración
 
@@ -456,10 +469,14 @@ datos, su endpoint debe validar en el servidor con
    de prueba, o publicarla para que entren clientes.)
 2. **Airtable** → en la misma base crea la tabla `permisos` con tres columnas:
    `Email` (texto), `Rol` (texto o single select con `cliente`) y
-   `Dashboards` (texto: ids separados por coma, p. ej. `proyecto-jazz`). El token
+   `Dashboards` (texto: ids separados por coma, p. ej. `proyecto-jazz`).
+   La tabla `dashboards` con: `Id`, `Nombre` e `Icono` (texto). Y la tabla
+   `widgets` con: `Dashboard` (texto), `Tipo` (texto), `Layout` (texto) y
+   `Datos` (**Long text**). El token
    necesita `data.records:read` y `data.records:write` sobre esa tabla.
 3. **Vercel** → Environment Variables: `GOOGLE_CLIENT_ID` y `SESSION_SECRET`
-   (ver `.env.example`). Redeploy.
+   (ver `.env.example`). La tabla con IA usa la misma `OPENAI_API_KEY` que la
+   sección IA. Redeploy.
 
 En local hace falta `npx vercel dev`: con `npm run dev` no hay API y el
 panel lo avisa.

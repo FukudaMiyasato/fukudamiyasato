@@ -2,7 +2,7 @@
    api/_lib/auth.js — sesión, roles y tabla de permisos
    ------------------------------------------------------------
    Vercel no publica como función nada que empiece con "_", así que
-   este archivo solo lo importan api/auth.js y api/perms.js.
+   este archivo solo lo importan las funciones de api/.
 
    Roles:
      admin    → solo ADMIN_EMAIL (el dueño). No se puede asignar
@@ -19,7 +19,8 @@
    ============================================================ */
 
 import crypto from 'node:crypto';
-import { DASHBOARDS, isDashboard } from './dashboards.js';
+import { at, atError, listAll, field, text } from './at.js';
+import { listDashboards, publicDash } from './dashboards.js';
 
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'fukuda.miyasato@gmail.com';
 
@@ -27,8 +28,8 @@ export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'fukuda.miyasato@gmail.com
    propósito: de momento solo el dueño es administrador. */
 export const ASSIGNABLE_ROLES = ['cliente'];
 
-const BASE = process.env.AIRTABLE_BASE || 'appU39PYosvxt8FfG';
 const PERMS_TABLE = process.env.AIRTABLE_PERMS_TABLE || 'permisos';
+const PERMS_COLUMNS = 'Email, Rol, Dashboards';
 const COOKIE = 'fm_session';
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 días
 
@@ -115,69 +116,32 @@ export async function verifyGoogleToken(credential) {
   return { email: t.email, name: t.name || t.email, picture: t.picture || '' };
 }
 
-/* ---------- Airtable: tabla de permisos (Email, Rol) ---------- */
-
-function airtable(path = '', init = {}) {
-  const token = process.env.AIRTABLE_TOKEN;
-  if (!token) throw new Error('AIRTABLE_TOKEN no está configurado.');
-  return fetch(`https://api.airtable.com/v0/${BASE}/${encodeURIComponent(PERMS_TABLE)}${path}`, {
-    ...init,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...init.headers },
-  });
-}
-
-const fieldOf = (fields, name) => {
-  const k = Object.keys(fields || {}).find((f) => f.trim().toLowerCase() === name);
-  const v = k ? fields[k] : '';
-  return String(v?.name ?? v ?? '').trim();
-};
+/* ---------- Airtable: tabla de permisos (Email, Rol, Dashboards) ---------- */
 
 /* La columna Dashboards guarda ids separados por coma ("proyecto-jazz, otro").
    Si alguien la convierte en multiple select también se lee bien. */
 const parseDashIds = (v) => [...new Set(String(v || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean))];
 
-async function airtableError(r, what) {
-  const body = (await r.text()).slice(0, 300);
-  const hint = /UNKNOWN_FIELD_NAME/.test(body)
-    ? ` — falta una columna en "${PERMS_TABLE}" (Email, Rol, Dashboards)`
-    : '';
-  return new Error(`Airtable respondió ${r.status} ${what}${hint}`);
-}
-
 const toPerm = (rec) => ({
   id: rec.id,
-  email: fieldOf(rec.fields, 'email'),
-  role: fieldOf(rec.fields, 'rol').toLowerCase() || 'cliente',
-  dashboards: parseDashIds(fieldOf(rec.fields, 'dashboards')),
+  email: text(field(rec.fields, 'email')),
+  role: text(field(rec.fields, 'rol')).toLowerCase() || 'cliente',
+  dashboards: parseDashIds(text(field(rec.fields, 'dashboards'))),
 });
 
 export async function listPerms() {
-  const out = [];
-  let offset;
-  do {
-    const qs = new URLSearchParams({ pageSize: '100' });
-    if (offset) qs.set('offset', offset);
-    const r = await airtable(`?${qs}`);
-    if (!r.ok) throw await airtableError(r, `leyendo "${PERMS_TABLE}"`);
-    const json = await r.json();
-    for (const rec of json.records || []) {
-      const p = toPerm(rec);
-      if (p.email) out.push(p);
-    }
-    offset = json.offset;
-  } while (offset);
-  return out;
+  return (await listAll(PERMS_TABLE, PERMS_COLUMNS)).map(toPerm).filter((p) => p.email);
 }
 
 export async function addPerm(email, role, dashboards = []) {
-  const r = await airtable('', {
+  const r = await at(PERMS_TABLE, '', {
     method: 'POST',
     body: JSON.stringify({
       records: [{ fields: { Email: email.trim().toLowerCase(), Rol: role, Dashboards: dashboards.join(', ') } }],
       typecast: true,
     }),
   });
-  if (!r.ok) throw await airtableError(r, 'guardando el permiso');
+  if (!r.ok) throw await atError(r, PERMS_TABLE, 'guardando el permiso', PERMS_COLUMNS);
   return toPerm((await r.json()).records[0]);
 }
 
@@ -185,42 +149,45 @@ export async function updatePerm(id, { role, dashboards } = {}) {
   const fields = {};
   if (role) fields.Rol = role;
   if (dashboards) fields.Dashboards = dashboards.join(', ');
-  const r = await airtable(`/${encodeURIComponent(id)}`, {
+  const r = await at(PERMS_TABLE, `/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify({ fields, typecast: true }),
   });
-  if (!r.ok) throw await airtableError(r, 'actualizando el permiso');
+  if (!r.ok) throw await atError(r, PERMS_TABLE, 'actualizando el permiso', PERMS_COLUMNS);
 }
 
 export async function deletePerm(id) {
-  const r = await airtable(`/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  if (!r.ok) throw await airtableError(r, 'borrando el permiso');
+  const r = await at(PERMS_TABLE, `/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!r.ok) throw await atError(r, PERMS_TABLE, 'borrando el permiso', PERMS_COLUMNS);
 }
 
 /** Rol y dashboards vigentes de un correo, o null si no tiene acceso. Se
     consulta en cada request: lo que cambies en el panel aplica al instante. */
-export async function accessFor(email) {
-  if (isOwner(email)) return { role: 'admin', dashboards: DASHBOARDS.map((d) => d.id) };
+export async function accessFor(email, catalog) {
+  const ids = catalog.map((d) => d.id);
+  if (isOwner(email)) return { role: 'admin', dashboards: ids };
   const n = normEmail(email);
   const hit = (await listPerms()).find((p) => normEmail(p.email) === n);
   if (!hit || !ASSIGNABLE_ROLES.includes(hit.role)) return null;
-  return { role: hit.role, dashboards: hit.dashboards.filter(isDashboard) };
+  return { role: hit.role, dashboards: hit.dashboards.filter((id) => ids.includes(id)) };
 }
 
-/** { email, name, picture } + rol y dashboards vigentes, o null si no tiene acceso. */
-export async function userFor(profile) {
+/** { email, name, picture } + rol y dashboards vigentes, o null si no tiene acceso.
+    `catalog` es opcional: pásalo si ya lo tienes para no leerlo dos veces. */
+export async function userFor(profile, catalog) {
   if (!profile?.email) return null;
-  const access = await accessFor(profile.email);
+  const cat = catalog || await listDashboards();
+  const access = await accessFor(profile.email, cat);
   if (!access) return null;
   return {
     email: profile.email, name: profile.name, picture: profile.picture,
     role: access.role,
-    dashboards: DASHBOARDS.filter((d) => access.dashboards.includes(d.id)),
+    dashboards: cat.filter((d) => access.dashboards.includes(d.id)).map(publicDash),
   };
 }
 
 /** Usuario de la cookie, o null. */
-export const currentUser = (req) => userFor(readSession(req));
+export const currentUser = (req, catalog) => userFor(readSession(req), catalog);
 
-/** Para las APIs de datos de cada dashboard: ¿este usuario puede verlo? */
+/** ¿Este usuario puede ver este dashboard? Úsalo en toda API que entregue datos. */
 export const canSeeDashboard = (user, id) => Boolean(user?.dashboards?.some((d) => d.id === id));

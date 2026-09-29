@@ -99,9 +99,25 @@
   <main class="admin-main">
     <section data-panel="dash">
       <header class="admin-head">
-        <h1>Dashboards</h1>
+        <div class="admin-head-row">
+          <h1>Dashboards</h1>
+          <button class="btn" type="button" id="new-dash-btn">+ Nuevo dashboard</button>
+        </div>
         <p>Todos los dashboards. Entra a cualquiera; en Permisos eliges quién más los ve.</p>
       </header>
+
+      <form class="new-dash" id="new-dash" autocomplete="off" hidden>
+        <label for="new-dash-name">Nombre</label>
+        <input id="new-dash-name" maxlength="60" placeholder="Ej. VENTAS-2026" required>
+        <span class="new-dash-label">Ícono</span>
+        <div class="icon-pick" id="new-dash-icons" role="radiogroup" aria-label="Ícono"></div>
+        <div class="new-dash-actions">
+          <button class="btn" type="submit" id="new-dash-save">Crear</button>
+          <button class="link-btn" type="button" id="new-dash-cancel">Cancelar</button>
+        </div>
+        <p class="form-msg" id="new-dash-msg" role="status"></p>
+      </form>
+
       <div class="dash-grid" id="dash-grid"></div>
     </section>
 
