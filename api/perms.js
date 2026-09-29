@@ -1,25 +1,25 @@
 /* ============================================================
-   /api/perms — correos y roles (solo el administrador)
+   /api/perms — personas y roles (amos y amo supremo)
    ------------------------------------------------------------
-   GET                                → { owner, roles, dashboards, perms: [{ id, email, role, dashboards }] }
-   POST   { email, role, dashboards } → agrega un correo
-   PATCH  { id, role?, dashboards? }  → cambia rol y/o dashboards asignados
-   DELETE ?id=<id>          → quita el acceso
+   GET                     → { me, owner, roles, perms: [{ id, email, role, dashboards }] }
+   POST   { email, role }  → agrega a alguien
+   PATCH  { id, role }     → cambia el rol            (solo amo supremo)
+   PATCH  { id, dashboard, active }
+                           → activa / quita un dashboard a un chismoso
+   DELETE ?id=<id>         → quita el acceso
+
+   Reglas:
+     amo supremo → agrega, cambia y elimina amos y chismosos.
+     amo         → agrega y elimina chismosos; no toca a otros amos.
    ============================================================ */
 
 import {
-  ADMIN_EMAIL, ASSIGNABLE_ROLES, currentUser, isOwner, isValidEmail, normEmail,
-  listPerms, addPerm, updatePerm, deletePerm,
+  ADMIN_EMAIL, currentUser, isAmo, isOwner, isValidEmail, normEmail, rolesAssignableBy,
+  listPerms, addPerm, updatePerm, deletePerm, setDashboardAccess,
 } from './_lib/auth.js';
-import { listDashboards, publicDash } from './_lib/dashboards.js';
+import { listDashboards } from './_lib/dashboards.js';
 
-/** Lista de ids válida, o null si trae alguno que no existe. */
-function dashList(v, catalog) {
-  if (v == null) return [];
-  if (!Array.isArray(v)) return null;
-  const ids = [...new Set(v.map((x) => String(x).trim().toLowerCase()))];
-  return ids.every((id) => catalog.some((d) => d.id === id)) ? ids : null;
-}
+const validId = (id) => /^[\w-]{6,40}$/.test(id);
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -28,44 +28,57 @@ export default async function handler(req, res) {
     const catalog = await listDashboards();
     const user = await currentUser(req, catalog);
     if (!user) return res.status(401).json({ error: 'Inicia sesión.' });
-    if (user.role !== 'admin') return res.status(403).json({ error: 'Solo el administrador.' });
+    if (!isAmo(user)) return res.status(403).json({ error: 'Solo los amos.' });
+    const supremo = user.role === 'supremo';
+    const canAssign = rolesAssignableBy(user.role);
 
     if (req.method === 'GET') {
-      return res.status(200).json({
-        owner: ADMIN_EMAIL, roles: ASSIGNABLE_ROLES, dashboards: catalog.map(publicDash), perms: await listPerms(),
-      });
+      return res.status(200).json({ me: user.role, owner: ADMIN_EMAIL, roles: canAssign, perms: await listPerms() });
     }
 
     if (req.method === 'POST') {
       const email = String(req.body?.email || '').trim().toLowerCase();
       const role = String(req.body?.role || '');
-      const dashboards = dashList(req.body?.dashboards, catalog);
-      if (!dashboards) return res.status(400).json({ error: 'Dashboard desconocido.' });
       if (!isValidEmail(email)) return res.status(400).json({ error: 'Correo inválido.' });
-      if (!ASSIGNABLE_ROLES.includes(role)) return res.status(400).json({ error: 'Rol no permitido.' });
-      if (isOwner(email)) return res.status(400).json({ error: 'Ese correo ya es el administrador.' });
+      if (!canAssign.includes(role)) return res.status(403).json({ error: 'No puedes dar ese rol.' });
+      if (isOwner(email)) return res.status(400).json({ error: 'Ese correo es el amo supremo.' });
       const n = normEmail(email);
       if ((await listPerms()).some((p) => normEmail(p.email) === n)) {
-        return res.status(409).json({ error: 'Ese correo ya tiene acceso.' });
+        return res.status(409).json({ error: 'Ese correo ya está en la lista.' });
       }
-      return res.status(201).json({ perm: await addPerm(email, role, dashboards) });
+      return res.status(201).json({ perm: await addPerm(email, role) });
     }
+
+    const perms = await listPerms();
 
     if (req.method === 'PATCH') {
       const id = String(req.body?.id || '');
-      const role = req.body?.role == null ? undefined : String(req.body.role);
-      const dashboards = req.body?.dashboards == null ? undefined : dashList(req.body.dashboards, catalog);
-      if (!/^[\w-]{6,40}$/.test(id)) return res.status(400).json({ error: 'id inválido.' });
-      if (role !== undefined && !ASSIGNABLE_ROLES.includes(role)) return res.status(400).json({ error: 'Rol no permitido.' });
-      if (dashboards === null) return res.status(400).json({ error: 'Dashboard desconocido.' });
-      if (role === undefined && dashboards === undefined) return res.status(400).json({ error: 'Nada que cambiar.' });
-      await updatePerm(id, { role, dashboards });
+      const target = validId(id) && perms.find((p) => p.id === id);
+      if (!target) return res.status(404).json({ error: 'No encontrado.' });
+
+      // activar / quitar un dashboard a un chismoso — cualquier amo
+      if (req.body?.dashboard != null) {
+        const dashId = String(req.body.dashboard).toLowerCase();
+        if (!catalog.some((d) => d.id === dashId)) return res.status(400).json({ error: 'Dashboard desconocido.' });
+        if (!(await setDashboardAccess(id, dashId, Boolean(req.body.active)))) {
+          return res.status(400).json({ error: 'Solo se activan dashboards a chismosos.' });
+        }
+        return res.status(200).json({ ok: true });
+      }
+
+      // cambiar el rol — solo el amo supremo
+      const role = String(req.body?.role || '');
+      if (!supremo) return res.status(403).json({ error: 'Solo el amo supremo cambia roles.' });
+      if (!canAssign.includes(role)) return res.status(400).json({ error: 'Rol no permitido.' });
+      await updatePerm(id, { role });
       return res.status(200).json({ ok: true });
     }
 
     if (req.method === 'DELETE') {
       const id = String(req.query?.id || '');
-      if (!/^[\w-]{6,40}$/.test(id)) return res.status(400).json({ error: 'id inválido.' });
+      const target = validId(id) && perms.find((p) => p.id === id);
+      if (!target) return res.status(404).json({ error: 'No encontrado.' });
+      if (target.role === 'amo' && !supremo) return res.status(403).json({ error: 'Solo el amo supremo elimina amos.' });
       await deletePerm(id);
       return res.status(200).json({ ok: true });
     }

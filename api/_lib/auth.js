@@ -5,10 +5,13 @@
    este archivo solo lo importan las funciones de api/.
 
    Roles:
-     admin    → solo ADMIN_EMAIL (el dueño). No se puede asignar
-                desde el panel.
-     cliente  → los correos que el admin agrega en Permisos.
-     (nada)   → no tiene acceso.
+     supremo   → "amo supremo": solo ADMIN_EMAIL. Todo, incluido crear y
+                 eliminar amos.
+     amo       → ve y edita todos los dashboards, crea dashboards y
+                 chismosos. No puede crear, cambiar ni eliminar amos.
+     chismoso  → solo ve los dashboards que un amo le active desde el
+                 botón "Integrantes" de cada dashboard.
+     (nada)    → no tiene acceso.
 
    Variables:
      GOOGLE_CLIENT_ID      (obligatoria) OAuth Client ID "Web" de Google
@@ -23,9 +26,17 @@ import { listDashboards, publicDash } from './dashboards.js';
 
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'fukuda.miyasato@gmail.com';
 
-/* Roles que se pueden asignar desde el panel. "admin" queda fuera a
-   propósito: de momento solo el dueño es administrador. */
-export const ASSIGNABLE_ROLES = ['cliente'];
+export const ROLES = ['supremo', 'amo', 'chismoso'];
+
+/** Amo o amo supremo: ven todo y editan. */
+export const isAmo = (user) => user?.role === 'supremo' || user?.role === 'amo';
+
+/** Qué roles puede dar cada uno desde Permisos. */
+export const rolesAssignableBy = (role) =>
+  role === 'supremo' ? ['amo', 'chismoso'] : role === 'amo' ? ['chismoso'] : [];
+
+/* "cliente" era el nombre anterior de chismoso */
+const normRole = (r) => (r === 'cliente' ? 'chismoso' : r);
 
 const PERMS_KEY = 'fm:perms';
 const COOKIE = 'fm_session';
@@ -116,7 +127,8 @@ export async function verifyGoogleToken(credential) {
 
 /* ---------- permisos: [{ id, email, role, dashboards }] ---------- */
 
-export const listPerms = () => getJSON(PERMS_KEY, []);
+export const listPerms = async () =>
+  (await getJSON(PERMS_KEY, [])).map((p) => ({ ...p, role: normRole(p.role), dashboards: p.dashboards || [] }));
 
 export async function addPerm(email, role, dashboards = []) {
   const perms = await listPerms();
@@ -134,6 +146,18 @@ export async function updatePerm(id, { role, dashboards } = {}) {
   await setJSON(PERMS_KEY, perms);
 }
 
+/** Activa o quita un dashboard a un chismoso (botón "Integrantes"). */
+export async function setDashboardAccess(id, dashId, active) {
+  const perms = await listPerms();
+  const p = perms.find((x) => x.id === id);
+  if (!p || p.role !== 'chismoso') return false;
+  const set = new Set(p.dashboards);
+  if (active) set.add(dashId); else set.delete(dashId);
+  p.dashboards = [...set];
+  await setJSON(PERMS_KEY, perms);
+  return true;
+}
+
 export async function deletePerm(id) {
   await setJSON(PERMS_KEY, (await listPerms()).filter((x) => x.id !== id));
 }
@@ -149,11 +173,12 @@ export async function forgetDashboard(dashId) {
     consulta en cada request: lo que cambies en el panel aplica al instante. */
 export async function accessFor(email, catalog) {
   const ids = catalog.map((d) => d.id);
-  if (isOwner(email)) return { role: 'admin', dashboards: ids };
+  if (isOwner(email)) return { role: 'supremo', dashboards: ids };
   const n = normEmail(email);
   const hit = (await listPerms()).find((p) => normEmail(p.email) === n);
-  if (!hit || !ASSIGNABLE_ROLES.includes(hit.role)) return null;
-  return { role: hit.role, dashboards: (hit.dashboards || []).filter((id) => ids.includes(id)) };
+  if (!hit || !ROLES.includes(hit.role)) return null;
+  if (hit.role === 'amo') return { role: 'amo', dashboards: ids };
+  return { role: 'chismoso', dashboards: hit.dashboards.filter((id) => ids.includes(id)) };
 }
 
 /** { email, name, picture } + rol y dashboards vigentes, o null si no tiene acceso.

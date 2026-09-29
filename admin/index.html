@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/base.css">
 <link rel="stylesheet" href="/css/admin.css">
+<link rel="stylesheet" href="/css/modal.css">
 <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
@@ -99,24 +100,9 @@
   <main class="admin-main">
     <section data-panel="dash">
       <header class="admin-head">
-        <div class="admin-head-row">
-          <h1>Dashboards</h1>
-          <button class="btn" type="button" id="new-dash-btn">+ Nuevo dashboard</button>
-        </div>
-        <p>Todos los dashboards. Entra a cualquiera; en Permisos eliges quién más los ve.</p>
+        <h1>Dashboards</h1>
+        <p>Los amos ven todos. A los chismosos se les activa cada uno desde el botón «Integrantes» dentro del dashboard.</p>
       </header>
-
-      <form class="new-dash" id="new-dash" autocomplete="off" hidden>
-        <label for="new-dash-name">Nombre</label>
-        <input id="new-dash-name" maxlength="60" placeholder="Ej. VENTAS-2026" required>
-        <span class="new-dash-label">Ícono</span>
-        <div class="icon-pick" id="new-dash-icons" role="radiogroup" aria-label="Ícono"></div>
-        <div class="new-dash-actions">
-          <button class="btn" type="submit" id="new-dash-save">Crear</button>
-          <button class="link-btn" type="button" id="new-dash-cancel">Cancelar</button>
-        </div>
-        <p class="form-msg" id="new-dash-msg" role="status"></p>
-      </form>
 
       <div class="dash-grid" id="dash-grid"></div>
     </section>
@@ -124,14 +110,13 @@
     <section data-panel="perms" hidden>
       <header class="admin-head">
         <h1>Permisos</h1>
-        <p>Elige qué correos tienen acceso y a qué dashboards. De momento solo tú eres administrador.</p>
+        <p id="perm-help"></p>
       </header>
 
       <form class="perm-form" id="perm-form" autocomplete="off">
         <input type="email" id="perm-email" placeholder="correo@gmail.com" required aria-label="Correo">
         <select id="perm-role" aria-label="Rol"></select>
         <button class="btn" type="submit" id="perm-add">Agregar</button>
-        <div class="chips" id="perm-dash" aria-label="Dashboards del nuevo correo"></div>
       </form>
       <p class="form-msg" id="perm-msg" role="status"></p>
 
@@ -146,6 +131,23 @@
       </div>
     </section>
   </main>
+</div>
+
+<!-- nuevo dashboard: título + ícono opcional -->
+<div class="modal-layer" id="nd-layer" hidden>
+  <form class="modal nd-modal" id="nd-form" autocomplete="off" novalidate>
+    <label class="nd-icon" id="nd-icon" for="nd-file" title="Ícono (opcional)">
+      <span class="nd-icon-img" id="nd-icon-img"></span>
+      <small id="nd-icon-note">Subir ícono</small>
+    </label>
+    <input type="file" id="nd-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+    <input class="nd-title" id="nd-title" maxlength="60" placeholder="Título del dashboard" aria-label="Título">
+    <p class="m-err" id="nd-err" role="alert"></p>
+    <div class="m-actions">
+      <button class="link-btn" type="button" id="nd-cancel">Cancelar</button>
+      <button class="btn" type="submit" id="nd-save">Crear</button>
+    </div>
+  </form>
 </div>
 
 <script type="module" src="/js/admin.js"></script>

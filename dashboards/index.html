@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/base.css">
 <link rel="stylesheet" href="/css/admin.css">
+<link rel="stylesheet" href="/css/modal.css">
 <link rel="stylesheet" href="/css/dashboard.css">
 </head>
 <!-- Una sola página para todos los dashboards: /dashboards/?d=<id> -->
@@ -44,6 +45,16 @@
         <h1 id="dash-title"></h1>
       </div>
       <div class="dash-user">
+        <div class="members" id="members" hidden>
+          <button class="members-btn" id="members-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="members-panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c0-3.2 2.7-5.3 6-5.3s6 2.1 6 5.3"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 6"/><path d="M17.5 14.5c2 .6 3.5 2.3 3.5 5"/></svg>
+            Integrantes <b id="members-count">0</b>
+          </button>
+          <div class="members-panel" id="members-panel" hidden>
+            <p class="members-title">Chismosos que ven este dashboard</p>
+            <ul id="members-list"></ul>
+          </div>
+        </div>
         <small data-user-email></small>
         <button class="icon-btn" id="dash-delete" type="button" aria-label="Eliminar dashboard" title="Eliminar dashboard" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/></svg>
@@ -66,34 +77,27 @@
   <nav class="dock" id="dock" aria-label="Herramientas" hidden></nav>
 </div>
 
-<!-- modal de la herramienta "tabla con IA" -->
+<!-- modal de la herramienta "pregúntale a la IA": CSV + pregunta -->
 <div class="modal-layer" id="modal-layer" hidden>
-  <form class="modal" id="modal" autocomplete="off" novalidate>
-    <header class="modal-head">
-      <span class="modal-ico" id="modal-ico"></span>
-      <h2>Tabla con IA</h2>
-    </header>
-
-    <label class="m-label" for="m-file">Archivo CSV</label>
+  <form class="modal ai-modal" id="modal" autocomplete="off" novalidate>
     <label class="m-drop" id="m-drop" for="m-file">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+      <span class="m-drop-ico" id="m-drop-ico"></span>
       <span><b id="m-file-name">Elige o arrastra un CSV</b><small id="m-file-meta">Máx. 2 MB</small></span>
     </label>
-    <input type="file" id="m-file" accept=".csv,.tsv,.txt,text/csv" hidden>
+    <input type="file" id="m-file" accept=".csv,.tsv,.txt,text/csv" hidden aria-label="Archivo CSV">
 
-    <label class="m-label" for="m-prompt">¿Qué tabla quieres ver?</label>
-    <textarea id="m-prompt" rows="3" maxlength="2000" placeholder="Ej. Entradas vendidas por ciudad, de mayor a menor"></textarea>
+    <textarea id="m-prompt" rows="3" maxlength="2000" placeholder="Pregunta que me aburro" aria-label="Tu pregunta"></textarea>
 
     <p class="m-err" id="m-err" role="alert"></p>
 
     <div class="m-actions">
-      <button class="link-btn" type="button" id="m-cancel">Cancelar</button>
-      <button class="btn" type="submit" id="m-ok">Aceptar</button>
+      <button class="link-btn m-cancel" type="button" id="m-cancel">me arrepentí</button>
+      <button class="btn m-ok" type="submit" id="m-ok">Apura</button>
     </div>
 
     <div class="m-loading" aria-live="polite">
       <span class="spinner" aria-hidden="true"></span>
-      <b>Generando tabla…</b>
+      <b>Pensando…</b>
       <small>La IA está leyendo tu archivo</small>
     </div>
   </form>

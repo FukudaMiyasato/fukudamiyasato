@@ -1,19 +1,22 @@
 /* ============================================================
-   admin.js — login con Google + panel de administrador
+   admin.js — login con Google + panel de los amos
    ------------------------------------------------------------
-   Quién entra y qué dashboards ve lo decide el servidor
-   (/api/auth). Esta página solo elige la vista:
-     admin              → panel (Dashboards · Permisos)
-     sin dashboards     → "No tienes permisos"
-     un dashboard       → entra directo
-     varios dashboards  → lista para elegir
+   Quién entra y qué ve lo decide el servidor (/api/auth). Esta
+   página solo elige la vista:
+     amo supremo / amo  → panel (Dashboards · Permisos)
+     chismoso sin nada  → "No tienes permisos"
+     chismoso con uno   → entra directo
+     chismoso con más   → lista para elegir
    ============================================================ */
 
-import { iconFor, ICON_KEYS } from './dashboard-icons.js';
+import { dashIconHTML } from './dashboard-icons.js';
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = ['loading', 'login', 'denied', 'nodash', 'picker', 'admin'];
-const ROLE_LABEL = { admin: 'Administrador', cliente: 'Cliente' };
+const ROLE_LABEL = { supremo: 'Amo supremo', amo: 'Amo', chismoso: 'Chismoso' };
+const isAmo = (role) => role === 'supremo' || role === 'amo';
+
+let me = null;
 
 function show(view) {
   for (const v of VIEWS) $(`v-${v}`).hidden = v !== view;
@@ -43,21 +46,28 @@ function dashLink(d) {
   const a = document.createElement('a');
   a.className = 'dash-card';
   a.href = d.url;
-  a.innerHTML = `<span class="dash-ico">${iconFor(d.icon)}</span><span class="dash-name"></span>`;
+  a.innerHTML = `<span class="dash-ico">${dashIconHTML(d)}</span><span class="dash-name"></span>`;
   a.querySelector('.dash-name').textContent = d.name;
   return a;
 }
 
 function enter(user) {
+  me = user;
   fillUser(user);
   const dashes = user.dashboards || [];
 
-  if (user.role === 'admin') {
+  if (isAmo(user.role)) {
     show('admin');
     const grid = $('dash-grid');
     grid.innerHTML = '';
-    if (dashes.length) dashes.forEach((d) => grid.append(dashLink(d)));
-    else grid.innerHTML = '<p class="perm-empty perm-empty--box">Todavía no hay dashboards.</p>';
+    // primera tarjeta: crear
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'dash-card dash-card--new';
+    add.innerHTML = '<span class="dash-ico">+</span><span class="dash-name">Nuevo dashboard</span>';
+    add.addEventListener('click', openNewDash);
+    grid.append(add);
+    dashes.forEach((d) => grid.append(dashLink(d)));
     return;
   }
 
@@ -69,48 +79,6 @@ function enter(user) {
   show('picker');
 }
 
-/* ---------- nuevo dashboard ---------- */
-
-let pickedIcon = ICON_KEYS[0];
-
-function renderIconPicker() {
-  const box = $('new-dash-icons');
-  box.innerHTML = '';
-  for (const k of ICON_KEYS) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-checked', String(k === pickedIcon));
-    b.setAttribute('aria-label', k);
-    b.innerHTML = iconFor(k);
-    b.addEventListener('click', () => { pickedIcon = k; renderIconPicker(); });
-    box.append(b);
-  }
-}
-
-$('new-dash-btn').addEventListener('click', () => {
-  $('new-dash').hidden = false;
-  renderIconPicker();
-  $('new-dash-name').focus();
-});
-$('new-dash-cancel').addEventListener('click', () => { $('new-dash').hidden = true; });
-
-$('new-dash').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const name = $('new-dash-name').value.trim();
-  if (!name) return;
-  $('new-dash-save').disabled = true;
-  const r = await api('/api/dash', { method: 'POST', body: JSON.stringify({ name, icon: pickedIcon }) });
-  $('new-dash-save').disabled = false;
-  if (!r.ok) {
-    $('new-dash-msg').textContent = r.data.error || 'No se pudo crear.';
-    $('new-dash-msg').classList.add('err');
-    return;
-  }
-  // directo al dashboard nuevo, para subirle su primer CSV
-  location.href = r.data.dashboard.url;
-});
-
 /* ---------- pestañas del panel ---------- */
 
 document.querySelectorAll('.admin-nav [data-tab]').forEach((b) => b.addEventListener('click', () => {
@@ -118,6 +86,91 @@ document.querySelectorAll('.admin-nav [data-tab]').forEach((b) => b.addEventList
   document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== b.dataset.tab; });
   if (b.dataset.tab === 'perms') loadPerms();
 }));
+
+/* ============================================================
+   Nuevo dashboard: título + ícono opcional (modal encima)
+   ============================================================ */
+
+let ndImage = null;
+
+function resetNewDash() {
+  ndImage = null;
+  $('nd-form').className = 'modal nd-modal';
+  $('nd-title').value = '';
+  $('nd-err').textContent = '';
+  $('nd-file').value = '';
+  $('nd-icon-note').textContent = 'Subir ícono';
+  $('nd-icon').classList.remove('has-image');
+  paintNdIcon();
+}
+
+/** Vista previa: la imagen subida o el ícono por defecto con las iniciales del título. */
+function paintNdIcon() {
+  $('nd-icon-img').innerHTML = dashIconHTML({ name: $('nd-title').value || '+', image: ndImage });
+}
+
+function openNewDash() {
+  resetNewDash();
+  $('nd-layer').hidden = false;
+  setTimeout(() => $('nd-title').focus(), 50);
+}
+const closeNewDash = () => { $('nd-layer').hidden = true; };
+
+$('nd-cancel').addEventListener('click', closeNewDash);
+$('nd-layer').addEventListener('pointerdown', (e) => { if (e.target === $('nd-layer')) closeNewDash(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('nd-layer').hidden) closeNewDash(); });
+$('nd-title').addEventListener('input', paintNdIcon);
+
+/** Recorta la imagen al centro y la baja a 128×128 para guardarla chica. */
+function toIcon(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const S = 128, c = document.createElement('canvas');
+      c.width = c.height = S;
+      const side = Math.min(img.naturalWidth, img.naturalHeight) || S;
+      const sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
+      c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, S, S);
+      URL.revokeObjectURL(url);
+      let out = c.toDataURL('image/png');
+      if (out.length > 100_000) out = c.toDataURL('image/webp', 0.85);
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
+    img.src = url;
+  });
+}
+
+$('nd-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    ndImage = await toIcon(file);
+    $('nd-icon').classList.add('has-image');
+    $('nd-icon-note').textContent = 'Cambiar';
+    $('nd-err').textContent = '';
+  } catch (err) {
+    $('nd-err').textContent = err.message;
+  }
+  paintNdIcon();
+});
+
+$('nd-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('nd-title').value.trim();
+  const form = $('nd-form');
+  if (!name) {
+    $('nd-err').textContent = 'Ponle un título.';
+    form.classList.remove('is-shaking'); void form.offsetWidth; form.classList.add('is-shaking');
+    return;
+  }
+  $('nd-save').disabled = true;
+  const r = await api('/api/dash', { method: 'POST', body: JSON.stringify({ name, image: ndImage }) });
+  $('nd-save').disabled = false;
+  if (!r.ok) { $('nd-err').textContent = r.data.error || 'No se pudo crear.'; return; }
+  location.href = r.data.dashboard.url; // directo al lienzo nuevo
+});
 
 /* ---------- login ---------- */
 
@@ -167,7 +220,9 @@ document.querySelectorAll('[data-logout]').forEach((b) => b.addEventListener('cl
   showLogin();
 }));
 
-/* ---------- permisos ---------- */
+/* ============================================================
+   Permisos
+   ============================================================ */
 
 const list = $('perm-list');
 const msg = (text, err = false) => { $('perm-msg').textContent = text; $('perm-msg').classList.toggle('err', err); };
@@ -177,34 +232,6 @@ function badge(text, cls = '') {
   b.className = `badge ${cls}`;
   b.textContent = text;
   return b;
-}
-
-/** Chips on/off, uno por dashboard. onChange recibe la lista de ids marcados. */
-function dashChips(catalog, selected, onChange) {
-  const wrap = document.createElement('div');
-  wrap.className = 'chips';
-  const on = new Set(selected);
-  for (const d of catalog) {
-    const c = document.createElement('button');
-    c.type = 'button';
-    c.className = 'chip';
-    c.innerHTML = `${iconFor(d.icon)}<span></span>`;
-    c.querySelector('span').textContent = d.name;
-    c.setAttribute('aria-pressed', String(on.has(d.id)));
-    c.addEventListener('click', async () => {
-      const next = new Set(on);
-      next.has(d.id) ? next.delete(d.id) : next.add(d.id);
-      c.disabled = true;
-      const ok = onChange ? await onChange([...next]) : true;
-      c.disabled = false;
-      if (!ok) return;
-      next.has(d.id) ? on.add(d.id) : on.delete(d.id);
-      c.setAttribute('aria-pressed', String(on.has(d.id)));
-    });
-    wrap.append(c);
-  }
-  wrap.value = () => [...on];
-  return wrap;
 }
 
 function row(email, roleCell, dashCell, action) {
@@ -226,8 +253,6 @@ function row(email, roleCell, dashCell, action) {
   return el;
 }
 
-let newDashChips = null;
-
 async function loadPerms() {
   list.innerHTML = '<p class="perm-empty">Cargando…</p>';
   const { ok, data } = await api('/api/perms');
@@ -235,44 +260,63 @@ async function loadPerms() {
     list.innerHTML = '';
     return msg(data.error || 'No se pudieron cargar los permisos.', true);
   }
+  const supremo = data.me === 'supremo';
+  const names = Object.fromEntries((me?.dashboards || []).map((d) => [d.id, d.name]));
+
+  $('perm-help').textContent = supremo
+    ? 'Agrega amos (ven y editan todo) y chismosos (solo ven lo que un amo les active desde cada dashboard).'
+    : 'Agrega chismosos: solo ven lo que un amo les active desde el botón «Integrantes» de cada dashboard.';
 
   $('perm-role').innerHTML = '';
-  for (const r of data.roles) $('perm-role').add(new Option(ROLE_LABEL[r] || r, r));
-
-  // chips del formulario: se eligen antes de agregar, sin llamar a la API
-  newDashChips = dashChips(data.dashboards, []);
-  newDashChips.id = 'perm-dash';
-  $('perm-dash').replaceWith(newDashChips);
+  for (const r of data.roles) $('perm-role').add(new Option(ROLE_LABEL[r], r));
 
   list.innerHTML = '';
-  list.append(row(data.owner, badge('Administrador', 'badge--admin'), badge('Todos'), badge('Propietario')));
+  list.append(row(data.owner, badge(ROLE_LABEL.supremo, 'badge--admin'), badge('Todos'), null));
 
-  for (const p of data.perms) {
-    const chips = dashChips(data.dashboards, p.dashboards, async (ids) => {
-      const r = await api('/api/perms', { method: 'PATCH', body: JSON.stringify({ id: p.id, dashboards: ids }) });
-      msg(r.ok ? `Dashboards de ${p.email} actualizados.` : (r.data.error || 'No se pudo actualizar.'), !r.ok);
-      return r.ok;
-    });
+  // amos primero, luego chismosos
+  const sorted = [...data.perms].sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === 'amo' ? -1 : 1));
+  for (const p of sorted) {
+    let roleCell;
+    if (supremo) {
+      roleCell = document.createElement('select');
+      for (const r of data.roles) roleCell.add(new Option(ROLE_LABEL[r], r, false, r === p.role));
+      roleCell.addEventListener('change', async () => {
+        const r = await api('/api/perms', { method: 'PATCH', body: JSON.stringify({ id: p.id, role: roleCell.value }) });
+        msg(r.ok ? `${p.email} ahora es ${ROLE_LABEL[roleCell.value]}.` : (r.data.error || 'No se pudo cambiar.'), !r.ok);
+        if (r.ok) loadPerms();
+      });
+    } else {
+      roleCell = badge(ROLE_LABEL[p.role], p.role === 'amo' ? 'badge--admin' : '');
+    }
 
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'link-btn';
-    del.textContent = 'Quitar';
-    del.addEventListener('click', async () => {
-      if (!confirm(`¿Quitar el acceso de ${p.email}?`)) return;
-      del.disabled = true;
-      const r = await api(`/api/perms?id=${encodeURIComponent(p.id)}`, { method: 'DELETE' });
-      if (r.ok) { msg(`Se quitó el acceso de ${p.email}.`); loadPerms(); }
-      else { del.disabled = false; msg(r.data.error || 'No se pudo quitar.', true); }
-    });
+    const dashText = p.role === 'amo' ? 'Todos'
+      : p.dashboards.length ? p.dashboards.map((id) => names[id] || id).join(', ') : 'Ninguno todavía';
+    const dashCell = document.createElement('span');
+    dashCell.className = 'perm-dash-text';
+    dashCell.textContent = dashText;
 
-    list.append(row(p.email, badge(ROLE_LABEL[p.role] || p.role), chips, del));
+    let del = null;
+    if (supremo || p.role === 'chismoso') {
+      del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'link-btn';
+      del.textContent = 'Quitar';
+      del.addEventListener('click', async () => {
+        if (!confirm(`¿Quitar el acceso de ${p.email}?`)) return;
+        del.disabled = true;
+        const r = await api(`/api/perms?id=${encodeURIComponent(p.id)}`, { method: 'DELETE' });
+        if (r.ok) { msg(`Se quitó el acceso de ${p.email}.`); loadPerms(); }
+        else { del.disabled = false; msg(r.data.error || 'No se pudo quitar.', true); }
+      });
+    }
+
+    list.append(row(p.email, roleCell, dashCell, del));
   }
 
   if (!data.perms.length) {
     const empty = document.createElement('p');
     empty.className = 'perm-empty';
-    empty.textContent = 'Aún no agregaste correos.';
+    empty.textContent = 'Todavía no agregaste a nadie.';
     list.append(empty);
   }
 }
@@ -281,13 +325,14 @@ $('perm-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = $('perm-email').value.trim();
   const role = $('perm-role').value;
-  const dashboards = newDashChips ? newDashChips.value() : [];
   $('perm-add').disabled = true;
-  const r = await api('/api/perms', { method: 'POST', body: JSON.stringify({ email, role, dashboards }) });
+  const r = await api('/api/perms', { method: 'POST', body: JSON.stringify({ email, role }) });
   $('perm-add').disabled = false;
   if (!r.ok) return msg(r.data.error || 'No se pudo agregar.', true);
   $('perm-email').value = '';
-  msg(`${email} ahora tiene acceso${dashboards.length ? '' : ' (sin dashboards todavía)'}.`);
+  msg(role === 'chismoso'
+    ? `${email} es chismoso. Actívale dashboards desde «Integrantes» en cada uno.`
+    : `${email} ahora es ${ROLE_LABEL[role]}.`);
   loadPerms();
 });
 

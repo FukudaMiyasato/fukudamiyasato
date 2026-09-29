@@ -2,19 +2,19 @@
    api/_lib/dashboards.js — catálogo de dashboards y sus widgets
    ------------------------------------------------------------
    Se guardan en Redis (api/_lib/store.js):
-     fm:dashboards         [{ id, name, icon }]  — los que crea el admin
+     fm:dashboards         [{ id, name, image }]  — los que crean los amos
+                           image: ícono subido (data URL chica) o null →
+                           el navegador dibuja uno por defecto con las iniciales
      fm:widgets:<dashId>   [{ id, type, x, y, w, h, data }]
    x, y, w, h van en celdas de la rejilla del lienzo.
-   Los de BUILTIN existen siempre y no se pueden borrar.
+   Los de BUILTIN existen siempre y no se pueden borrar (su `icon` es una
+   clave de js/dashboard-icons.js).
    ============================================================ */
 
 import { getJSON, setJSON, del, newId } from './store.js';
 
 const DASH_KEY = 'fm:dashboards';
 const widgetsKey = (dashId) => `fm:widgets:${dashId}`;
-
-/* Deben coincidir con las claves de js/dashboard-icons.js */
-export const ICON_KEYS = ['sax', 'chart', 'grid', 'music', 'folder', 'star', 'briefcase', 'globe', 'heart', 'cart', 'users'];
 
 const BUILTIN = [
   { id: 'proyecto-jazz', name: 'PROYECTO-JAZZ', icon: 'sax' },
@@ -36,19 +36,21 @@ export async function listDashboards() {
   const out = BUILTIN.map((b) => ({ ...b, builtin: true }));
   for (const d of created) {
     if (out.some((x) => x.id === d.id)) continue;
-    out.push({ ...d, icon: ICON_KEYS.includes(d.icon) ? d.icon : 'grid', builtin: false });
+    out.push({ ...d, builtin: false });
   }
   return out.map((d) => ({ ...d, url: urlFor(d.id) }));
 }
 
-export const publicDash = (d) => ({ id: d.id, name: d.name, icon: d.icon, url: d.url, builtin: d.builtin });
+export const publicDash = (d) => ({
+  id: d.id, name: d.name, icon: d.icon || null, image: d.image || null, url: d.url, builtin: d.builtin,
+});
 
-export async function createDashboard(name, icon) {
+export async function createDashboard(name, image) {
   const all = await listDashboards();
   const base = slugify(name) || 'dashboard';
   let id = base;
   for (let i = 2; all.some((d) => d.id === id); i++) id = `${base}-${i}`;
-  const dash = { id, name, icon };
+  const dash = { id, name, image: image || null };
   await setJSON(DASH_KEY, [...(await getJSON(DASH_KEY, [])), dash]);
   return { ...dash, builtin: false, url: urlFor(id) };
 }

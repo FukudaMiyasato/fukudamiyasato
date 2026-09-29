@@ -422,40 +422,43 @@ El botón **login** de la portada lleva a `/admin/`, que muestra el botón
 "Acceder con Google". El servidor (`api/auth.js`) valida el token de Google
 y decide:
 
-| Quién | Qué ve |
-|-------|--------|
-| `ADMIN_EMAIL` (fukuda.miyasato@gmail.com) | panel: **Dashboards** (todos) y **Permisos** |
-| correo en *Permisos* sin dashboards | "No tienes permisos" |
-| correo en *Permisos* con 1 dashboard | entra directo a ese dashboard |
-| correo en *Permisos* con varios | lista para elegir a cuál entrar |
-| cualquier otro | "No tienes acceso" |
+| Rol | Quién | Qué puede hacer |
+|-----|-------|-----------------|
+| **Amo supremo** | `ADMIN_EMAIL` (fukuda.miyasato@gmail.com) | todo; es el único que crea, cambia y elimina **amos** |
+| **Amo** | los que agregue el amo supremo | ve y edita todos los dashboards, crea dashboards y chismosos; no toca a otros amos |
+| **Chismoso** | los que agregue cualquier amo | solo mira los dashboards que un amo le active |
+| cualquier otro | — | "No tienes acceso" |
 
-En **Permisos** agregas correos (rol `cliente`) y marcas con chips a qué
-dashboards entra cada uno; los cambios aplican al instante porque el acceso
-se vuelve a consultar en cada request. El único administrador es
-`ADMIN_EMAIL`.
+Un chismoso recién creado no ve nada: un amo le activa cada dashboard desde
+el botón **Integrantes** (arriba a la derecha, dentro del dashboard), que
+lista a todos los chismosos con un switch. Sin dashboards ve "No tienes
+permisos"; con uno entra directo; con varios elige de una lista.
 
-La sesión es una cookie `HttpOnly` firmada con `SESSION_SECRET` (7 días).
+La sesión es una cookie `HttpOnly` firmada con `SESSION_SECRET` (7 días) y el
+rol se vuelve a consultar en cada request: los cambios aplican al instante.
 
 ### Dashboards: lienzo de widgets
 
 Cada dashboard (`/dashboards/?d=<id>`) es un lienzo con rejilla de puntos:
 
 - **Moverse:** arrastrar el fondo (o la rueda / el trackpad). Todos pueden.
-- **Ojo de pez:** lo que está al centro se ve un poco más grande.
-- **Solo el admin:** ve el dock de herramientas abajo, mueve los widgets desde
-  su cabecera y los agranda desde la esquina; encajan en la rejilla y no se
-  pueden encimar (si chocan, vuelven a su lugar). Los clientes solo miran.
-- **Herramienta "Tabla con IA":** abre un modal con un CSV (máx. 2 MB) y un
-  pedido de texto. `/api/dash` se los pasa a OpenAI (`api/_lib/table-ai.js`,
-  salida estructurada) y la tabla resultante se guarda como widget. Si el
-  pedido está vacío, no tiene sentido o no se puede resolver con ese CSV, el
-  modal dice "No sirve tu tabla", tiembla y se borra. El CSV no se guarda:
-  solo la tabla que devolvió la IA. Archivos grandes se recortan a ~120k
-  caracteres antes de enviarlos.
-- **Crear / borrar dashboards:** en el panel → *Dashboards* → **+ Nuevo
-  dashboard**; se borran desde el ícono de papelera en su cabecera.
-  PROYECTO-JAZZ es fijo.
+- **Ojo de pez:** lo del centro se ve más grande y lo de los bordes más chico
+  (widgets y puntos), sin que los vecinos se encimen.
+- **Amos:** dock de herramientas abajo; mueven los widgets desde su cabecera
+  y los agrandan desde la esquina (encajan en la rejilla y no se enciman).
+  **Mantener presionado** un widget hace temblar a todos y muestra un botón
+  rojo para borrar cada uno; tocar el fondo o `Esc` sale de ese modo.
+- **Chismosos:** solo miran; su dock tiene un único botón: actualizar la página.
+- **Herramienta IA:** CSV (máx. 2 MB) + pregunta. `api/_lib/table-ai.js` se lo
+  pasa a OpenAI, que interpreta los datos y responde con el formato que mejor
+  sirva: **tabla**, **número** destacado o **texto** corto. Si la pregunta está
+  vacía, no tiene sentido o no se puede resolver con ese CSV, el modal dice
+  "No sirve tu tabla", tiembla y se borra. El CSV no se guarda: solo la
+  respuesta. Archivos grandes se recortan a ~120k caracteres.
+- **Crear dashboards:** en el panel, la tarjeta **+ Nuevo dashboard** abre un
+  modal con título e ícono opcional (una imagen; se recorta a 128×128). Sin
+  imagen, el ícono son las iniciales del título. Se borran con la papelera de
+  su cabecera; PROYECTO-JAZZ es fijo.
 
 Para agregar otra herramienta al dock: súmala a `TOOLS` en `js/dashboard.js`
 y su ícono a `TOOL_ICONS` en `js/dashboard-icons.js`.

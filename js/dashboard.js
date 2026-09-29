@@ -8,12 +8,17 @@
      esquina, como los widgets de Android. No se pueden encimar.
    · Ojo de pez: lo que está al centro de la pantalla se ve un poco
      más grande que lo de los bordes (puntos y widgets).
-   · Herramienta "tabla con IA": CSV + pedido → /api/dash, que se lo
-     pasa a OpenAI. Si el pedido no sirve, el modal tiembla y se borra.
+   · Mantener presionado un widget: todos tiemblan y cada uno muestra un
+     botón rojo para borrarlo (como en iOS). Tocar el fondo o Esc sale.
+   · Herramienta "pregúntale a la IA": CSV + pregunta → /api/dash, que se
+     lo pasa a OpenAI. La IA responde con una tabla, un número o un texto
+     corto. Si la pregunta no sirve, el modal tiembla y se borra.
+   · Amos: dock de herramientas + botón "Integrantes" (qué chismosos ven
+     este dashboard). Chismosos: solo un botón para actualizar.
    Los permisos reales los aplica /api/dash en el servidor.
    ============================================================ */
 
-import { iconFor, TOOL_ICONS } from './dashboard-icons.js';
+import { dashIconHTML, TOOL_ICONS, ATTACHED_ICON } from './dashboard-icons.js';
 import { parseCSV } from './csv.js';
 
 const $ = (id) => document.getElementById(id);
@@ -22,6 +27,8 @@ const GRID = 32;              // px por celda
 const MIN_W = 4, MIN_H = 3;   // tamaño mínimo de un widget, en celdas
 const FISHEYE = 0.07;         // cuánto más grande al centro (7%) y más chico en los bordes
 const MAX_CSV = 2 * 1024 * 1024;
+const LONG_PRESS = 520;       // ms presionando para que tiemblen
+const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
 
 const board = $('board');
 const world = $('world');
@@ -70,6 +77,9 @@ function lens(sx, sy, w, h) {
   return clamp(1 - (dx * dx + dy * dy) / 2, 0, 1);
 }
 
+/** Escala de la lente según lens(): 1+FISHEYE al centro, 1−FISHEYE en las esquinas. */
+const zoomAt = (f) => 1 - FISHEYE + 2 * FISHEYE * f;
+
 function draw() {
   raf = 0;
   const w = board.clientWidth, h = board.clientHeight, dpr = devicePixelRatio || 1;
@@ -81,13 +91,16 @@ function draw() {
   ctx.clearRect(0, 0, w, h);
 
   const ox = ((pan.x % GRID) + GRID) % GRID, oy = ((pan.y % GRID) + GRID) % GRID;
-  for (let y = oy; y <= h; y += GRID) {
-    for (let x = ox; x <= w; x += GRID) {
+  for (let y = oy - GRID; y <= h + GRID; y += GRID) {
+    for (let x = ox - GRID; x <= w + GRID; x += GRID) {
       const f = lens(x, y, w, h);
+      const s = zoomAt(f);
+      // el punto se aleja del centro en la misma proporción que crece (lente)
+      const px = w / 2 + (x - w / 2) * s, py = h / 2 + (y - h / 2) * s;
       ctx.globalAlpha = 0.07 + 0.2 * f;
       ctx.fillStyle = '#e8e8ee';
       ctx.beginPath();
-      ctx.arc(x, y, 0.8 + 0.7 * f, 0, Math.PI * 2);
+      ctx.arc(px, py, 0.8 + 0.7 * f, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -95,13 +108,15 @@ function draw() {
 
   world.style.transform = `translate(${pan.x}px, ${pan.y}px)`;
 
-  // ojo de pez en los widgets: escala según qué tan cerca del centro está su centro
+  // ojo de pez en los widgets: crecen hacia el centro y se corren hacia afuera
+  // en la misma proporción, así los vecinos no se enciman
   for (const wd of widgets) {
-    const card = wd.el.querySelector('.wcard');
+    const card = wd.el.querySelector('.wbox');
     if (wd.el.classList.contains('is-dragging')) { card.style.transform = ''; continue; }
     const cx = pan.x + (wd.x + wd.w / 2) * GRID, cy = pan.y + (wd.y + wd.h / 2) * GRID;
-    const s = 1 - FISHEYE + 2 * FISHEYE * lens(clamp(cx, -w, 2 * w), clamp(cy, -h, 2 * h), w, h);
-    card.style.transform = `scale(${s.toFixed(4)})`;
+    const s = zoomAt(lens(clamp(cx, -w, 2 * w), clamp(cy, -h, 2 * h), w, h));
+    const dx = (cx - w / 2) * (s - 1), dy = (cy - h / 2) * (s - 1);
+    card.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${s.toFixed(4)})`;
   }
 }
 
@@ -122,6 +137,17 @@ function place(wd) {
 
 const isNumeric = (v) => /^[-+]?[\d.,\s]+%?$/.test(String(v).trim()) && /\d/.test(v);
 
+/** Lo que respondió la IA: número destacado, texto corto o tabla. */
+function contentHTML(d) {
+  if (d.kind === 'number' || d.kind === 'text') {
+    return `<div class="wanswer wanswer--${d.kind}">
+      <b>${esc(d.value)}</b>
+      ${d.detail ? `<p>${esc(d.detail)}</p>` : ''}
+    </div>`;
+  }
+  return tableHTML(d);
+}
+
 function tableHTML(d) {
   const cols = d.columns || [];
   const rows = d.rows || [];
@@ -141,27 +167,45 @@ function mount(wd, { isNew = false } = {}) {
   el.className = `widget${isNew ? ' is-new' : ''}`;
   el.dataset.id = wd.id;
   const d = wd.data || {};
-  el.innerHTML = `
+  // .wbox recibe el ojo de pez: tarjeta, asa y botón rojo se mueven juntos
+  el.innerHTML = `<div class="wbox">
     <div class="wcard">
       <header class="whead" title="${esc(d.prompt || '')}">
-        <h3>${esc(d.title || 'Tabla')}</h3>
+        <h3>${esc(d.title || 'Respuesta')}</h3>
         ${d.source ? `<small>${esc(d.source)}</small>` : ''}
-        ${canEdit ? '<button class="wdel" type="button" aria-label="Borrar widget" title="Borrar">×</button>' : ''}
       </header>
-      ${tableHTML(d)}
+      ${contentHTML(d)}
     </div>
-    ${canEdit ? '<span class="whandle" aria-hidden="true"></span>' : ''}`;
+    ${canEdit ? `<span class="whandle" aria-hidden="true"></span>
+      <button class="wx" type="button" aria-label="Borrar «${esc(d.title || 'widget')}»">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>
+      </button>` : ''}
+  </div>`;
   wd.el = el;
   place(wd);
   world.append(el);
 
   if (canEdit) {
-    el.querySelector('.whead').addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.wdel')) return;
-      startEdit(e, wd, 'move');
-    });
+    el.querySelector('.whead').addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
     el.querySelector('.whandle').addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
-    el.querySelector('.wdel').addEventListener('click', () => removeWidget(wd));
+    el.querySelector('.wx').addEventListener('click', () => removeWidget(wd));
+    // en el contenido (que hace scroll) solo cuenta mantener presionado
+    const body = el.querySelector('.wbody, .wanswer');
+    body.addEventListener('pointerdown', (e) => {
+      if (jiggling) return startEdit(e, wd, 'move');
+      const x0 = e.clientX, y0 = e.clientY;
+      const timer = setTimeout(startJiggle, LONG_PRESS);
+      const stop = () => {
+        clearTimeout(timer);
+        body.removeEventListener('pointermove', onMove);
+        body.removeEventListener('pointerup', stop);
+        body.removeEventListener('pointercancel', stop);
+      };
+      const onMove = (ev) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) stop(); };
+      body.addEventListener('pointermove', onMove);
+      body.addEventListener('pointerup', stop);
+      body.addEventListener('pointercancel', stop);
+    });
   }
 }
 
@@ -184,10 +228,27 @@ async function removeWidget(wd) {
   if (!confirm(`¿Borrar «${wd.data?.title || 'este widget'}»?`)) return;
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=${encodeURIComponent(wd.id)}`, { method: 'DELETE' });
   if (!r.ok) return alert(r.data.error || 'No se pudo borrar.');
-  wd.el.remove();
+  wd.el.classList.add('is-leaving');
+  setTimeout(() => wd.el.remove(), 250);
   widgets = widgets.filter((x) => x !== wd);
   refreshEmpty();
+  if (!widgets.length) stopJiggle();
 }
+
+/* ---------- modo "tiemblan" (mantener presionado) ---------- */
+
+let jiggling = false;
+function startJiggle() {
+  if (jiggling) return;
+  jiggling = true;
+  board.classList.add('is-jiggle');
+  navigator.vibrate?.(12);
+}
+function stopJiggle() {
+  jiggling = false;
+  board.classList.remove('is-jiggle');
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && jiggling && layer.hidden) stopJiggle(); });
 
 /* ---------- mover / redimensionar (admin) ---------- */
 
@@ -199,13 +260,21 @@ function startEdit(e, wd, mode) {
   const start = { px: e.clientX, py: e.clientY, x: wd.x, y: wd.y, w: wd.w, h: wd.h };
   const ghost = document.createElement('div');
   ghost.className = 'ghost';
-  world.append(ghost);
-  wd.el.classList.add('is-dragging');
-  requestDraw();
   let next = { x: wd.x, y: wd.y, w: wd.w, h: wd.h };
+  let dragging = false;
+  // quieto un rato sobre la cabecera → modo "tiemblan"
+  const press = mode === 'move' && !jiggling ? setTimeout(startJiggle, LONG_PRESS) : 0;
 
   const onMove = (ev) => {
     const dx = ev.clientX - start.px, dy = ev.clientY - start.py;
+    if (!dragging) {
+      if (Math.hypot(dx, dy) < 4) return;
+      dragging = true;
+      clearTimeout(press);
+      world.append(ghost);
+      wd.el.classList.add('is-dragging');
+      requestDraw();
+    }
     if (mode === 'move') {
       // el widget sigue al dedo libremente; el fantasma muestra dónde encaja
       wd.el.style.left = `${start.x * GRID + dx}px`;
@@ -225,9 +294,11 @@ function startEdit(e, wd, mode) {
   };
 
   const onUp = () => {
+    clearTimeout(press);
     target.removeEventListener('pointermove', onMove);
     target.removeEventListener('pointerup', onUp);
     target.removeEventListener('pointercancel', onUp);
+    if (!dragging) return;
     ghost.remove();
     wd.el.classList.remove('is-dragging');
     const changed = next.x !== start.x || next.y !== start.y || next.w !== start.w || next.h !== start.h;
@@ -248,8 +319,9 @@ function startEdit(e, wd, mode) {
 
 board.addEventListener('pointerdown', (e) => {
   // dentro de una tabla se hace scroll/selección; en los controles, su acción
-  if (e.button !== 0 || e.target.closest('.wbody, .whandle, .wdel, .whead button')) return;
+  if (e.button !== 0 || e.target.closest('.wbody, .wanswer, .whandle, .wx')) return;
   if (canEdit && e.target.closest('.whead')) return;
+  if (jiggling && !e.target.closest('.widget')) stopJiggle();
   board.setPointerCapture(e.pointerId);
   board.classList.add('is-panning');
   const start = { px: e.clientX, py: e.clientY, x: pan.x, y: pan.y };
@@ -304,8 +376,10 @@ function freeSpot(w, h) {
   return { x: cx, y: cy + 100, w, h };
 }
 
-/** Tamaño inicial de una tabla según cuántas columnas y filas trae. */
-function tableSize(d) {
+/** Tamaño inicial según el tipo de respuesta (y, si es tabla, sus columnas y filas). */
+function sizeFor(d) {
+  if (d.kind === 'number') return { w: 7, h: 6 };
+  if (d.kind === 'text') return { w: 9, h: 6 };
   const cols = d.columns?.length || 1, rows = d.rows?.length || 1;
   return { w: clamp(cols * 5, 10, 28), h: clamp(Math.ceil(rows * 0.9) + 3, 5, 16) };
 }
@@ -314,13 +388,15 @@ function tableSize(d) {
    Dock y herramienta "tabla con IA" (admin)
    ============================================================ */
 
-const TOOLS = [{ key: 'table', label: 'Tabla con IA', open: openTableModal }];
+const TOOLS = [{ key: 'table', label: 'Pregúntale a la IA', open: openTableModal }];
+// los chismosos solo tienen un botón: actualizar toda la página
+const VIEWER_TOOLS = [{ key: 'refresh', label: 'Actualizar', open: () => location.reload() }];
 
 function renderDock() {
   const dock = $('dock');
-  dock.hidden = !canEdit;
+  dock.hidden = false;
   dock.innerHTML = '';
-  for (const t of TOOLS) {
+  for (const t of canEdit ? TOOLS : VIEWER_TOOLS) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'tool';
@@ -345,15 +421,17 @@ function resetModal() {
   modal.reset();
   pickedFile = null;
   pickedText = '';
+  $('m-drop-ico').innerHTML = FILE_ICON;
   $('m-file-name').textContent = 'Elige o arrastra un CSV';
+  $('m-file-name').removeAttribute('title');
   $('m-file-meta').textContent = 'Máx. 2 MB';
+  $('m-file-meta').hidden = false;
   $('m-drop').classList.remove('has-file');
   $('m-err').textContent = '';
 }
 
 function openTableModal() {
   resetModal();
-  $('modal-ico').innerHTML = TOOL_ICONS.table;
   layer.hidden = false;
   setTimeout(() => $('m-prompt').focus(), 50);
 }
@@ -374,9 +452,12 @@ async function pick(file) {
   if (file.size > MAX_CSV) { $('m-err').textContent = 'El CSV supera 2 MB.'; return shake(); }
   pickedFile = file;
   pickedText = await file.text();
-  const p = parseCSV(pickedText);
-  $('m-file-name').textContent = file.name;
-  $('m-file-meta').textContent = `${p.rows.length.toLocaleString('es')} filas · ${p.headers.length} columnas`;
+  if (!parseCSV(pickedText).headers.length) { $('m-err').textContent = 'Ese archivo está vacío.'; return shake(); }
+  // ya adjunto: ícono de listo + nombre corto (máx. 10 caracteres)
+  $('m-drop-ico').innerHTML = ATTACHED_ICON;
+  $('m-file-name').textContent = file.name.length > 10 ? `${file.name.slice(0, 10)}…` : file.name;
+  $('m-file-name').title = file.name;
+  $('m-file-meta').hidden = true;
   $('m-drop').classList.add('has-file');
 }
 
@@ -434,7 +515,7 @@ modal.addEventListener('submit', async (e) => {
   }
 
   const wd = r.data.widget;
-  const size = tableSize(wd.data);
+  const size = sizeFor(wd.data);
   Object.assign(wd, freeSpot(size.w, size.h));
   if (wd.x !== guess.x || wd.y !== guess.y || wd.w !== guess.w || wd.h !== guess.h) saveLayout(wd);
   morphInto(wd);
@@ -467,6 +548,58 @@ function morphInto(wd) {
   }, 520);
 }
 
+/* ============================================================
+   Integrantes (amos): qué chismosos ven este dashboard
+   ============================================================ */
+
+function setupMembers(count) {
+  $('members').hidden = false;
+  $('members-count').textContent = count;
+}
+
+async function loadMembers() {
+  const listEl = $('members-list');
+  listEl.innerHTML = '<li class="members-empty">Cargando…</li>';
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&members=1`);
+  if (!r.ok) { listEl.innerHTML = `<li class="members-empty">${esc(r.data.error || 'No se pudo cargar.')}</li>`; return; }
+  const members = r.data.members;
+  listEl.innerHTML = '';
+  if (!members.length) {
+    listEl.innerHTML = '<li class="members-empty">Todavía no hay chismosos. Créalos en el panel → Permisos.</li>';
+    return;
+  }
+  for (const m of members) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="members-mail"></span>
+      <button class="switch" type="button" role="switch" aria-checked="${m.active}"><span></span></button>`;
+    li.querySelector('.members-mail').textContent = m.email;
+    const sw = li.querySelector('.switch');
+    sw.setAttribute('aria-label', `Acceso de ${m.email}`);
+    sw.addEventListener('click', async () => {
+      const active = sw.getAttribute('aria-checked') !== 'true';
+      sw.setAttribute('aria-checked', String(active)); // optimista
+      sw.disabled = true;
+      const res = await api('/api/perms', { method: 'PATCH', body: JSON.stringify({ id: m.id, dashboard: id, active }) });
+      sw.disabled = false;
+      if (!res.ok) { sw.setAttribute('aria-checked', String(!active)); return alert(res.data.error || 'No se pudo cambiar.'); }
+      const n = Number($('members-count').textContent) + (active ? 1 : -1);
+      $('members-count').textContent = Math.max(0, n);
+    });
+    listEl.append(li);
+  }
+}
+
+function toggleMembers(open) {
+  $('members-panel').hidden = !open;
+  $('members-btn').setAttribute('aria-expanded', String(open));
+  if (open) loadMembers();
+}
+$('members-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleMembers($('members-panel').hidden); });
+document.addEventListener('pointerdown', (e) => {
+  if (!$('members-panel').hidden && !e.target.closest('.members')) toggleMembers(false);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('members-panel').hidden) toggleMembers(false); });
+
 $('dash-delete').addEventListener('click', async () => {
   if (!confirm(`¿Eliminar el dashboard «${$('dash-title').textContent}» y todos sus widgets? No se puede deshacer.`)) return;
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -495,10 +628,11 @@ $('dash-delete').addEventListener('click', async () => {
   document.body.classList.toggle('can-edit', canEdit);
   document.title = `${data.dashboard.name} — fukudamiyasato`;
   $('dash-title').textContent = data.dashboard.name;
-  $('dash-ico').innerHTML = iconFor(data.dashboard.icon);
+  $('dash-ico').innerHTML = dashIconHTML(data.dashboard);
   document.querySelectorAll('[data-user-email]').forEach((el) => { el.textContent = user.email; });
   // con un solo dashboard no hay a dónde volver: /admin/ lo mandaría aquí mismo
-  $('dash-back').hidden = !(user.role === 'admin' || user.dashboards.length > 1);
+  $('dash-back').hidden = !(canEdit || user.dashboards.length > 1);
+  if (canEdit) setupMembers(data.members || 0);
 
   $('dash-delete').hidden = !canEdit || data.dashboard.builtin;
 

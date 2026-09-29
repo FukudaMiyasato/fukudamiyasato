@@ -29,14 +29,33 @@ export const ICONS = {
   grid: svg(`<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>`),
 };
 
-/* orden en el selector de íconos del panel (= ICON_KEYS del servidor) */
-export const ICON_KEYS = ['sax', 'chart', 'grid', 'music', 'folder', 'star', 'briefcase', 'globe', 'heart', 'cart', 'users'];
-
 export const iconFor = (key) => ICONS[key] || ICONS.grid;
+
+const escHTML = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/** Iniciales del título: "Ventas 2026" → "V2", "jazz" → "JA". */
+export function initials(name) {
+  const words = String(name || '').trim().split(/[\s\-_]+/).filter(Boolean);
+  const s = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || '?').slice(0, 2);
+  return s.toUpperCase();
+}
+
+/** Ícono de un dashboard: el subido, uno del set (los fijos) o, por defecto, sus iniciales. */
+export function dashIconHTML(d) {
+  if (d.image) return `<img src="${escHTML(d.image)}" alt="">`;
+  if (d.icon && ICONS[d.icon]) return ICONS[d.icon];
+  return `<span class="mono" aria-hidden="true">${escHTML(initials(d.name))}</span>`;
+}
 
 /* ---------- herramientas del dock (admin) ---------- */
 
 export const TOOL_ICONS = {
+  // actualizar (el único botón de los chismosos)
+  refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M19.5 9.5A8 8 0 0 0 5.2 7.2"/><path d="M19.8 4.5v5h-5"/>
+    <path d="M4.5 14.5a8 8 0 0 0 14.3 2.3"/><path d="M4.2 19.5v-5h5"/>
+  </svg>`,
+
   // tabla con IA: rejilla 2x2 + destello rojo arriba a la derecha
   table: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path d="M13.2 5.5H6.2a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-6.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
@@ -44,3 +63,8 @@ export const TOOL_ICONS = {
     <path d="M18.2 1.8c.35 1.9 1.1 2.65 3 3-1.9.35-2.65 1.1-3 3-.35-1.9-1.1-2.65-3-3 1.9-.35 2.65-1.1 3-3z" fill="#ff1f3d" stroke="#ff1f3d" stroke-width="1" stroke-linejoin="round"/>
   </svg>`,
 };
+
+/* archivo ya adjunto (en el modal de la IA) */
+export const ATTACHED_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 14.5l2 2 4-4.5"/>
+</svg>`;

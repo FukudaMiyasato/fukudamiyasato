@@ -2,20 +2,22 @@
    /api/dash — dashboards y los widgets de su lienzo
    ------------------------------------------------------------
    Cualquiera con acceso al dashboard:
-     GET    ?d=<id>                → { dashboard, widgets, canEdit }
-   Solo admin:
-     POST   { name, icon }                          → crea un dashboard
+     GET    ?d=<id>                → { dashboard, widgets, canEdit, members? }
+   Solo amos:
+     GET    ?d=<id>&members=1      → chismosos y si tienen este dashboard activo
+     POST   { name, image? }                        → crea un dashboard
      DELETE ?d=<id>                                 → borra el dashboard (no los fijos)
      POST   ?d=<id>&widget=table
-            { prompt, csv, filename, layout }       → OpenAI arma la tabla y se guarda
+            { prompt, csv, filename, layout }       → OpenAI responde (tabla, número o
+                                                      texto) y se guarda como widget
                                                       422 { error } si el pedido no sirve
      PATCH  ?d=<id>  { widget, x, y, w, h }         → mueve / redimensiona
      DELETE ?d=<id>&widget=<widgetId>               → borra el widget
    ============================================================ */
 
-import { currentUser, canSeeDashboard, forgetDashboard } from './_lib/auth.js';
+import { currentUser, canSeeDashboard, forgetDashboard, isAmo, listPerms } from './_lib/auth.js';
 import {
-  ICON_KEYS, listDashboards, publicDash, createDashboard, deleteDashboard,
+  listDashboards, publicDash, createDashboard, deleteDashboard,
   listWidgets, createWidget, updateWidgetLayout, deleteWidget,
 } from './_lib/dashboards.js';
 import { tableFromCsv, TableError } from './_lib/table-ai.js';
@@ -34,6 +36,10 @@ function cleanLayout(b) {
   return { x: int(b?.x, -500, 500, 0), y: int(b?.y, -500, 500, 0), w: int(b?.w, 3, 60, 10), h: int(b?.h, 3, 60, 8) };
 }
 
+/* Ícono subido: imagen chica ya recortada en el navegador. */
+const IMAGE_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+const MAX_IMAGE_CHARS = 120_000;
+
 const publicWidget = (w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data });
 
 export default async function handler(req, res) {
@@ -43,7 +49,7 @@ export default async function handler(req, res) {
     const catalog = await listDashboards();
     const user = await currentUser(req, catalog);
     if (!user) return res.status(401).json({ error: 'Inicia sesión.' });
-    const isAdmin = user.role === 'admin';
+    const canEdit = isAmo(user);
 
     const id = String(req.query?.d || '').toLowerCase();
     const dash = id ? catalog.find((d) => d.id === id) : null;
@@ -53,19 +59,35 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       if (!dash) return res.status(400).json({ error: 'Falta ?d=' });
+      const chismosos = canEdit ? (await listPerms()).filter((p) => p.role === 'chismoso') : [];
+
+      if (req.query?.members) {
+        if (!canEdit) return res.status(403).json({ error: 'Solo los amos.' });
+        return res.status(200).json({
+          members: chismosos.map((p) => ({ id: p.id, email: p.email, active: p.dashboards.includes(dash.id) })),
+        });
+      }
+
       const widgets = await listWidgets(dash.id);
-      return res.status(200).json({ dashboard: publicDash(dash), widgets: widgets.map(publicWidget), canEdit: isAdmin });
+      return res.status(200).json({
+        dashboard: publicDash(dash),
+        widgets: widgets.map(publicWidget),
+        canEdit,
+        members: canEdit ? chismosos.filter((p) => p.dashboards.includes(dash.id)).length : undefined,
+      });
     }
 
-    if (!isAdmin) return res.status(403).json({ error: 'Solo el administrador.' });
+    if (!canEdit) return res.status(403).json({ error: 'Solo los amos.' });
 
     /* ---------- crear dashboard ---------- */
     if (req.method === 'POST' && !dash) {
       const name = String(req.body?.name || '').trim().slice(0, 60);
-      const icon = String(req.body?.icon || 'grid');
-      if (!name) return res.status(400).json({ error: 'Ponle un nombre.' });
-      if (!ICON_KEYS.includes(icon)) return res.status(400).json({ error: 'Ícono desconocido.' });
-      return res.status(201).json({ dashboard: publicDash(await createDashboard(name, icon)) });
+      const image = req.body?.image ? String(req.body.image) : null;
+      if (!name) return res.status(400).json({ error: 'Ponle un título.' });
+      if (image && (!IMAGE_RE.test(image) || image.length > MAX_IMAGE_CHARS)) {
+        return res.status(400).json({ error: 'El ícono debe ser una imagen PNG, JPG o WebP chica.' });
+      }
+      return res.status(201).json({ dashboard: publicDash(await createDashboard(name, image)) });
     }
 
     /* ---------- widget tabla: CSV + pedido → OpenAI ---------- */
@@ -85,8 +107,8 @@ export default async function handler(req, res) {
         throw err;
       }
 
-      const data = { title: table.title, prompt, source: filename, columns: table.columns, rows: table.rows, truncated: table.truncated };
-      while (JSON.stringify(data).length > MAX_DATA_CHARS && data.rows.length > 1) {
+      const data = { ...table, prompt, source: filename };
+      while (JSON.stringify(data).length > MAX_DATA_CHARS && data.rows?.length > 1) {
         data.rows = data.rows.slice(0, Math.floor(data.rows.length * 0.8));
         data.cut = true;
       }
