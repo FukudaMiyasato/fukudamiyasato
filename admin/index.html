@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Admin — fukudamiyasato</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#08080a">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/app-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/admin.css">
+<script src="https://accounts.google.com/gsi/client" async></script>
+</head>
+<body>
+
+<a class="back-btn" href="/" aria-label="Volver al inicio">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.5 5.5L8 12l6.5 6.5"/>
+  </svg>
+</a>
+
+<!-- cargando -->
+<main class="gate-screen" id="v-loading">
+  <p class="gate-note">Cargando…</p>
+</main>
+
+<!-- login -->
+<main class="gate-screen" id="v-login" hidden>
+  <div class="gate-card">
+    <p class="kicker">Acceso</p>
+    <h1>Inicia sesión</h1>
+    <p class="gate-note">Entra con tu cuenta de Google.</p>
+    <div class="g-btn" id="g-btn"></div>
+    <p class="gate-err" id="login-err" role="alert"></p>
+  </div>
+</main>
+
+<!-- sin acceso -->
+<main class="gate-screen" id="v-denied" hidden>
+  <div class="gate-card">
+    <p class="kicker">Acceso</p>
+    <h1>No tienes acceso</h1>
+    <p class="gate-note">La cuenta <b id="denied-email"></b> no tiene permisos en este sitio.</p>
+    <button class="ghost-btn" id="denied-retry" type="button">Usar otra cuenta</button>
+  </div>
+</main>
+
+<!-- cliente: el contenido se definirá más adelante -->
+<main class="gate-screen" id="v-client" hidden>
+  <div class="gate-card">
+    <p class="kicker">Cliente</p>
+    <h1>Hola, <span data-user-name></span></h1>
+    <p class="gate-note">Tu acceso está activo. Pronto verás aquí tu contenido.</p>
+    <button class="ghost-btn" data-logout type="button">Cerrar sesión</button>
+  </div>
+</main>
+
+<!-- panel de administrador -->
+<div class="admin" id="v-admin" hidden>
+  <aside class="admin-side">
+    <p class="admin-brand">fukuda<span>miyasato</span></p>
+    <nav class="admin-nav" aria-label="Panel">
+      <button type="button" class="is-active" data-tab="perms">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><circle cx="12" cy="10.5" r="2.2"/><path d="M8.6 16a3.8 3.8 0 0 1 6.8 0"/></svg>
+        Permisos
+      </button>
+    </nav>
+    <div class="admin-me">
+      <img alt="" data-user-pic>
+      <div>
+        <b data-user-name></b>
+        <small data-user-email></small>
+      </div>
+      <button class="icon-btn" data-logout type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <main class="admin-main">
+    <section data-panel="perms">
+      <header class="admin-head">
+        <h1>Permisos</h1>
+        <p>Asigna correos y roles. De momento solo tú eres administrador.</p>
+      </header>
+
+      <form class="perm-form" id="perm-form" autocomplete="off">
+        <input type="email" id="perm-email" placeholder="correo@gmail.com" required aria-label="Correo">
+        <select id="perm-role" aria-label="Rol"></select>
+        <button class="btn" type="submit" id="perm-add">Agregar</button>
+      </form>
+      <p class="form-msg" id="perm-msg" role="status"></p>
+
+      <div class="perm-table" role="table" aria-label="Correos con acceso">
+        <div class="perm-row perm-row--head" role="row">
+          <span role="columnheader">Correo</span>
+          <span role="columnheader">Rol</span>
+          <span role="columnheader"></span>
+        </div>
+        <div id="perm-list"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="/js/admin.js"></script>
+</body>
+</html>

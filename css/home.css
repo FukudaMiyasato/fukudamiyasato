@@ -89,29 +89,49 @@
   outline: none;
 }
 
+/* pie pegado abajo: © + links a support / marketing / privacy,
+   chiquitos y apagados, casi invisibles */
 .home-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  padding: 0 16px;
   font-size: 8px;
   letter-spacing: .3em;
   text-transform: uppercase;
   color: #35353f;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
 }
-
-/* links a support / marketing: chiquitos y apagados, casi invisibles */
-.home-links { display: flex; gap: 14px; }
-.home-links a {
-  font-size: 9px;
-  letter-spacing: .12em;
-  text-transform: lowercase;
+.home-foot a {
+  font-size: 8px;
   color: #4a4a55;
   transition: color .2s linear;
 }
-.home-links a:hover { color: var(--text-dim); }
+.home-foot a:hover { color: var(--text-dim); }
+
+/* login discreto arriba a la derecha */
+.login-btn {
+  position: fixed;
+  top: calc(22px + env(safe-area-inset-top, 0px));
+  right: calc(22px + env(safe-area-inset-right, 0px));
+  z-index: 10;
+  padding: 7px 14px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  font-size: 9px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  transition: color .2s linear, border-color .2s linear;
+}
+.login-btn:hover { color: #fff; border-color: var(--red-hot); }
 
 @media (max-width: 620px) {
+  .home-foot { gap: 6px 10px; letter-spacing: .16em; }
   /* fuerza 3 columnas para que nunca salten a una segunda fila */
   .gates { grid-template-columns: repeat(3, minmax(0, 88px)); width: min(280px, 88vw); gap: 10px; }
 }

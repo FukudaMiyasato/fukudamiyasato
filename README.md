@@ -12,7 +12,9 @@ yo.html         perfil + links
 mic/            grabar con el dedo en vez de hablarle al webhook externo —
                 SIN acceso desde la portada
 support/        página de soporte para App Store / Google Play (FAQ + contacto)
-marketing/      landing de las apps con badges de las tiendas
+marketing/      landing de las apps
+privacy/        políticas de privacidad (una por app: privacy/kofres/)
+admin/          login con Google + panel de administrador (Permisos)
 ```
 
 `support/` y `marketing/` están en 6 idiomas (es, ja, en, it, fr, de) con
@@ -410,3 +412,38 @@ archivos de audio.
 Casi todo vive en [`js/config.js`](js/config.js): credenciales de Airtable,
 valores por defecto, textos y redes de **Yo**, y la lista de personas del
 **To-do**.
+
+---
+
+## Login y panel de administrador (`/admin`)
+
+El botón **login** de la portada lleva a `/admin/`, que muestra el botón
+"Acceder con Google". El servidor (`api/auth.js`) valida el token de Google
+y decide:
+
+| Correo | Resultado |
+|--------|-----------|
+| `ADMIN_EMAIL` (fukuda.miyasato@gmail.com) | panel de administrador |
+| uno agregado en *Permisos* con rol `cliente` | vista de cliente (contenido por definir) |
+| cualquier otro | "No tienes acceso" |
+
+La sesión es una cookie `HttpOnly` firmada con `SESSION_SECRET` (7 días). El
+rol se vuelve a consultar en cada request: quitar un correo en el panel le
+corta el acceso al instante. Desde el panel solo se asigna `cliente`; el
+único administrador es `ADMIN_EMAIL`.
+
+### Configuración
+
+1. **Google Cloud** → APIs & Services → Credentials → *Create credentials* →
+   *OAuth client ID* → tipo **Web application**. En *Authorized JavaScript
+   origins* agrega tu dominio y `http://localhost:3000`. (La pantalla de
+   consentimiento puede quedar en modo *Testing* con tu correo como usuario
+   de prueba, o publicarla para que entren clientes.)
+2. **Airtable** → en la misma base crea la tabla `permisos` con dos columnas:
+   `Email` (texto) y `Rol` (texto o single select con `cliente`). El token
+   necesita `data.records:read` y `data.records:write` sobre esa tabla.
+3. **Vercel** → Environment Variables: `GOOGLE_CLIENT_ID` y `SESSION_SECRET`
+   (ver `.env.example`). Redeploy.
+
+En local hace falta `npx vercel dev`: con `npm run dev` no hay API y el
+panel lo avisa.
