@@ -10,7 +10,7 @@
    ============================================================ */
 
 import { dashIconHTML } from './dashboard-icons.js';
-import { drawDots, fitCanvas, lensTransform } from './fisheye.js';
+import { drawDots, fitCanvas, buildLensFilter } from './fisheye.js';
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = ['loading', 'login', 'denied', 'nodash', 'picker', 'admin'];
@@ -352,10 +352,8 @@ function paintPreview() {
   $('fe-value').textContent = v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0';
   const { w, h } = fitCanvas($('fe-dots'));
   drawDots($('fe-dots').getContext('2d'), w, h, { amount, grid: 26 });
-  for (const card of $('fe-preview').querySelectorAll('.fe-card')) {
-    const cx = card.offsetLeft + card.offsetWidth / 2, cy = card.offsetTop + card.offsetHeight / 2;
-    card.style.transform = lensTransform(cx, cy, w, h, amount);
-  }
+  const on = buildLensFilter($('fe-filter'), w, h, amount);
+  $('fe-lens').style.filter = on ? 'url(#fe-filter)' : 'none';
 }
 
 async function loadConfig() {

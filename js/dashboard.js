@@ -5,8 +5,10 @@
      para moverse. Todos pueden moverse; solo los amos editan.
    · Los widgets viven en celdas de GRID px y encajan en la rejilla:
      se mueven desde la cabecera y se agrandan desde la esquina.
-   · Ojo de pez (js/fisheye.js): crecen, se separan y se inclinan en 3D
-     según qué tan cerca del centro estén.
+   · Ojo de pez (js/fisheye.js): la rejilla y todo lo de encima (tarjetas,
+     tablas, líneas) se curvan con la misma función. El HTML se deforma con
+     un filtro SVG; el "Redirector" traduce clics, scroll y hover de lo
+     que se ve a dónde está cada elemento, para que coincidan.
    · Mantener presionado un widget: todos tiemblan y muestran un botón
      rojo para borrarlos. Tocar el fondo o Esc sale.
 
@@ -29,7 +31,7 @@
 
 import { dashIconHTML, TOOL_ICONS, ATTACHED_ICON } from './dashboard-icons.js';
 import { parseCSV } from './csv.js';
-import { drawDots, fitCanvas, lensTransform } from './fisheye.js';
+import { drawDots, fitCanvas, buildLensFilter, unwarp } from './fisheye.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('d') || '';
@@ -46,6 +48,7 @@ const board = $('board');
 const world = $('world');
 const dots = $('dots');
 const linksSvg = $('links');
+const lensEl = $('lens');
 const ctx = dots.getContext('2d');
 
 let canEdit = false;
@@ -92,18 +95,27 @@ function draw() {
   drawDots(ctx, w, h, { panX: pan.x, panY: pan.y, grid: GRID, amount: fisheye });
 
   world.style.transform = `translate(${pan.x}px, ${pan.y}px)`;
-
-  // ojo de pez en los widgets (tarjeta, conectores, asa y botón rojo, juntos)
-  for (const wd of widgets) {
-    const box = wd.el.querySelector('.wbox');
-    if (wd.el.classList.contains('is-dragging')) { box.style.transform = ''; continue; }
-    const cx = pan.x + (wd.x + wd.w / 2) * GRID, cy = pan.y + (wd.y + wd.h / 2) * GRID;
-    box.style.transform = lensTransform(cx, cy, w, h, fisheye);
-  }
   drawLinks();
 }
 
-new ResizeObserver(requestDraw).observe(board);
+/* ---------- lente sobre el HTML ----------
+   El mapa de la lente depende solo del tamaño del lienzo y de la
+   intensidad (no de por dónde vaya): se recalcula al cambiar de tamaño. */
+let routing = false; // true = hay lente: los clics se redirigen
+let lensSize = '';
+
+function updateLens() {
+  const { width: w, height: h } = board.getBoundingClientRect();
+  const key = `${Math.round(w)}x${Math.round(h)}:${fisheye}`;
+  if (key === lensSize) return;
+  lensSize = key;
+  // el filtro va sobre .lens-ss, que mide el doble (ver supersampling en el HTML)
+  routing = buildLensFilter($('lens-filter'), w * 2, h * 2, fisheye);
+  $('lens-ss').style.filter = routing ? 'url(#lens-filter)' : 'none';
+  lensEl.classList.toggle('is-routed', routing);
+}
+
+new ResizeObserver(() => { updateLens(); requestDraw(); }).observe(board);
 
 /* ---------- líneas ---------- */
 
@@ -303,16 +315,17 @@ function bindLongPress(wd) {
     if (jiggling) return startEdit(e, wd, 'move');
     const x0 = e.clientX, y0 = e.clientY;
     const timer = setTimeout(startJiggle, LONG_PRESS);
+    // escucha en window: con la lente, los movimientos no pasan por el widget
     const stop = () => {
       clearTimeout(timer);
-      body.removeEventListener('pointermove', onMove);
-      body.removeEventListener('pointerup', stop);
-      body.removeEventListener('pointercancel', stop);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
     };
     const onMove = (ev) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) stop(); };
-    body.addEventListener('pointermove', onMove);
-    body.addEventListener('pointerup', stop);
-    body.addEventListener('pointercancel', stop);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
   });
 }
 
@@ -466,7 +479,8 @@ function startLink(e, src) {
   const onMove = (ev) => {
     if (!dragging && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
     dragging = true;
-    const px = ev.clientX - b0.left, py = ev.clientY - b0.top;
+    const sp = sourcePoint(ev.clientX, ev.clientY); // la línea termina bajo el dedo, ya con la lente
+    const px = sp.x - b0.left, py = sp.y - b0.top;
     const hit = nearestIn(px, py);
     tempLine = { a: portPoint(src, 'out'), z: hit ? portPoint(hit, 'in') : { x: px, y: py }, snap: Boolean(hit) };
     requestDraw();
@@ -478,7 +492,8 @@ function startLink(e, src) {
     port.removeEventListener('pointercancel', onUp);
     tempLine = null;
     if (!dragging) { createFollow(src); requestDraw(); return; } // clic: pregunta sobre este widget
-    const t = nearestIn(ev.clientX - b0.left, ev.clientY - b0.top);
+    const sp = sourcePoint(ev.clientX, ev.clientY);
+    const t = nearestIn(sp.x - b0.left, sp.y - b0.top);
     if (t && !t.inputs.includes(src.id)) {
       t.inputs.push(src.id);
       if (t.state === 'done') saveInputs(t);
@@ -848,17 +863,121 @@ function drawChart(host, d) {
 
 /* ---------- tooltip compartido: cualquier elemento con data-tip ---------- */
 const tipEl = $('tip');
-document.addEventListener('pointermove', (e) => {
-  const t = e.target.closest?.('[data-tip]');
+function showTip(el, cx, cy) {
+  const t = el?.closest?.('[data-tip]');
   if (!t) { tipEl.hidden = true; return; }
   tipEl.textContent = t.dataset.tip;
   tipEl.hidden = false;
   const pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight;
-  const x = Math.min(innerWidth - w - 8, e.clientX + pad);
-  const yy = e.clientY - h - pad < 8 ? e.clientY + pad : e.clientY - h - pad;
+  const x = Math.min(innerWidth - w - 8, cx + pad);
+  const yy = cy - h - pad < 8 ? cy + pad : cy - h - pad;
   tipEl.style.transform = `translate(${x}px, ${yy}px)`;
-});
+}
+document.addEventListener('pointermove', (e) => { if (!routing) showTip(e.target, e.clientX, e.clientY); });
 document.addEventListener('pointerleave', () => { tipEl.hidden = true; });
+
+/* ============================================================
+   Redirector: con la lente, lo que ves en q está en unwarp(q)
+   ------------------------------------------------------------
+   El filtro SVG solo cambia cómo se pinta la capa .lens; el navegador
+   sigue detectando clics en la posición real de cada elemento. Así que,
+   mientras hay lente, nada dentro de .lens recibe el puntero (CSS) y
+   aquí se traduce cada evento: se busca qué elemento está en unwarp(q)
+   y se le entrega el evento (pointerdown, click, rueda, hover).
+   ============================================================ */
+
+/** Punto real (en px de ventana) que se ve en (cx, cy). */
+function sourcePoint(cx, cy) {
+  if (!routing) return { x: cx, y: cy };
+  const b = board.getBoundingClientRect();
+  const p = unwarp(cx - b.left, cy - b.top, b.width, b.height, fisheye);
+  return { x: p.x + b.left, y: p.y + b.top };
+}
+
+/** Elemento de la capa deformada que se ve bajo (cx, cy), o null. */
+function hitAt(cx, cy) {
+  const p = sourcePoint(cx, cy);
+  lensEl.classList.add('is-hittable');
+  const el = document.elementsFromPoint(p.x, p.y)
+    .find((n) => lensEl.contains(n) && n !== lensEl && n !== world && n !== linksSvg);
+  lensEl.classList.remove('is-hittable');
+  return el || null;
+}
+
+const eventInit = (e) => ({
+  bubbles: true, cancelable: true, composed: true,
+  clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
+  pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: e.isPrimary,
+  button: e.button, buttons: e.buttons,
+  ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey,
+});
+
+board.addEventListener('pointerdown', (e) => {
+  if (!routing || !e.isTrusted) return;
+  const el = hitAt(e.clientX, e.clientY);
+  if (!el) return; // fondo: sigue al manejo normal (moverse por el lienzo)
+  e.stopPropagation();
+  e.preventDefault();
+  el.dispatchEvent(new PointerEvent('pointerdown', eventInit(e)));
+  el.closest('textarea, input:not([type=file])')?.focus({ preventScroll: true });
+  if (e.pointerType === 'touch') touchScroll(e, el);
+}, true);
+
+board.addEventListener('click', (e) => {
+  if (!routing || !e.isTrusted) return;
+  const el = hitAt(e.clientX, e.clientY);
+  if (!el) return;
+  e.stopPropagation();
+  e.preventDefault();
+  // botones y etiquetas: su acción real (enviar, cancelar, abrir el selector de archivo…)
+  const act = el.closest('button, label, a');
+  if (act) act.click(); else el.dispatchEvent(new MouseEvent('click', eventInit(e)));
+}, true);
+
+board.addEventListener('wheel', (e) => {
+  if (!routing) return;
+  const el = hitAt(e.clientX, e.clientY);
+  const sc = el?.closest('.wbody, .wform, textarea');
+  if (!sc || (sc.scrollHeight <= sc.clientHeight && sc.scrollWidth <= sc.clientWidth)) return; // mueve el lienzo
+  e.stopPropagation();
+  e.preventDefault();
+  sc.scrollBy(e.deltaX, e.deltaY);
+}, { capture: true, passive: false });
+
+/* hover: el navegador no sabe qué hay bajo el puntero, así que se marca a mano */
+let hovered = [];
+let hoverRaf = 0;
+function setHover(el, cx, cy) {
+  const chain = [];
+  for (let n = el; n && n !== lensEl; n = n.parentElement) chain.push(n);
+  for (const n of hovered) if (!chain.includes(n)) n.classList.remove('is-hover');
+  for (const n of chain) n.classList.add('is-hover');
+  hovered = chain;
+  board.style.cursor = el ? getComputedStyle(el).cursor : '';
+  showTip(el, cx, cy);
+}
+board.addEventListener('pointermove', (e) => {
+  if (!routing || e.buttons || e.pointerType === 'touch') return;
+  cancelAnimationFrame(hoverRaf);
+  hoverRaf = requestAnimationFrame(() => setHover(hitAt(e.clientX, e.clientY), e.clientX, e.clientY));
+});
+board.addEventListener('pointerleave', () => { if (routing) setHover(null); });
+
+/* táctil: arrastrar dentro de una tabla la desplaza (el scroll nativo no llega) */
+function touchScroll(e, el) {
+  const sc = el.closest('.wbody, .wform');
+  if (!sc) return;
+  let lx = e.clientX, ly = e.clientY;
+  const move = (ev) => { sc.scrollBy(lx - ev.clientX, ly - ev.clientY); lx = ev.clientX; ly = ev.clientY; };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
 
 /* ============================================================
    Integrantes (amos): qué chismosos ven este dashboard
@@ -955,5 +1074,6 @@ $('dash-delete').addEventListener('click', async () => {
   widgets.forEach((wd) => mount(wd));
   refreshEmpty();
   frame();
+  updateLens();
   draw(); // primer cuadro ya, sin esperar a requestAnimationFrame
 })();

@@ -60,6 +60,16 @@
 }
 .board.is-panning { cursor: grabbing; }
 .dots { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* capa deformada: líneas + widgets. El filtro (feDisplacementMap) la curva
+   igual que la rejilla; como un filtro no cambia dónde se detectan los
+   clics, dashboard.js los redirige (ver "Redirector"): mientras la lente
+   está activa, nada de aquí adentro recibe el puntero directamente. */
+.lens { position: absolute; inset: 0; overflow: hidden; }
+.lens-ss { position: absolute; left: 0; top: 0; width: 200%; height: 200%; transform: scale(.5); transform-origin: 0 0; }
+.lens-in { position: absolute; left: 0; top: 0; width: 50%; height: 50%; transform: scale(2); transform-origin: 0 0; }
+.lens.is-routed:not(.is-hittable), .lens.is-routed:not(.is-hittable) * { pointer-events: none !important; }
+.lens-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 .world { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
 
 .board-empty {
@@ -123,7 +133,7 @@
 }
 .wtable td { color: #d2d2da; }
 .wtable .num { text-align: right; font-variant-numeric: tabular-nums; }
-.wtable tbody tr:hover td { background: rgba(255, 255, 255, .025); }
+.wtable tbody tr:hover td, .wtable tbody tr.is-hover td { background: rgba(255, 255, 255, .025); }
 /* respuestas de un solo dato */
 .wanswer {
   flex: 1;
@@ -148,10 +158,10 @@
 .c-zero { stroke: var(--line); }
 .c-ytick, .c-xtick { fill: var(--text-faint); font-size: 10px; font-family: inherit; font-variant-numeric: tabular-nums; }
 .c-bar { fill: var(--red-hot); }
-.c-hit:hover .c-bar { fill: #ff5a6f; }
+.c-hit:hover .c-bar, .c-hit.is-hover .c-bar { fill: #ff5a6f; }
 .c-line { fill: none; stroke: var(--red-hot); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .c-dot { fill: var(--red-hot); stroke: #16161b; stroke-width: 2; opacity: 0; transition: opacity .12s; }
-.c-hit:hover .c-dot { opacity: 1; }
+.c-hit:hover .c-dot, .c-hit.is-hover .c-dot { opacity: 1; }
 
 .wnote { flex: none; margin: 0; padding: 7px 14px; font-size: 10.5px; color: var(--text-faint); border-top: 1px solid var(--line-soft); }
 
@@ -178,7 +188,7 @@
   border-radius: 0 0 3px 0;
   transition: border-color .2s;
 }
-.widget:hover .whandle::after { border-color: var(--red-hot); }
+.widget:hover .whandle::after, .widget.is-hover .whandle::after { border-color: var(--red-hot); }
 
 .widget.is-dragging { z-index: 20; }
 .widget.is-dragging .wcard { border-color: var(--red-hot); box-shadow: 0 30px 60px -24px #000, 0 0 0 4px var(--red-glow); }
@@ -201,7 +211,7 @@
   transition: transform .15s var(--ease);
 }
 .wx svg { width: 13px; height: 13px; }
-.wx:hover { transform: scale(1.12); background: var(--red-hot); }
+.wx:hover, .wx.is-hover { transform: scale(1.12); background: var(--red-hot); }
 .is-jiggle .wx { display: grid; animation: pop .2s var(--ease) both; }
 @keyframes pop { from { transform: scale(0); } }
 
@@ -392,7 +402,7 @@
 .m-drop span { display: flex; flex-direction: column; min-width: 0; }
 .m-drop b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m-drop small { font-size: 11px; color: var(--text-faint); line-height: 1.4; }
-.m-drop:hover, .m-drop.is-over { border-color: var(--red-hot); background: rgba(224, 16, 43, .05); }
+.m-drop:hover, .m-drop.is-hover, .m-drop.is-over { border-color: var(--red-hot); background: rgba(224, 16, 43, .05); }
 .m-drop.has-file { border-style: solid; border-color: var(--red-deep); }
 
 .wctx { margin: 0; font-size: 11.5px; color: var(--red-hot); }
@@ -485,8 +495,8 @@
 .wport--in { left: -6px; cursor: default; }
 .wport--out { right: -6px; cursor: crosshair; color: #fff; touch-action: none; }
 .wport--out svg { width: 11px; height: 11px; }
-.wport--out:hover { border-color: var(--red-hot); transform: scale(1.15); }
-.widget:hover .wport--in { border-color: var(--text-faint); }
+.wport--out:hover, .wport--out.is-hover { border-color: var(--red-hot); transform: scale(1.15); }
+.widget:hover .wport--in, .widget.is-hover .wport--in { border-color: var(--text-faint); }
 .is-thinking .wport, .is-jiggle .wport { visibility: hidden; }
 
 /* líneas entre widgets */
@@ -495,7 +505,7 @@
 .link-end { fill: var(--red-hot); }
 .link-hit { fill: none; stroke: transparent; stroke-width: 14; }
 .can-edit .link-hit { pointer-events: stroke; cursor: pointer; }
-.can-edit .link:hover .link-line { stroke-width: 3; opacity: 1; }
+.can-edit .link:hover .link-line, .can-edit .link.is-hover .link-line { stroke-width: 3; opacity: 1; }
 .link-temp { stroke-dasharray: 6 5; opacity: .7; }
 .link-temp.is-snapped { stroke-dasharray: none; opacity: 1; }
 .link.is-glowing .link-line { stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px rgba(255, 31, 61, .85)); animation: flow .9s linear infinite; stroke-dasharray: 10 6; }

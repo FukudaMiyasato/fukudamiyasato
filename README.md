@@ -442,13 +442,18 @@ rol se vuelve a consultar en cada request: los cambios aplican al instante.
 Cada dashboard (`/dashboards/?d=<id>`) es un lienzo con rejilla de puntos:
 
 - **Moverse:** arrastrar el fondo (o la rueda / el trackpad). Todos pueden.
-- **Ojo de pez:** lo del centro se ve más grande y lo de los bordes más chico
-  (widgets y puntos), sin que los vecinos se encimen; además los widgets se
-  inclinan en 3D, de frente al centro y cada vez más de costado hacia los
-  bordes, como sobre una superficie curva. La intensidad la elige
-  el amo supremo en *Panel → Configuración* (de −20 a 20; 0 = sin efecto,
-  negativo = al revés) y aplica a todos los dashboards. Se guarda en Redis
-  (`fm:config`, `api/config.js`); el cálculo está en `js/fisheye.js`.
+- **Ojo de pez:** una sola función de lente (`warp` en `js/fisheye.js`) curva
+  la rejilla y todo lo que va encima. Los puntos se dibujan desplazados en su
+  canvas; las tarjetas, tablas y líneas se deforman con un filtro SVG
+  `feDisplacementMap` cuyo mapa es la inversa exacta de esa lente
+  (`unwarp` / `buildLensFilter`), así los bordes y las líneas de las tablas se
+  curvan igual que la rejilla (no son rectángulos inclinados). La capa se
+  pinta al doble de resolución antes de deformarla (supersampling) para que
+  el texto no se vea dentado. Como un filtro no mueve dónde el navegador
+  detecta los clics, `dashboard.js` los redirige: clic, arrastre, rueda y
+  hover se traducen de lo que ves a dónde está cada elemento. La intensidad
+  la elige el amo supremo en *Panel → Configuración* (de −20 a 20; 0 = sin
+  efecto ni filtro, negativo = al revés) y aplica a todos los dashboards.
 - **Amos:** dock de herramientas abajo; mueven los widgets desde su cabecera
   y los agrandan desde la esquina (encajan en la rejilla y no se enciman).
   **Mantener presionado** un widget hace temblar a todos y muestra un botón

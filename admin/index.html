@@ -152,11 +152,15 @@
 
         <div class="fe-preview" id="fe-preview" aria-hidden="true">
           <canvas id="fe-dots"></canvas>
-          <div class="fe-card" style="--x:.22;--y:.30;--w:150px;--h:84px"></div>
-          <div class="fe-card" style="--x:.52;--y:.52;--w:190px;--h:110px"></div>
-          <div class="fe-card" style="--x:.82;--y:.28;--w:140px;--h:80px"></div>
-          <div class="fe-card" style="--x:.78;--y:.80;--w:160px;--h:70px"></div>
-          <div class="fe-card" style="--x:.20;--y:.78;--w:130px;--h:74px"></div>
+          <!-- misma lente que el lienzo real: filtro SVG sobre las tarjetas -->
+          <div class="fe-lens" id="fe-lens">
+            <div class="fe-card" style="--x:.22;--y:.30;--w:150px;--h:84px"></div>
+            <div class="fe-card" style="--x:.52;--y:.52;--w:190px;--h:110px"></div>
+            <div class="fe-card" style="--x:.82;--y:.28;--w:140px;--h:80px"></div>
+            <div class="fe-card" style="--x:.78;--y:.80;--w:160px;--h:70px"></div>
+            <div class="fe-card" style="--x:.20;--y:.78;--w:130px;--h:74px"></div>
+          </div>
+          <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="fe-filter"></filter></svg>
         </div>
 
         <input class="range" type="range" id="fe-range" min="-20" max="20" step="1" value="7" aria-label="Intensidad del ojo de pez">

@@ -70,10 +70,24 @@
 
   <!-- lienzo: rejilla de puntos + widgets. Se arrastra para moverse. -->
   <main class="board" id="board" aria-label="Lienzo del dashboard">
+    <!-- el fondo se distorsiona solo, en su canvas (fuera de .lens: no se deforma dos veces) -->
     <canvas class="dots" id="dots" aria-hidden="true"></canvas>
-    <!-- líneas entre widgets conectados (debajo de los widgets) -->
-    <svg class="links" id="links" aria-hidden="true"></svg>
-    <div class="world" id="world"></div>
+    <!-- todo lo de encima (líneas + widgets) se deforma con el mismo ojo de pez
+         mediante un filtro SVG (js/fisheye.js → buildLensFilter) -->
+    <div class="lens" id="lens">
+      <!-- supersampling: la capa se pinta al doble, se deforma a esa
+           resolución y se reduce a la mitad → texto y bordes sin dientes -->
+      <div class="lens-ss" id="lens-ss">
+        <div class="lens-in">
+          <!-- líneas entre widgets conectados (debajo de los widgets) -->
+          <svg class="links" id="links" aria-hidden="true"></svg>
+          <div class="world" id="world"></div>
+        </div>
+      </div>
+    </div>
+    <svg class="lens-defs" width="0" height="0" aria-hidden="true" focusable="false">
+      <filter id="lens-filter"></filter>
+    </svg>
     <p class="board-empty" id="board-empty" hidden></p>
   </main>
 
