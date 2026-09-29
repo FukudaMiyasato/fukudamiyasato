@@ -50,12 +50,22 @@
   </div>
 </main>
 
-<!-- cliente: el contenido se definirá más adelante -->
-<main class="gate-screen" id="v-client" hidden>
+<!-- usuario sin dashboards asignados -->
+<main class="gate-screen" id="v-nodash" hidden>
   <div class="gate-card">
-    <p class="kicker">Cliente</p>
-    <h1>Hola, <span data-user-name></span></h1>
-    <p class="gate-note">Tu acceso está activo. Pronto verás aquí tu contenido.</p>
+    <p class="kicker">Acceso</p>
+    <h1>No tienes permisos</h1>
+    <p class="gate-note">Tu cuenta <b data-user-email></b> todavía no tiene ningún dashboard asignado.</p>
+    <button class="ghost-btn" data-logout type="button">Cerrar sesión</button>
+  </div>
+</main>
+
+<!-- usuario con más de un dashboard: elige a cuál entrar -->
+<main class="gate-screen" id="v-picker" hidden>
+  <div class="gate-card gate-card--wide">
+    <p class="kicker">Dashboards</p>
+    <h1>¿A cuál quieres entrar?</h1>
+    <div class="dash-list" id="picker-list"></div>
     <button class="ghost-btn" data-logout type="button">Cerrar sesión</button>
   </div>
 </main>
@@ -65,7 +75,11 @@
   <aside class="admin-side">
     <p class="admin-brand">fukuda<span>miyasato</span></p>
     <nav class="admin-nav" aria-label="Panel">
-      <button type="button" class="is-active" data-tab="perms">
+      <button type="button" class="is-active" data-tab="dash">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+        Dashboards
+      </button>
+      <button type="button" data-tab="perms">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><circle cx="12" cy="10.5" r="2.2"/><path d="M8.6 16a3.8 3.8 0 0 1 6.8 0"/></svg>
         Permisos
       </button>
@@ -83,16 +97,25 @@
   </aside>
 
   <main class="admin-main">
-    <section data-panel="perms">
+    <section data-panel="dash">
+      <header class="admin-head">
+        <h1>Dashboards</h1>
+        <p>Todos los dashboards. Entra a cualquiera; en Permisos eliges quién más los ve.</p>
+      </header>
+      <div class="dash-grid" id="dash-grid"></div>
+    </section>
+
+    <section data-panel="perms" hidden>
       <header class="admin-head">
         <h1>Permisos</h1>
-        <p>Asigna correos y roles. De momento solo tú eres administrador.</p>
+        <p>Elige qué correos tienen acceso y a qué dashboards. De momento solo tú eres administrador.</p>
       </header>
 
       <form class="perm-form" id="perm-form" autocomplete="off">
         <input type="email" id="perm-email" placeholder="correo@gmail.com" required aria-label="Correo">
         <select id="perm-role" aria-label="Rol"></select>
         <button class="btn" type="submit" id="perm-add">Agregar</button>
+        <div class="chips" id="perm-dash" aria-label="Dashboards del nuevo correo"></div>
       </form>
       <p class="form-msg" id="perm-msg" role="status"></p>
 
@@ -100,6 +123,7 @@
         <div class="perm-row perm-row--head" role="row">
           <span role="columnheader">Correo</span>
           <span role="columnheader">Rol</span>
+          <span role="columnheader">Dashboards</span>
           <span role="columnheader"></span>
         </div>
         <div id="perm-list"></div>

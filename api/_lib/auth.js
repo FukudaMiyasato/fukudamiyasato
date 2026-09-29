@@ -19,6 +19,7 @@
    ============================================================ */
 
 import crypto from 'node:crypto';
+import { DASHBOARDS, isDashboard } from './dashboards.js';
 
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'fukuda.miyasato@gmail.com';
 
@@ -52,7 +53,7 @@ export function isValidEmail(email) {
 /* ---------- cookie firmada (HMAC) ---------- */
 
 function secret() {
-  const s = process.env.SESSION_SECRET;
+  const s = String(process.env.SESSION_SECRET || '').trim();
   if (!s) throw new Error('SESSION_SECRET no está configurado.');
   return s;
 }
@@ -101,7 +102,7 @@ export function clearSessionCookie(req, res) {
 /* ---------- Google: valida el ID token del botón "Sign in with Google" ---------- */
 
 export async function verifyGoogleToken(credential) {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientId = String(process.env.GOOGLE_CLIENT_ID || '').trim();
   if (!clientId) throw new Error('GOOGLE_CLIENT_ID no está configurado.');
   const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
   if (!r.ok) return null;
@@ -131,6 +132,25 @@ const fieldOf = (fields, name) => {
   return String(v?.name ?? v ?? '').trim();
 };
 
+/* La columna Dashboards guarda ids separados por coma ("proyecto-jazz, otro").
+   Si alguien la convierte en multiple select también se lee bien. */
+const parseDashIds = (v) => [...new Set(String(v || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean))];
+
+async function airtableError(r, what) {
+  const body = (await r.text()).slice(0, 300);
+  const hint = /UNKNOWN_FIELD_NAME/.test(body)
+    ? ` — falta una columna en "${PERMS_TABLE}" (Email, Rol, Dashboards)`
+    : '';
+  return new Error(`Airtable respondió ${r.status} ${what}${hint}`);
+}
+
+const toPerm = (rec) => ({
+  id: rec.id,
+  email: fieldOf(rec.fields, 'email'),
+  role: fieldOf(rec.fields, 'rol').toLowerCase() || 'cliente',
+  dashboards: parseDashIds(fieldOf(rec.fields, 'dashboards')),
+});
+
 export async function listPerms() {
   const out = [];
   let offset;
@@ -138,54 +158,69 @@ export async function listPerms() {
     const qs = new URLSearchParams({ pageSize: '100' });
     if (offset) qs.set('offset', offset);
     const r = await airtable(`?${qs}`);
-    if (!r.ok) throw new Error(`Airtable respondió ${r.status} leyendo "${PERMS_TABLE}"`);
+    if (!r.ok) throw await airtableError(r, `leyendo "${PERMS_TABLE}"`);
     const json = await r.json();
     for (const rec of json.records || []) {
-      const email = fieldOf(rec.fields, 'email');
-      if (!email) continue;
-      out.push({ id: rec.id, email, role: fieldOf(rec.fields, 'rol').toLowerCase() || 'cliente' });
+      const p = toPerm(rec);
+      if (p.email) out.push(p);
     }
     offset = json.offset;
   } while (offset);
   return out;
 }
 
-export async function addPerm(email, role) {
+export async function addPerm(email, role, dashboards = []) {
   const r = await airtable('', {
     method: 'POST',
-    body: JSON.stringify({ records: [{ fields: { Email: email.trim().toLowerCase(), Rol: role } }], typecast: true }),
+    body: JSON.stringify({
+      records: [{ fields: { Email: email.trim().toLowerCase(), Rol: role, Dashboards: dashboards.join(', ') } }],
+      typecast: true,
+    }),
   });
-  if (!r.ok) throw new Error(`Airtable respondió ${r.status} guardando el permiso`);
-  const rec = (await r.json()).records[0];
-  return { id: rec.id, email: fieldOf(rec.fields, 'email'), role: fieldOf(rec.fields, 'rol').toLowerCase() };
+  if (!r.ok) throw await airtableError(r, 'guardando el permiso');
+  return toPerm((await r.json()).records[0]);
 }
 
-export async function updatePerm(id, role) {
+export async function updatePerm(id, { role, dashboards } = {}) {
+  const fields = {};
+  if (role) fields.Rol = role;
+  if (dashboards) fields.Dashboards = dashboards.join(', ');
   const r = await airtable(`/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    body: JSON.stringify({ fields: { Rol: role }, typecast: true }),
+    body: JSON.stringify({ fields, typecast: true }),
   });
-  if (!r.ok) throw new Error(`Airtable respondió ${r.status} actualizando el permiso`);
+  if (!r.ok) throw await airtableError(r, 'actualizando el permiso');
 }
 
 export async function deletePerm(id) {
   const r = await airtable(`/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  if (!r.ok) throw new Error(`Airtable respondió ${r.status} borrando el permiso`);
+  if (!r.ok) throw await airtableError(r, 'borrando el permiso');
 }
 
-/** Rol actual de un correo: se consulta en cada request, así quitar un
-    permiso en el panel corta el acceso al instante. */
-export async function roleFor(email) {
-  if (isOwner(email)) return 'admin';
+/** Rol y dashboards vigentes de un correo, o null si no tiene acceso. Se
+    consulta en cada request: lo que cambies en el panel aplica al instante. */
+export async function accessFor(email) {
+  if (isOwner(email)) return { role: 'admin', dashboards: DASHBOARDS.map((d) => d.id) };
   const n = normEmail(email);
   const hit = (await listPerms()).find((p) => normEmail(p.email) === n);
-  return hit && ASSIGNABLE_ROLES.includes(hit.role) ? hit.role : null;
+  if (!hit || !ASSIGNABLE_ROLES.includes(hit.role)) return null;
+  return { role: hit.role, dashboards: hit.dashboards.filter(isDashboard) };
 }
 
-/** Usuario de la cookie con su rol vigente, o null. */
-export async function currentUser(req) {
-  const s = readSession(req);
-  if (!s?.email) return null;
-  const role = await roleFor(s.email);
-  return role ? { email: s.email, name: s.name, picture: s.picture, role } : null;
+/** { email, name, picture } + rol y dashboards vigentes, o null si no tiene acceso. */
+export async function userFor(profile) {
+  if (!profile?.email) return null;
+  const access = await accessFor(profile.email);
+  if (!access) return null;
+  return {
+    email: profile.email, name: profile.name, picture: profile.picture,
+    role: access.role,
+    dashboards: DASHBOARDS.filter((d) => access.dashboards.includes(d.id)),
+  };
 }
+
+/** Usuario de la cookie, o null. */
+export const currentUser = (req) => userFor(readSession(req));
+
+/** Para las APIs de datos de cada dashboard: ¿este usuario puede verlo? */
+export const canSeeDashboard = (user, id) => Boolean(user?.dashboards?.some((d) => d.id === id));

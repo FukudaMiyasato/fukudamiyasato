@@ -14,7 +14,8 @@ mic/            grabar con el dedo en vez de hablarle al webhook externo —
 support/        página de soporte para App Store / Google Play (FAQ + contacto)
 marketing/      landing de las apps
 privacy/        políticas de privacidad (una por app: privacy/kofres/)
-admin/          login con Google + panel de administrador (Permisos)
+admin/          login con Google + panel (Dashboards · Permisos)
+dashboards/     un dashboard por carpeta (dashboards/proyecto-jazz/)
 ```
 
 `support/` y `marketing/` están en 6 idiomas (es, ja, en, it, fr, de) con
@@ -421,16 +422,30 @@ El botón **login** de la portada lleva a `/admin/`, que muestra el botón
 "Acceder con Google". El servidor (`api/auth.js`) valida el token de Google
 y decide:
 
-| Correo | Resultado |
-|--------|-----------|
-| `ADMIN_EMAIL` (fukuda.miyasato@gmail.com) | panel de administrador |
-| uno agregado en *Permisos* con rol `cliente` | vista de cliente (contenido por definir) |
+| Quién | Qué ve |
+|-------|--------|
+| `ADMIN_EMAIL` (fukuda.miyasato@gmail.com) | panel: **Dashboards** (todos) y **Permisos** |
+| correo en *Permisos* sin dashboards | "No tienes permisos" |
+| correo en *Permisos* con 1 dashboard | entra directo a ese dashboard |
+| correo en *Permisos* con varios | lista para elegir a cuál entrar |
 | cualquier otro | "No tienes acceso" |
 
-La sesión es una cookie `HttpOnly` firmada con `SESSION_SECRET` (7 días). El
-rol se vuelve a consultar en cada request: quitar un correo en el panel le
-corta el acceso al instante. Desde el panel solo se asigna `cliente`; el
-único administrador es `ADMIN_EMAIL`.
+En **Permisos** agregas correos (rol `cliente`) y marcas con chips a qué
+dashboards entra cada uno; los cambios aplican al instante porque el acceso
+se vuelve a consultar en cada request. El único administrador es
+`ADMIN_EMAIL`.
+
+La sesión es una cookie `HttpOnly` firmada con `SESSION_SECRET` (7 días).
+
+### Crear un dashboard
+
+1. Agrégalo al catálogo en `api/_lib/dashboards.js` (`id`, `name`, `icon`, `url`).
+2. Copia `dashboards/proyecto-jazz/` a `dashboards/<id>/` y cambia `data-dash`.
+3. Si usa un ícono nuevo, dibújalo en `js/dashboard-icons.js`.
+
+La página del dashboard solo decide qué se *ve*. Cuando un dashboard traiga
+datos, su endpoint debe validar en el servidor con
+`canSeeDashboard(await currentUser(req), '<id>')` de `api/_lib/auth.js`.
 
 ### Configuración
 
@@ -439,8 +454,9 @@ corta el acceso al instante. Desde el panel solo se asigna `cliente`; el
    origins* agrega tu dominio y `http://localhost:3000`. (La pantalla de
    consentimiento puede quedar en modo *Testing* con tu correo como usuario
    de prueba, o publicarla para que entren clientes.)
-2. **Airtable** → en la misma base crea la tabla `permisos` con dos columnas:
-   `Email` (texto) y `Rol` (texto o single select con `cliente`). El token
+2. **Airtable** → en la misma base crea la tabla `permisos` con tres columnas:
+   `Email` (texto), `Rol` (texto o single select con `cliente`) y
+   `Dashboards` (texto: ids separados por coma, p. ej. `proyecto-jazz`). El token
    necesita `data.records:read` y `data.records:write` sobre esa tabla.
 3. **Vercel** → Environment Variables: `GOOGLE_CLIENT_ID` y `SESSION_SECRET`
    (ver `.env.example`). Redeploy.

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PROYECTO-JAZZ — fukudamiyasato</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#08080a">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/app-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/admin.css">
+</head>
+<!-- data-dash = id en api/_lib/dashboards.js -->
+<body data-dash="proyecto-jazz">
+
+<a class="back-btn" href="/admin/" aria-label="Volver a dashboards" id="dash-back" hidden>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.5 5.5L8 12l6.5 6.5"/>
+  </svg>
+</a>
+
+<main class="gate-screen" id="v-loading">
+  <p class="gate-note">Cargando…</p>
+</main>
+
+<main class="gate-screen" id="v-denied" hidden>
+  <div class="gate-card">
+    <p class="kicker">Acceso</p>
+    <h1>No tienes permisos</h1>
+    <p class="gate-note">Tu cuenta no tiene acceso a este dashboard.</p>
+    <a class="ghost-btn" href="/admin/" style="display:inline-block">Volver</a>
+  </div>
+</main>
+
+<div class="dash-page" id="v-dash" hidden>
+  <header class="dash-top">
+    <span class="dash-ico" id="dash-ico"></span>
+    <div>
+      <p class="kicker">Dashboard</p>
+      <h1 id="dash-title">PROYECTO-JAZZ</h1>
+    </div>
+    <div class="dash-user">
+      <small data-user-email></small>
+      <button class="icon-btn" data-logout type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== contenido del dashboard ===== -->
+  <section class="dash-body">
+    <p class="perm-empty perm-empty--box">Este dashboard todavía no tiene contenido.</p>
+  </section>
+</div>
+
+<script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>
