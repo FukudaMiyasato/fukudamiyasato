@@ -11,7 +11,13 @@ todo.html       lista de pendientes por día — SIN acceso desde la portada
 yo.html         perfil + links
 mic/            grabar con el dedo en vez de hablarle al webhook externo —
                 SIN acceso desde la portada
+support/        página de soporte para App Store / Google Play (FAQ + contacto)
+marketing/      landing de las apps con badges de las tiendas
 ```
+
+`support/` y `marketing/` están en 6 idiomas (es, ja, en, it, fr, de) con
+un selector arriba a la derecha; los textos viven en `js/i18n.js` y se
+puede forzar uno con `?lang=xx`. La portada las enlaza discretamente en el pie.
 
 Todas las páginas internas llevan una **flecha fija arriba a la izquierda**
 que regresa a la portada.
