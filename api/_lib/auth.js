@@ -14,12 +14,11 @@
      GOOGLE_CLIENT_ID      (obligatoria) OAuth Client ID "Web" de Google
      SESSION_SECRET        (obligatoria) secreto random para firmar la cookie
      ADMIN_EMAIL           (opcional, default fukuda.miyasato@gmail.com)
-     AIRTABLE_TOKEN        (ya existe; necesita data.records:write)
-     AIRTABLE_PERMS_TABLE  (opcional, default "permisos")
+     Upstash Redis         (ver api/_lib/store.js) — guarda los permisos
    ============================================================ */
 
 import crypto from 'node:crypto';
-import { at, atError, listAll, field, text } from './at.js';
+import { getJSON, setJSON, newId } from './store.js';
 import { listDashboards, publicDash } from './dashboards.js';
 
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'fukuda.miyasato@gmail.com';
@@ -28,8 +27,7 @@ export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'fukuda.miyasato@gmail.com
    propósito: de momento solo el dueño es administrador. */
 export const ASSIGNABLE_ROLES = ['cliente'];
 
-const PERMS_TABLE = process.env.AIRTABLE_PERMS_TABLE || 'permisos';
-const PERMS_COLUMNS = 'Email, Rol, Dashboards';
+const PERMS_KEY = 'fm:perms';
 const COOKIE = 'fm_session';
 const MAX_AGE = 60 * 60 * 24 * 7; // 7 días
 
@@ -116,49 +114,35 @@ export async function verifyGoogleToken(credential) {
   return { email: t.email, name: t.name || t.email, picture: t.picture || '' };
 }
 
-/* ---------- Airtable: tabla de permisos (Email, Rol, Dashboards) ---------- */
+/* ---------- permisos: [{ id, email, role, dashboards }] ---------- */
 
-/* La columna Dashboards guarda ids separados por coma ("proyecto-jazz, otro").
-   Si alguien la convierte en multiple select también se lee bien. */
-const parseDashIds = (v) => [...new Set(String(v || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean))];
-
-const toPerm = (rec) => ({
-  id: rec.id,
-  email: text(field(rec.fields, 'email')),
-  role: text(field(rec.fields, 'rol')).toLowerCase() || 'cliente',
-  dashboards: parseDashIds(text(field(rec.fields, 'dashboards'))),
-});
-
-export async function listPerms() {
-  return (await listAll(PERMS_TABLE, PERMS_COLUMNS)).map(toPerm).filter((p) => p.email);
-}
+export const listPerms = () => getJSON(PERMS_KEY, []);
 
 export async function addPerm(email, role, dashboards = []) {
-  const r = await at(PERMS_TABLE, '', {
-    method: 'POST',
-    body: JSON.stringify({
-      records: [{ fields: { Email: email.trim().toLowerCase(), Rol: role, Dashboards: dashboards.join(', ') } }],
-      typecast: true,
-    }),
-  });
-  if (!r.ok) throw await atError(r, PERMS_TABLE, 'guardando el permiso', PERMS_COLUMNS);
-  return toPerm((await r.json()).records[0]);
+  const perms = await listPerms();
+  const perm = { id: newId(), email: email.trim().toLowerCase(), role, dashboards };
+  await setJSON(PERMS_KEY, [...perms, perm]);
+  return perm;
 }
 
 export async function updatePerm(id, { role, dashboards } = {}) {
-  const fields = {};
-  if (role) fields.Rol = role;
-  if (dashboards) fields.Dashboards = dashboards.join(', ');
-  const r = await at(PERMS_TABLE, `/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ fields, typecast: true }),
-  });
-  if (!r.ok) throw await atError(r, PERMS_TABLE, 'actualizando el permiso', PERMS_COLUMNS);
+  const perms = await listPerms();
+  const p = perms.find((x) => x.id === id);
+  if (!p) throw new Error('Permiso no encontrado.');
+  if (role) p.role = role;
+  if (dashboards) p.dashboards = dashboards;
+  await setJSON(PERMS_KEY, perms);
 }
 
 export async function deletePerm(id) {
-  const r = await at(PERMS_TABLE, `/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  if (!r.ok) throw await atError(r, PERMS_TABLE, 'borrando el permiso', PERMS_COLUMNS);
+  await setJSON(PERMS_KEY, (await listPerms()).filter((x) => x.id !== id));
+}
+
+/** Al borrar un dashboard, se lo quita también de los permisos. */
+export async function forgetDashboard(dashId) {
+  const perms = await listPerms();
+  for (const p of perms) p.dashboards = (p.dashboards || []).filter((d) => d !== dashId);
+  await setJSON(PERMS_KEY, perms);
 }
 
 /** Rol y dashboards vigentes de un correo, o null si no tiene acceso. Se
@@ -169,7 +153,7 @@ export async function accessFor(email, catalog) {
   const n = normEmail(email);
   const hit = (await listPerms()).find((p) => normEmail(p.email) === n);
   if (!hit || !ASSIGNABLE_ROLES.includes(hit.role)) return null;
-  return { role: hit.role, dashboards: hit.dashboards.filter((id) => ids.includes(id)) };
+  return { role: hit.role, dashboards: (hit.dashboards || []).filter((id) => ids.includes(id)) };
 }
 
 /** { email, name, picture } + rol y dashboards vigentes, o null si no tiene acceso.

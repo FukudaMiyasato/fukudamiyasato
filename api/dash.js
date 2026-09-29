@@ -10,10 +10,10 @@
             { prompt, csv, filename, layout }       → OpenAI arma la tabla y se guarda
                                                       422 { error } si el pedido no sirve
      PATCH  ?d=<id>  { widget, x, y, w, h }         → mueve / redimensiona
-     DELETE ?d=<id>&widget=<recId>                  → borra el widget
+     DELETE ?d=<id>&widget=<widgetId>               → borra el widget
    ============================================================ */
 
-import { currentUser, canSeeDashboard } from './_lib/auth.js';
+import { currentUser, canSeeDashboard, forgetDashboard } from './_lib/auth.js';
 import {
   ICON_KEYS, listDashboards, publicDash, createDashboard, deleteDashboard,
   listWidgets, createWidget, updateWidgetLayout, deleteWidget,
@@ -23,7 +23,7 @@ import { tableFromCsv, TableError } from './_lib/table-ai.js';
 export const maxDuration = 60; // OpenAI puede tardar
 
 const MAX_CSV_BYTES = 2 * 1024 * 1024;
-const MAX_DATA_CHARS = 95_000; // Airtable: texto largo hasta 100k
+const MAX_DATA_CHARS = 300_000; // tope por widget, para que el lienzo cargue rápido
 
 /** Layout válido en celdas de la rejilla. */
 function cleanLayout(b) {
@@ -97,8 +97,7 @@ export default async function handler(req, res) {
     /* ---------- mover / redimensionar ---------- */
     if (req.method === 'PATCH' && dash) {
       const wid = String(req.body?.widget || '');
-      if (!(await listWidgets(dash.id)).some((w) => w.id === wid)) return res.status(404).json({ error: 'Widget no encontrado.' });
-      await updateWidgetLayout(wid, cleanLayout(req.body));
+      if (!(await updateWidgetLayout(dash.id, wid, cleanLayout(req.body)))) return res.status(404).json({ error: 'Widget no encontrado.' });
       return res.status(200).json({ ok: true });
     }
 
@@ -106,12 +105,12 @@ export default async function handler(req, res) {
     if (req.method === 'DELETE' && dash) {
       const wid = String(req.query?.widget || '');
       if (wid) {
-        if (!(await listWidgets(dash.id)).some((w) => w.id === wid)) return res.status(404).json({ error: 'Widget no encontrado.' });
-        await deleteWidget(wid);
+        if (!(await deleteWidget(dash.id, wid))) return res.status(404).json({ error: 'Widget no encontrado.' });
         return res.status(200).json({ ok: true });
       }
       if (dash.builtin) return res.status(400).json({ error: 'Este dashboard es fijo y no se puede borrar.' });
       await deleteDashboard(dash);
+      await forgetDashboard(dash.id);
       return res.status(200).json({ ok: true });
     }
 

@@ -12,6 +12,7 @@ import {
   verifyGoogleToken, currentUser, userFor,
   setSessionCookie, clearSessionCookie,
 } from './_lib/auth.js';
+import { hasStore } from './_lib/store.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -24,7 +25,7 @@ export default async function handler(req, res) {
         entorno: process.env.VERCEL_ENV || 'local',
         GOOGLE_CLIENT_ID: has('GOOGLE_CLIENT_ID'),
         SESSION_SECRET: has('SESSION_SECRET'),
-        AIRTABLE_TOKEN: has('AIRTABLE_TOKEN'),
+        BASE_DE_DATOS: hasStore(),
       });
     }
 

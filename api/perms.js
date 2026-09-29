@@ -4,7 +4,7 @@
    GET                                → { owner, roles, dashboards, perms: [{ id, email, role, dashboards }] }
    POST   { email, role, dashboards } → agrega un correo
    PATCH  { id, role?, dashboards? }  → cambia rol y/o dashboards asignados
-   DELETE ?id=rec...       → quita el acceso
+   DELETE ?id=<id>          → quita el acceso
    ============================================================ */
 
 import {
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       const id = String(req.body?.id || '');
       const role = req.body?.role == null ? undefined : String(req.body.role);
       const dashboards = req.body?.dashboards == null ? undefined : dashList(req.body.dashboards, catalog);
-      if (!/^rec\w+$/.test(id)) return res.status(400).json({ error: 'id inválido.' });
+      if (!/^[\w-]{6,40}$/.test(id)) return res.status(400).json({ error: 'id inválido.' });
       if (role !== undefined && !ASSIGNABLE_ROLES.includes(role)) return res.status(400).json({ error: 'Rol no permitido.' });
       if (dashboards === null) return res.status(400).json({ error: 'Dashboard desconocido.' });
       if (role === undefined && dashboards === undefined) return res.status(400).json({ error: 'Nada que cambiar.' });
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const id = String(req.query?.id || '');
-      if (!/^rec\w+$/.test(id)) return res.status(400).json({ error: 'id inválido.' });
+      if (!/^[\w-]{6,40}$/.test(id)) return res.status(400).json({ error: 'id inválido.' });
       await deletePerm(id);
       return res.status(200).json({ ok: true });
     }

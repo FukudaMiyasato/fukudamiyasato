@@ -467,13 +467,11 @@ y su ícono a `TOOL_ICONS` en `js/dashboard-icons.js`.
    origins* agrega tu dominio y `http://localhost:3000`. (La pantalla de
    consentimiento puede quedar en modo *Testing* con tu correo como usuario
    de prueba, o publicarla para que entren clientes.)
-2. **Airtable** → en la misma base crea la tabla `permisos` con tres columnas:
-   `Email` (texto), `Rol` (texto o single select con `cliente`) y
-   `Dashboards` (texto: ids separados por coma, p. ej. `proyecto-jazz`).
-   La tabla `dashboards` con: `Id`, `Nombre` e `Icono` (texto). Y la tabla
-   `widgets` con: `Dashboard` (texto), `Tipo` (texto), `Layout` (texto) y
-   `Datos` (**Long text**). El token
-   necesita `data.records:read` y `data.records:write` sobre esa tabla.
+2. **Base de datos** → Vercel → tu proyecto → *Storage* → *Create Database* →
+   **Upstash for Redis** (plan gratis) → conéctala al proyecto. Vercel agrega
+   solo `KV_REST_API_URL` y `KV_REST_API_TOKEN`. Ahí se guardan los permisos,
+   los dashboards y sus widgets (`api/_lib/store.js`); no hay tablas ni
+   columnas que crear. Sin ella igual puedes entrar al panel, pero no guardar.
 3. **Vercel** → Environment Variables: `GOOGLE_CLIENT_ID` y `SESSION_SECRET`
    (ver `.env.example`). La tabla con IA usa la misma `OPENAI_API_KEY` que la
    sección IA. Redeploy.
