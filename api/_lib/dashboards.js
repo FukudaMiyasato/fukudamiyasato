@@ -5,8 +5,9 @@
      fm:dashboards         [{ id, name, image }]  — los que crean los amos
                            image: ícono subido (data URL chica) o null →
                            el navegador dibuja uno por defecto con las iniciales
-     fm:widgets:<dashId>   [{ id, type, x, y, w, h, data }]
-   x, y, w, h van en celdas de la rejilla del lienzo.
+     fm:widgets:<dashId>   [{ id, type, x, y, w, h, data, inputs }]
+   x, y, w, h van en celdas de la rejilla del lienzo. `inputs` son los ids
+   de los widgets conectados a su conector izquierdo (le dan contexto).
    Los de BUILTIN existen siempre y no se pueden borrar (su `icon` es una
    clave de js/dashboard-icons.js).
    ============================================================ */
@@ -64,24 +65,28 @@ export async function deleteDashboard(d) {
 
 export const listWidgets = (dashId) => getJSON(widgetsKey(dashId), []);
 
-export async function createWidget(dashId, type, layout, data) {
-  const widget = { id: newId(), type, ...layout, data };
+export async function createWidget(dashId, type, layout, data, inputs = []) {
+  const widget = { id: newId(), type, ...layout, data, inputs };
   await setJSON(widgetsKey(dashId), [...(await listWidgets(dashId)), widget]);
   return widget;
 }
 
-export async function updateWidgetLayout(dashId, id, layout) {
+/** Cambia layout (x, y, w, h) y/o conexiones (inputs). */
+export async function updateWidget(dashId, id, patch) {
   const list = await listWidgets(dashId);
   const w = list.find((x) => x.id === id);
   if (!w) return false;
-  Object.assign(w, layout);
+  Object.assign(w, patch);
   await setJSON(widgetsKey(dashId), list);
   return true;
 }
 
+/** Borra el widget y las conexiones que salían de él. */
 export async function deleteWidget(dashId, id) {
   const list = await listWidgets(dashId);
   if (!list.some((x) => x.id === id)) return false;
-  await setJSON(widgetsKey(dashId), list.filter((x) => x.id !== id));
+  const rest = list.filter((x) => x.id !== id);
+  for (const w of rest) if (w.inputs?.includes(id)) w.inputs = w.inputs.filter((i) => i !== id);
+  await setJSON(widgetsKey(dashId), rest);
   return true;
 }

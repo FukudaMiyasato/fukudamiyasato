@@ -163,6 +163,20 @@
         <div class="range-marks"><span>−20 · al revés</span><span>0 · sin efecto</span><span>20 · máximo</span></div>
         <p class="form-msg" id="fe-msg" role="status"></p>
       </div>
+
+      <div class="cfg-card">
+        <div class="cfg-row">
+          <div>
+            <h2>API de OpenAI</h2>
+            <p>Cuál usa primero la IA de los dashboards. Si esa se queda sin saldo (o falla), se prueba sola con la otra.</p>
+          </div>
+        </div>
+        <div class="seg" id="ai-key" role="radiogroup" aria-label="API key que va primero">
+          <button type="button" role="radio" data-key="yo"><b>YO</b><small data-key-status="yo"></small></button>
+          <button type="button" role="radio" data-key="lvl"><b>LVL</b><small data-key-status="lvl"></small></button>
+        </div>
+        <p class="form-msg" id="ai-key-msg" role="status"></p>
+      </div>
     </section>
   </main>
 </div>

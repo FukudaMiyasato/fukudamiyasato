@@ -50,6 +50,12 @@ export function dashIconHTML(d) {
 /* ---------- herramientas del dock (admin) ---------- */
 
 export const TOOL_ICONS = {
+  // pregúntale a la IA: estrella roja de cuatro puntas
+  ask: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 3.2c.75 4.7 3.3 7.3 8.3 8.8-5 1.5-7.55 4.1-8.3 8.8-.75-4.7-3.3-7.3-8.3-8.8 5-1.5 7.55-4.1 8.3-8.8z"
+      fill="#ff1f3d" stroke="#ff1f3d" stroke-width="1.4" stroke-linejoin="round"/>
+  </svg>`,
+
   // actualizar (el único botón de los chismosos)
   refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M19.5 9.5A8 8 0 0 0 5.2 7.2"/><path d="M19.8 4.5v5h-5"/>

@@ -2,19 +2,28 @@
    dashboard.js — /dashboards/?d=<id> · lienzo de widgets
    ------------------------------------------------------------
    · Rejilla de puntos infinita: se arrastra el fondo (o la rueda)
-     para moverse. Todos pueden moverse; solo el admin edita.
+     para moverse. Todos pueden moverse; solo los amos editan.
    · Los widgets viven en celdas de GRID px y encajan en la rejilla:
-     el admin los mueve desde su cabecera y los agranda desde la
-     esquina, como los widgets de Android. No se pueden encimar.
-   · Ojo de pez: lo que está al centro de la pantalla se ve un poco
-     más grande que lo de los bordes (puntos y widgets).
-   · Mantener presionado un widget: todos tiemblan y cada uno muestra un
-     botón rojo para borrarlo (como en iOS). Tocar el fondo o Esc sale.
-   · Herramienta "pregúntale a la IA": CSV + pregunta → /api/dash, que se
-     lo pasa a OpenAI. La IA responde con una tabla, un número o un texto
-     corto. Si la pregunta no sirve, el modal tiembla y se borra.
-   · Amos: dock de herramientas + botón "Integrantes" (qué chismosos ven
-     este dashboard). Chismosos: solo un botón para actualizar.
+     se mueven desde la cabecera y se agrandan desde la esquina.
+   · Ojo de pez (js/fisheye.js): crecen, se separan y se inclinan en 3D
+     según qué tan cerca del centro estén.
+   · Mantener presionado un widget: todos tiemblan y muestran un botón
+     rojo para borrarlos. Tocar el fondo o Esc sale.
+
+   Cada widget pasa por tres estados:
+     draft     → recién creado: sus campos (pregunta, CSV…) y botones
+     thinking  → se envió a la IA: carga al centro; no se puede tocar
+     done      → muestra la respuesta (tabla, gráfico, número o texto)
+   Varios pueden estar pensando a la vez: cada uno es independiente.
+
+   Conectores (amos): a la izquierda recibe, a la derecha (+) da.
+     · arrastrar desde el + → línea roja; soltarla en el conector
+       izquierdo de otro widget los conecta (si no, desaparece)
+     · un clic en el + → nuevo widget-pregunta ya conectado; lo que
+       responde la IA usa como contexto todos los widgets conectados
+     · mientras piensa, las líneas y los widgets conectados brillan
+   · Enfoque: el lienzo se centra en el widget que lanzas y en cada
+     uno que termina (con 2 s entre uno y otro si terminan juntos).
    Los permisos reales los aplica /api/dash en el servidor.
    ============================================================ */
 
@@ -29,21 +38,26 @@ const MIN_W = 4, MIN_H = 3;   // tamaño mínimo de un widget, en celdas
 let fisheye = 0.07;           // intensidad del ojo de pez; la define el amo supremo en Configuración
 const MAX_CSV = 2 * 1024 * 1024;
 const LONG_PRESS = 520;       // ms presionando para que tiemblen
+const FOCUS_GAP = 2000;       // ms entre un enfoque automático y el siguiente
+const SNAP_PORT = 28;         // px: qué tan cerca hay que soltar la línea del conector
 const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
 
 const board = $('board');
 const world = $('world');
 const dots = $('dots');
+const linksSvg = $('links');
 const ctx = dots.getContext('2d');
 
 let canEdit = false;
-let widgets = [];                  // { id, type, x, y, w, h, data, el }
+let widgets = [];   // { id, type, x, y, w, h, data, inputs, state, mode?, el, file?, fileText? }
 const pan = { x: 0, y: 0 };
+let draftSeq = 0;
 
 /* ---------- utilidades ---------- */
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const byId = (wid) => widgets.find((w) => w.id === wid);
 
 async function api(url, opts = {}) {
   const r = await fetch(url, {
@@ -66,7 +80,7 @@ document.querySelectorAll('[data-logout]').forEach((b) => b.addEventListener('cl
 }));
 
 /* ============================================================
-   Render: rejilla de puntos + ojo de pez
+   Render: rejilla de puntos, ojo de pez y líneas de conexión
    ============================================================ */
 
 let raf = 0;
@@ -79,16 +93,68 @@ function draw() {
 
   world.style.transform = `translate(${pan.x}px, ${pan.y}px)`;
 
-  // ojo de pez en los widgets (la tarjeta, su asa y su botón rojo, juntos)
+  // ojo de pez en los widgets (tarjeta, conectores, asa y botón rojo, juntos)
   for (const wd of widgets) {
     const box = wd.el.querySelector('.wbox');
     if (wd.el.classList.contains('is-dragging')) { box.style.transform = ''; continue; }
     const cx = pan.x + (wd.x + wd.w / 2) * GRID, cy = pan.y + (wd.y + wd.h / 2) * GRID;
     box.style.transform = lensTransform(cx, cy, w, h, fisheye);
   }
+  drawLinks();
 }
 
 new ResizeObserver(requestDraw).observe(board);
+
+/* ---------- líneas ---------- */
+
+/** Punto de un conector en coordenadas del lienzo (ya con el ojo de pez aplicado). */
+function portPoint(wd, side) {
+  const card = wd.el.querySelector('.wcard').getBoundingClientRect();
+  const b = board.getBoundingClientRect();
+  return { x: (side === 'out' ? card.right : card.left) - b.left, y: card.top + card.height / 2 - b.top };
+}
+
+function curve(a, z) {
+  const dx = Math.max(40, Math.abs(z.x - a.x) / 2);
+  return `M${a.x},${a.y} C${a.x + dx},${a.y} ${z.x - dx},${z.y} ${z.x},${z.y}`;
+}
+
+let tempLine = null; // línea que sigue al dedo mientras se conecta
+
+function drawLinks() {
+  const b = board.getBoundingClientRect();
+  linksSvg.setAttribute('viewBox', `0 0 ${b.width} ${b.height}`);
+  let html = '';
+  for (const t of widgets) {
+    for (const srcId of t.inputs || []) {
+      const s = byId(srcId);
+      if (!s) continue;
+      const a = portPoint(s, 'out'), z = portPoint(t, 'in');
+      const glow = t.state === 'thinking' ? ' is-glowing' : '';
+      html += `<g class="link${glow}" data-from="${esc(s.id)}" data-to="${esc(t.id)}">
+        <path class="link-hit" d="${curve(a, z)}"/>
+        <path class="link-line" d="${curve(a, z)}"/>
+        <circle class="link-end" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end" cx="${z.x}" cy="${z.y}" r="3.5"/>
+      </g>`;
+    }
+  }
+  if (tempLine) html += `<path class="link-line link-temp${tempLine.snap ? ' is-snapped' : ''}" d="${curve(tempLine.a, tempLine.z)}"/>`;
+  linksSvg.innerHTML = html;
+}
+
+/* quitar una conexión: clic sobre la línea (amos) */
+linksSvg.addEventListener('pointerdown', (e) => {
+  const g = e.target.closest?.('.link');
+  if (!g || !canEdit || !e.target.classList.contains('link-hit')) return;
+  e.stopPropagation();
+  const t = byId(g.dataset.to);
+  if (!t || t.state === 'thinking') return;
+  if (!confirm('¿Quitar esta conexión?')) return;
+  t.inputs = t.inputs.filter((i) => i !== g.dataset.from);
+  if (t.state === 'done') saveInputs(t);
+  refreshContextNote(t);
+  requestDraw();
+});
 
 /* ============================================================
    Widgets
@@ -105,10 +171,15 @@ function place(wd) {
 
 const isNumeric = (v) => /^[-+]?[\d.,\s]+%?$/.test(String(v).trim()) && /\d/.test(v);
 
-/** Lo que respondió la IA: número destacado, texto corto o tabla. */
+/** Lo que respondió la IA: gráfico, número destacado, texto o tabla. */
 function contentHTML(d) {
+  if (d.kind === 'chart') {
+    return `<div class="wchart" role="img" aria-label="${esc(chartSummary(d))}"></div>
+      ${d.detail ? `<p class="wnote">${esc(d.detail)}</p>` : ''}`;
+  }
   if (d.kind === 'number' || d.kind === 'text') {
-    return `<div class="wanswer wanswer--${d.kind}">
+    const long = d.kind === 'text' && d.value.length > 60 ? ' wanswer--long' : '';
+    return `<div class="wanswer wanswer--${d.kind}${long}">
       <b>${esc(d.value)}</b>
       ${d.detail ? `<p>${esc(d.detail)}</p>` : ''}
     </div>`;
@@ -130,51 +201,119 @@ function tableHTML(d) {
     ${note ? `<p class="wnote">${note}</p>` : ''}`;
 }
 
-function mount(wd, { isNew = false } = {}) {
-  const el = document.createElement('div');
-  el.className = `widget${isNew ? ' is-new' : ''}`;
-  el.dataset.id = wd.id;
-  const d = wd.data || {};
-  // .wbox recibe el ojo de pez: tarjeta, asa y botón rojo se mueven juntos
-  el.innerHTML = `<div class="wbox">
-    <div class="wcard">
-      <header class="whead" title="${esc(d.prompt || '')}">
-        <h3>${esc(d.title || 'Respuesta')}</h3>
-        ${d.source ? `<small>${esc(d.source)}</small>` : ''}
-      </header>
-      ${contentHTML(d)}
-    </div>
-    ${canEdit ? `<span class="whandle" aria-hidden="true"></span>
-      <button class="wx" type="button" aria-label="Borrar «${esc(d.title || 'widget')}»">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg>
-      </button>` : ''}
-  </div>`;
-  wd.el = el;
-  place(wd);
-  world.append(el);
+/* ---------- herramientas: cómo se ve cada widget en estado "draft" ---------- */
 
-  if (canEdit) {
-    el.querySelector('.whead').addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
-    el.querySelector('.whandle').addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
-    el.querySelector('.wx').addEventListener('click', () => removeWidget(wd));
-    // en el contenido (que hace scroll) solo cuenta mantener presionado
-    const body = el.querySelector('.wbody, .wanswer');
-    body.addEventListener('pointerdown', (e) => {
-      if (jiggling) return startEdit(e, wd, 'move');
-      const x0 = e.clientX, y0 = e.clientY;
-      const timer = setTimeout(startJiggle, LONG_PRESS);
-      const stop = () => {
-        clearTimeout(timer);
-        body.removeEventListener('pointermove', onMove);
-        body.removeEventListener('pointerup', stop);
-        body.removeEventListener('pointercancel', stop);
-      };
-      const onMove = (ev) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) stop(); };
-      body.addEventListener('pointermove', onMove);
-      body.addEventListener('pointerup', stop);
-      body.addEventListener('pointercancel', stop);
-    });
-  }
+const MODES = {
+  table: {
+    title: 'Tabla con IA', icon: 'table', endpoint: 'table', file: true,
+    placeholder: 'Pregunta que me aburro', submit: 'Apura', fail: 'No sirve tu tabla', size: { w: 12, h: 10 },
+  },
+  ask: {
+    title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'ask', file: false,
+    placeholder: '¿Qué quieres saber?', submit: 'Apura', fail: 'No sirve tu pregunta', size: { w: 11, h: 7 },
+  },
+  follow: {
+    title: 'Pregunta sobre lo conectado', icon: 'table', endpoint: 'table', file: false,
+    placeholder: '¿Qué quieres saber de lo conectado?', submit: 'pregunta porfa', fail: 'No sirve tu pregunta', size: { w: 11, h: 8 },
+  },
+};
+
+function draftHTML(wd) {
+  const m = MODES[wd.mode];
+  return `
+    <header class="whead whead--draft">
+      <span class="whead-ico">${TOOL_ICONS[m.icon]}</span>
+      <h3>${esc(m.title)}</h3>
+    </header>
+    <form class="wform" novalidate autocomplete="off">
+      ${m.file ? `
+        <label class="m-drop">
+          <span class="m-drop-ico">${FILE_ICON}</span>
+          <span><b class="m-file-name">Adjunta un CSV (opcional)</b><small class="m-file-meta">Sin archivo, la IA responde con lo que sabe · máx. 2 MB</small></span>
+          <input type="file" class="m-file" accept=".csv,.tsv,.txt,text/csv" hidden aria-label="Archivo CSV">
+        </label>` : ''}
+      <p class="wctx" hidden></p>
+      <textarea class="m-prompt" maxlength="2000" placeholder="${esc(m.placeholder)}" aria-label="Tu pregunta"></textarea>
+      <p class="m-err" role="alert"></p>
+      <div class="m-actions">
+        <button class="link-btn m-cancel" type="button">me arrepentí</button>
+        <button class="btn m-ok" type="submit">${esc(m.submit)}</button>
+      </div>
+    </form>
+    <div class="wthinking" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <b>Pensando…</b>
+      <small class="wthinking-note"></small>
+    </div>`;
+}
+
+function doneHTML(wd) {
+  const d = wd.data || {};
+  return `
+    <header class="whead" title="${esc(d.prompt || '')}">
+      <h3>${esc(d.title || 'Respuesta')}</h3>
+      ${d.source ? `<small>${esc(d.source)}</small>` : ''}
+    </header>
+    ${contentHTML(d)}`;
+}
+
+/** Arma (o rearma, al cambiar de estado) el contenido del widget. */
+function render(wd) {
+  const el = wd.el;
+  el.className = `widget is-${wd.state}`;
+  el.dataset.id = wd.id;
+  const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
+  el.innerHTML = `<div class="wbox">
+    <div class="wcard">${inner}</div>
+    ${canEdit ? `
+      <button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>
+      ${wd.state === 'done' ? `<button class="wport wport--out" type="button" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>` : ''}
+      <span class="whandle" aria-hidden="true"></span>
+      ${wd.state === 'done' ? `<button class="wx" type="button" aria-label="Borrar «${esc(wd.data?.title || 'widget')}»">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg></button>` : ''}` : ''}
+  </div>`;
+  place(wd);
+
+  const chart = el.querySelector('.wchart');
+  if (chart) new ResizeObserver(() => drawChart(chart, wd.data)).observe(chart);
+
+  if (!canEdit) return;
+  el.querySelector('.whead').addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
+  el.querySelector('.whandle').addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
+  el.querySelector('.wport--out')?.addEventListener('pointerdown', (e) => startLink(e, wd));
+  el.querySelector('.wx')?.addEventListener('click', () => removeWidget(wd));
+  if (wd.state === 'done') bindLongPress(wd);
+  else bindDraft(wd);
+}
+
+function mount(wd, { isNew = false } = {}) {
+  wd.el = document.createElement('div');
+  wd.inputs ||= [];
+  wd.state ||= 'done';
+  render(wd);
+  if (isNew) wd.el.classList.add('is-new');
+  world.append(wd.el);
+}
+
+/** En el contenido (que hace scroll) solo cuenta mantener presionado. */
+function bindLongPress(wd) {
+  const body = wd.el.querySelector('.wbody, .wanswer, .wchart');
+  body?.addEventListener('pointerdown', (e) => {
+    if (jiggling) return startEdit(e, wd, 'move');
+    const x0 = e.clientX, y0 = e.clientY;
+    const timer = setTimeout(startJiggle, LONG_PRESS);
+    const stop = () => {
+      clearTimeout(timer);
+      body.removeEventListener('pointermove', onMove);
+      body.removeEventListener('pointerup', stop);
+      body.removeEventListener('pointercancel', stop);
+    };
+    const onMove = (ev) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 6) stop(); };
+    body.addEventListener('pointermove', onMove);
+    body.addEventListener('pointerup', stop);
+    body.addEventListener('pointercancel', stop);
+  });
 }
 
 function refreshEmpty() {
@@ -186,21 +325,36 @@ function refreshEmpty() {
 }
 
 async function saveLayout(wd) {
+  if (wd.state !== 'done') return; // los borradores viven solo en el navegador
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, {
     method: 'PATCH', body: JSON.stringify({ widget: wd.id, x: wd.x, y: wd.y, w: wd.w, h: wd.h }),
   });
   if (!r.ok) console.warn('[dashboard] no se guardó la posición:', r.data.error);
 }
 
+async function saveInputs(wd) {
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, {
+    method: 'PATCH', body: JSON.stringify({ widget: wd.id, inputs: wd.inputs }),
+  });
+  if (!r.ok) console.warn('[dashboard] no se guardó la conexión:', r.data.error);
+}
+
+/** Quita el widget del lienzo (y las líneas que salían de él). */
+function unmount(wd, animate = true) {
+  widgets = widgets.filter((x) => x !== wd);
+  for (const o of widgets) if (o.inputs?.includes(wd.id)) { o.inputs = o.inputs.filter((i) => i !== wd.id); refreshContextNote(o); }
+  if (animate) { wd.el.classList.add('is-leaving'); setTimeout(() => wd.el.remove(), 250); } else wd.el.remove();
+  refreshEmpty();
+  refreshGlow();
+  requestDraw();
+}
+
 async function removeWidget(wd) {
   if (!confirm(`¿Borrar «${wd.data?.title || 'este widget'}»?`)) return;
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=${encodeURIComponent(wd.id)}`, { method: 'DELETE' });
   if (!r.ok) return alert(r.data.error || 'No se pudo borrar.');
-  wd.el.classList.add('is-leaving');
-  setTimeout(() => wd.el.remove(), 250);
-  widgets = widgets.filter((x) => x !== wd);
-  refreshEmpty();
-  if (!widgets.length) stopJiggle();
+  unmount(wd);
+  if (!widgets.some((w) => w.state === 'done')) stopJiggle();
 }
 
 /* ---------- modo "tiemblan" (mantener presionado) ---------- */
@@ -216,11 +370,12 @@ function stopJiggle() {
   jiggling = false;
   board.classList.remove('is-jiggle');
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && jiggling && layer.hidden) stopJiggle(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && jiggling) stopJiggle(); });
 
-/* ---------- mover / redimensionar (admin) ---------- */
+/* ---------- mover / redimensionar (amos) ---------- */
 
 function startEdit(e, wd, mode) {
+  if (wd.state === 'thinking' || e.target.closest('button, input, textarea, label')) return;
   e.preventDefault();
   e.stopPropagation();
   const target = e.currentTarget;
@@ -230,8 +385,8 @@ function startEdit(e, wd, mode) {
   ghost.className = 'ghost';
   let next = { x: wd.x, y: wd.y, w: wd.w, h: wd.h };
   let dragging = false;
-  // quieto un rato sobre la cabecera → modo "tiemblan"
-  const press = mode === 'move' && !jiggling ? setTimeout(startJiggle, LONG_PRESS) : 0;
+  // quieto un rato sobre la cabecera de un widget terminado → modo "tiemblan"
+  const press = mode === 'move' && !jiggling && wd.state === 'done' ? setTimeout(startJiggle, LONG_PRESS) : 0;
 
   const onMove = (ev) => {
     const dx = ev.clientX - start.px, dy = ev.clientY - start.py;
@@ -241,7 +396,6 @@ function startEdit(e, wd, mode) {
       clearTimeout(press);
       world.append(ghost);
       wd.el.classList.add('is-dragging');
-      requestDraw();
     }
     if (mode === 'move') {
       // el widget sigue al dedo libremente; el fantasma muestra dónde encaja
@@ -259,6 +413,7 @@ function startEdit(e, wd, mode) {
       width: `${next.w * GRID - 10}px`, height: `${next.h * GRID - 10}px`,
     });
     ghost.classList.toggle('is-bad', collides(next, wd.id));
+    requestDraw(); // las líneas siguen al widget
   };
 
   const onUp = () => {
@@ -283,13 +438,278 @@ function startEdit(e, wd, mode) {
   target.addEventListener('pointercancel', onUp);
 }
 
-/* ---------- moverse por el lienzo (todos) ---------- */
+/* ============================================================
+   Conectores: arrastrar desde el + o hacer clic en él
+   ============================================================ */
+
+function startLink(e, src) {
+  e.preventDefault();
+  e.stopPropagation();
+  const port = e.currentTarget;
+  port.setPointerCapture(e.pointerId);
+  const b0 = board.getBoundingClientRect();
+  const x0 = e.clientX, y0 = e.clientY;
+  let dragging = false;
+
+  /** El conector de entrada más cercano al puntero (de otro widget, que no esté pensando). */
+  const nearestIn = (px, py) => {
+    let best = null, bestD = SNAP_PORT;
+    for (const t of widgets) {
+      if (t === src || t.state === 'thinking') continue;
+      const p = portPoint(t, 'in');
+      const d = Math.hypot(p.x - px, p.y - py);
+      if (d < bestD) { best = t; bestD = d; }
+    }
+    return best;
+  };
+
+  const onMove = (ev) => {
+    if (!dragging && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+    dragging = true;
+    const px = ev.clientX - b0.left, py = ev.clientY - b0.top;
+    const hit = nearestIn(px, py);
+    tempLine = { a: portPoint(src, 'out'), z: hit ? portPoint(hit, 'in') : { x: px, y: py }, snap: Boolean(hit) };
+    requestDraw();
+  };
+
+  const onUp = (ev) => {
+    port.removeEventListener('pointermove', onMove);
+    port.removeEventListener('pointerup', onUp);
+    port.removeEventListener('pointercancel', onUp);
+    tempLine = null;
+    if (!dragging) { createFollow(src); requestDraw(); return; } // clic: pregunta sobre este widget
+    const t = nearestIn(ev.clientX - b0.left, ev.clientY - b0.top);
+    if (t && !t.inputs.includes(src.id)) {
+      t.inputs.push(src.id);
+      if (t.state === 'done') saveInputs(t);
+      refreshContextNote(t);
+    }
+    requestDraw(); // sin conectar, la línea desaparece
+  };
+
+  port.addEventListener('pointermove', onMove);
+  port.addEventListener('pointerup', onUp);
+  port.addEventListener('pointercancel', onUp);
+}
+
+/** Nota en el borrador: "Contexto: 2 widgets conectados". */
+function refreshContextNote(wd) {
+  const note = wd.el.querySelector('.wctx');
+  if (!note) return;
+  const n = wd.inputs.length;
+  note.hidden = !n;
+  note.textContent = n === 1 ? `Contexto: «${byId(wd.inputs[0])?.data?.title || '1 widget'}»` : `Contexto: ${n} widgets conectados`;
+}
+
+/** Brillo y bloqueo: los que piensan y los widgets conectados a ellos. */
+function refreshGlow() {
+  const busy = new Set();
+  for (const w of widgets) if (w.state === 'thinking') { busy.add(w.id); w.inputs.forEach((i) => busy.add(i)); }
+  for (const w of widgets) w.el.classList.toggle('is-glowing', busy.has(w.id));
+  drawLinks(); // las líneas que llegan a un widget pensando también brillan
+}
+
+/* ============================================================
+   Crear widgets (estado draft) y mandarlos a la IA
+   ============================================================ */
+
+/** Primer lugar libre de w×h lo más cerca posible de (cx, cy) en celdas
+    (por defecto, el centro de la pantalla). */
+function freeSpot(w, h, near) {
+  const cx = near ? near.x : Math.round((board.clientWidth / 2 - pan.x) / GRID - w / 2);
+  const cy = near ? near.y : Math.round((board.clientHeight / 2 - pan.y) / GRID - h / 2);
+  for (let r = 0; r < 80; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const rect = { x: cx + dx, y: cy + dy, w, h };
+        if (!collides(rect)) return rect;
+      }
+    }
+  }
+  return { x: cx, y: cy + 100, w, h };
+}
+
+function createDraft(mode, { near, inputs = [] } = {}) {
+  const { w, h } = MODES[mode].size;
+  const wd = { id: `draft-${++draftSeq}`, type: MODES[mode].endpoint, mode, state: 'draft', inputs, ...freeSpot(w, h, near) };
+  widgets.push(wd);
+  mount(wd, { isNew: true });
+  refreshContextNote(wd);
+  refreshEmpty();
+  focusOn(wd);
+  setTimeout(() => wd.el.querySelector('.m-prompt')?.focus({ preventScroll: true }), 350);
+  return wd;
+}
+
+/** Clic en el + de un widget: pregunta nueva a su derecha, ya conectada. */
+function createFollow(src) {
+  const { h } = MODES.follow.size;
+  createDraft('follow', { near: { x: src.x + src.w + 2, y: src.y + Math.round((src.h - h) / 2) }, inputs: [src.id] });
+}
+
+function bindDraft(wd) {
+  const el = wd.el;
+  const form = el.querySelector('.wform');
+  const err = (text) => { el.querySelector('.m-err').textContent = text; };
+
+  el.querySelector('.m-cancel').addEventListener('click', () => unmount(wd));
+  form.addEventListener('submit', (e) => { e.preventDefault(); submit(wd); });
+  el.querySelector('.m-prompt').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(wd); }
+  });
+
+  const drop = el.querySelector('.m-drop');
+  if (!drop) return;
+  const pick = async (file) => {
+    if (!file) return;
+    err('');
+    if (file.size > MAX_CSV) { err('El CSV supera 2 MB.'); return shake(wd); }
+    const text = await file.text();
+    if (!parseCSV(text).headers.length) { err('Ese archivo está vacío.'); return shake(wd); }
+    wd.file = file;
+    wd.fileText = text;
+    // ya adjunto: ícono de listo + nombre corto (máx. 10 caracteres)
+    drop.querySelector('.m-drop-ico').innerHTML = ATTACHED_ICON;
+    const name = drop.querySelector('.m-file-name');
+    name.textContent = file.name.length > 10 ? `${file.name.slice(0, 10)}…` : file.name;
+    name.title = file.name;
+    drop.querySelector('.m-file-meta').hidden = true;
+    drop.classList.add('has-file');
+  };
+  drop.querySelector('.m-file').addEventListener('change', (e) => pick(e.target.files[0]));
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('is-over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('is-over'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('is-over'); pick(e.dataTransfer.files[0]); });
+}
+
+function shake(wd) {
+  const card = wd.el.querySelector('.wcard');
+  card.classList.remove('is-shaking');
+  void card.offsetWidth; // reinicia la animación
+  card.classList.add('is-shaking');
+}
+
+/** Pregunta que no sirve: mensaje, sacudida y el widget se borra. */
+function reject(wd, message) {
+  wd.state = 'draft';
+  wd.el.className = 'widget is-draft';
+  refreshGlow();
+  requestDraw();
+  wd.el.querySelector('.m-err').textContent = message;
+  shake(wd);
+  setTimeout(() => {
+    wd.el.querySelector('.wcard').classList.add('is-erasing');
+    setTimeout(() => unmount(wd, false), 480);
+  }, 1500);
+}
+
+async function submit(wd) {
+  if (wd.state !== 'draft') return;
+  const m = MODES[wd.mode];
+  const prompt = wd.el.querySelector('.m-prompt').value.trim();
+  if (!prompt) return reject(wd, `${m.fail}: no escribiste nada.`);
+
+  // estado "pensando": carga al centro; él y sus conectados brillan y no se tocan
+  wd.state = 'thinking';
+  wd.el.className = 'widget is-thinking';
+  wd.el.querySelector('.m-err').textContent = '';
+  wd.el.querySelector('.wthinking-note').textContent = wd.file ? 'La IA está leyendo tu archivo'
+    : wd.inputs.length ? 'La IA está leyendo lo conectado' : 'La IA está pensando';
+  refreshGlow();
+  requestDraw();
+
+  const body = { prompt, inputs: wd.inputs, layout: { x: wd.x, y: wd.y, w: wd.w, h: wd.h } };
+  if (wd.file) Object.assign(body, { csv: wd.fileText, filename: wd.file.name });
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=${m.endpoint}`, { method: 'POST', body: JSON.stringify(body) });
+
+  if (!widgets.includes(wd)) return; // lo borraron mientras pensaba
+  if (r.status === 422) return reject(wd, r.data.error || `${m.fail}.`);
+  if (!r.ok) {
+    wd.state = 'draft';
+    wd.el.className = 'widget is-draft';
+    wd.el.querySelector('.m-err').textContent = r.data.error || 'Algo falló. Intenta de nuevo.';
+    refreshGlow();
+    requestDraw();
+    return shake(wd);
+  }
+
+  // estado "terminado": el mismo widget pasa a mostrar la respuesta
+  const done = r.data.widget;
+  const oldId = wd.id;
+  Object.assign(wd, { id: done.id, type: done.type, data: done.data, inputs: done.inputs, state: 'done' });
+  for (const o of widgets) if (o.inputs.includes(oldId)) o.inputs = o.inputs.map((i) => (i === oldId ? wd.id : i));
+  const size = sizeFor(wd.data);
+  const fits = !collides({ x: wd.x, y: wd.y, ...size }, wd.id);
+  const spot = fits ? { x: wd.x, y: wd.y, ...size } : freeSpot(size.w, size.h, { x: wd.x, y: wd.y });
+  const moved = spot.x !== wd.x || spot.y !== wd.y || spot.w !== wd.w || spot.h !== wd.h;
+  Object.assign(wd, spot);
+  render(wd);
+  wd.el.classList.add('is-new');
+  if (moved) saveLayout(wd);
+  refreshGlow();
+  requestDraw();
+  queueFocus(wd);
+}
+
+/** Tamaño según el tipo de respuesta (y, si es tabla, sus columnas y filas). */
+function sizeFor(d) {
+  if (d.kind === 'number') return { w: 7, h: 6 };
+  if (d.kind === 'text') {
+    const n = d.value.length;
+    return n > 300 ? { w: 12, h: 9 } : n > 60 ? { w: 11, h: 7 } : { w: 9, h: 6 };
+  }
+  if (d.kind === 'chart') return { w: clamp((d.labels?.length || 4) * 2 + 4, 10, 22), h: 9 };
+  const cols = d.columns?.length || 1, rows = d.rows?.length || 1;
+  return { w: clamp(cols * 5, 10, 28), h: clamp(Math.ceil(rows * 0.9) + 3, 5, 16) };
+}
+
+/* ============================================================
+   Enfoque: el lienzo se mueve hasta dejar el widget al centro
+   ============================================================ */
+
+let panAnim = 0;
+function focusOn(wd) {
+  const tx = Math.round(board.clientWidth / 2 - (wd.x + wd.w / 2) * GRID);
+  const ty = Math.round(board.clientHeight / 2 - (wd.y + wd.h / 2) * GRID);
+  const from = { ...pan }, t0 = performance.now(), dur = 600;
+  const ease = (t) => 1 - (1 - t) ** 3;
+  cancelAnimationFrame(panAnim);
+  const step = (now) => {
+    const t = Math.min(1, (now - t0) / dur);
+    pan.x = from.x + (tx - from.x) * ease(t);
+    pan.y = from.y + (ty - from.y) * ease(t);
+    draw();
+    if (t < 1) panAnim = requestAnimationFrame(step);
+  };
+  if (document.hidden) { pan.x = tx; pan.y = ty; draw(); } else panAnim = requestAnimationFrame(step);
+}
+
+// los que terminan casi a la vez se enfocan de a uno, con 2 s entre cada uno
+const focusQueue = [];
+let focusBusy = false;
+function queueFocus(wd) {
+  focusQueue.push(wd);
+  if (!focusBusy) nextFocus();
+}
+function nextFocus() {
+  const wd = focusQueue.shift();
+  if (!wd) { focusBusy = false; return; }
+  focusBusy = true;
+  if (widgets.includes(wd)) focusOn(wd);
+  setTimeout(nextFocus, FOCUS_GAP);
+}
+
+/* ============================================================
+   Moverse por el lienzo (todos)
+   ============================================================ */
 
 board.addEventListener('pointerdown', (e) => {
-  // dentro de una tabla se hace scroll/selección; en los controles, su acción
-  if (e.button !== 0 || e.target.closest('.wbody, .wanswer, .whandle, .wx')) return;
+  // en tablas y formularios se hace scroll/escribe; en controles, su acción
+  if (e.button !== 0 || e.target.closest('.wbody, .wform, .whandle, .wx, .wport, .link-hit')) return;
   if (canEdit && e.target.closest('.whead')) return;
   if (jiggling && !e.target.closest('.widget')) stopJiggle();
+  cancelAnimationFrame(panAnim);
   board.setPointerCapture(e.pointerId);
   board.classList.add('is-panning');
   const start = { px: e.clientX, py: e.clientY, x: pan.x, y: pan.y };
@@ -310,9 +730,10 @@ board.addEventListener('pointerdown', (e) => {
 });
 
 board.addEventListener('wheel', (e) => {
-  const body = e.target.closest('.wbody');
+  const body = e.target.closest('.wbody, textarea');
   if (body && (body.scrollHeight > body.clientHeight || body.scrollWidth > body.clientWidth)) return;
   e.preventDefault();
+  cancelAnimationFrame(panAnim);
   pan.x -= e.deltaX;
   pan.y -= e.deltaY;
   requestDraw();
@@ -328,35 +749,14 @@ function frame() {
   pan.y = Math.round(h / 2 - ((minY + maxY) / 2) * GRID);
 }
 
-/** Primer lugar libre de w×h lo más cerca posible del centro de la pantalla. */
-function freeSpot(w, h) {
-  const cx = Math.round((board.clientWidth / 2 - pan.x) / GRID - w / 2);
-  const cy = Math.round((board.clientHeight / 2 - pan.y) / GRID - h / 2);
-  for (let r = 0; r < 80; r++) {
-    for (let dy = -r; dy <= r; dy++) {
-      for (let dx = -r; dx <= r; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        const rect = { x: cx + dx, y: cy + dy, w, h };
-        if (!collides(rect)) return rect;
-      }
-    }
-  }
-  return { x: cx, y: cy + 100, w, h };
-}
-
-/** Tamaño inicial según el tipo de respuesta (y, si es tabla, sus columnas y filas). */
-function sizeFor(d) {
-  if (d.kind === 'number') return { w: 7, h: 6 };
-  if (d.kind === 'text') return { w: 9, h: 6 };
-  const cols = d.columns?.length || 1, rows = d.rows?.length || 1;
-  return { w: clamp(cols * 5, 10, 28), h: clamp(Math.ceil(rows * 0.9) + 3, 5, 16) };
-}
-
 /* ============================================================
-   Dock y herramienta "tabla con IA" (admin)
+   Dock
    ============================================================ */
 
-const TOOLS = [{ key: 'table', label: 'Pregúntale a la IA', open: openTableModal }];
+const TOOLS = [
+  { key: 'table', label: 'Tabla con IA', open: () => createDraft('table') },
+  { key: 'ask', label: 'Pregúntale a la IA', open: () => createDraft('ask') },
+];
 // los chismosos solo tienen un botón: actualizar toda la página
 const VIEWER_TOOLS = [{ key: 'refresh', label: 'Actualizar', open: () => location.reload() }];
 
@@ -376,145 +776,89 @@ function renderDock() {
   }
 }
 
-const layer = $('modal-layer');
-const modal = $('modal');
-let pickedFile = null;
-let pickedText = '';
-let busy = false;
+/* ============================================================
+   Gráfico (una sola serie, un solo tono): barras o líneas
+   ============================================================ */
 
-function resetModal() {
-  modal.className = 'modal';
-  modal.removeAttribute('style');
-  layer.className = 'modal-layer';
-  modal.reset();
-  pickedFile = null;
-  pickedText = '';
-  $('m-drop-ico').innerHTML = FILE_ICON;
-  $('m-file-name').textContent = 'Elige o arrastra un CSV';
-  $('m-file-name').removeAttribute('title');
-  $('m-file-meta').textContent = 'Máx. 2 MB';
-  $('m-file-meta').hidden = false;
-  $('m-drop').classList.remove('has-file');
-  $('m-err').textContent = '';
+const nfShort = new Intl.NumberFormat('es', { maximumFractionDigits: 2 });
+const nfCompact = new Intl.NumberFormat('es', { notation: 'compact', maximumFractionDigits: 1 });
+const fmt = (n) => (Math.abs(n) >= 10000 ? nfCompact.format(n) : nfShort.format(n));
+
+function chartSummary(d) {
+  const i = d.values.indexOf(Math.max(...d.values));
+  return `${d.title}: ${d.labels.length} valores; el mayor es ${d.labels[i]} (${fmt(d.values[i])}${d.unit ? ` ${d.unit}` : ''}).`;
 }
 
-function openTableModal() {
-  resetModal();
-  layer.hidden = false;
-  setTimeout(() => $('m-prompt').focus(), 50);
+/** Marcas "redondas" del eje Y: 0, 50, 100… */
+function niceTicks(min, max, count = 4) {
+  const span = max - min || Math.abs(max) || 1;
+  const raw = span / count, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((st) => st >= raw);
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+  const out = [];
+  for (let v = lo; v <= hi + step / 2; v += step) out.push(Math.round(v / step) * step);
+  return out;
 }
 
-function closeModal() {
-  if (busy) return;
-  layer.hidden = true;
-  resetModal();
+/** Barra con esquinas redondeadas solo en el extremo del dato, apoyada en la base. */
+function barPath(x, y0, w, y1, r) {
+  const up = y1 < y0, h = Math.abs(y1 - y0), rr = Math.min(r, w / 2, h);
+  if (h < 0.5) return '';
+  return up
+    ? `M${x},${y0}V${y1 + rr}Q${x},${y1} ${x + rr},${y1}H${x + w - rr}Q${x + w},${y1} ${x + w},${y1 + rr}V${y0}Z`
+    : `M${x},${y0}V${y1 - rr}Q${x},${y1} ${x + rr},${y1}H${x + w - rr}Q${x + w},${y1} ${x + w},${y1 - rr}V${y0}Z`;
 }
 
-$('m-cancel').addEventListener('click', closeModal);
-layer.addEventListener('pointerdown', (e) => { if (e.target === layer) closeModal(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !layer.hidden) closeModal(); });
+function drawChart(host, d) {
+  const W = host.clientWidth, H = host.clientHeight;
+  if (W < 40 || H < 40) return;
+  const n = d.values.length;
+  const ticks = niceTicks(Math.min(0, ...d.values), Math.max(0, ...d.values));
+  const yMin = ticks[0], yMax = ticks[ticks.length - 1];
+  const left = Math.max(...ticks.map((t) => fmt(t).length)) * 6.5 + 10, right = 10, top = 10, bottom = 22;
+  const pw = W - left - right, ph = H - top - bottom;
+  const y = (v) => top + ph - ((v - yMin) / (yMax - yMin || 1)) * ph;
+  const band = pw / n;
+  const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(pw / 56))));
+  const maxChars = Math.max(3, Math.floor((band * every) / 6.2));
+  const cut = (t) => (t.length > maxChars ? `${t.slice(0, maxChars - 1)}…` : t);
+  const tip = (i) => esc(`${d.labels[i]}: ${fmt(d.values[i])}${d.unit ? ` ${d.unit}` : ''}`);
 
-async function pick(file) {
-  if (!file) return;
-  $('m-err').textContent = '';
-  if (file.size > MAX_CSV) { $('m-err').textContent = 'El CSV supera 2 MB.'; return shake(); }
-  pickedFile = file;
-  pickedText = await file.text();
-  if (!parseCSV(pickedText).headers.length) { $('m-err').textContent = 'Ese archivo está vacío.'; return shake(); }
-  // ya adjunto: ícono de listo + nombre corto (máx. 10 caracteres)
-  $('m-drop-ico').innerHTML = ATTACHED_ICON;
-  $('m-file-name').textContent = file.name.length > 10 ? `${file.name.slice(0, 10)}…` : file.name;
-  $('m-file-name').title = file.name;
-  $('m-file-meta').hidden = true;
-  $('m-drop').classList.add('has-file');
-}
-
-$('m-file').addEventListener('change', (e) => pick(e.target.files[0]));
-$('m-drop').addEventListener('dragover', (e) => { e.preventDefault(); $('m-drop').classList.add('is-over'); });
-$('m-drop').addEventListener('dragleave', () => $('m-drop').classList.remove('is-over'));
-$('m-drop').addEventListener('drop', (e) => {
-  e.preventDefault();
-  $('m-drop').classList.remove('is-over');
-  pick(e.dataTransfer.files[0]);
-});
-
-function shake() {
-  modal.classList.remove('is-shaking');
-  void modal.offsetWidth; // reinicia la animación
-  modal.classList.add('is-shaking');
-}
-
-/** Pedido que no sirve: mensaje, sacudida y el modal se borra. */
-function reject(message) {
-  busy = false;
-  modal.classList.remove('is-loading');
-  $('m-err').textContent = message;
-  shake();
-  setTimeout(() => {
-    modal.classList.add('is-erasing');
-    setTimeout(() => { layer.hidden = true; resetModal(); }, 500);
-  }, 1500);
-}
-
-modal.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  if (busy) return;
-  const prompt = $('m-prompt').value.trim();
-  if (!pickedFile) { $('m-err').textContent = 'Primero elige un archivo CSV.'; return shake(); }
-  if (!prompt) return reject('No sirve tu tabla: no escribiste qué quieres ver.');
-
-  busy = true;
-  $('m-err').textContent = '';
-  modal.classList.add('is-loading');
-
-  // lugar provisorio: se ajusta al tamaño real cuando llega la tabla
-  const guess = freeSpot(10, 8);
-  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=table`, {
-    method: 'POST',
-    body: JSON.stringify({ prompt, csv: pickedText, filename: pickedFile.name, layout: guess }),
-  });
-
-  if (r.status === 422) return reject(r.data.error || 'No sirve tu tabla.');
-  if (!r.ok) {
-    busy = false;
-    modal.classList.remove('is-loading');
-    $('m-err').textContent = r.data.error || 'Algo falló. Intenta de nuevo.';
-    return shake();
+  let marks = '';
+  if (d.chartType === 'line') {
+    const px = (i) => left + band * i + band / 2;
+    marks = `<path class="c-line" d="${d.values.map((v, i) => `${i ? 'L' : 'M'}${px(i).toFixed(1)},${y(v).toFixed(1)}`).join('')}"/>`;
+    marks += d.values.map((v, i) => `<g class="c-hit" data-tip="${tip(i)}">
+      <rect x="${left + band * i}" y="${top}" width="${band}" height="${ph}" fill="transparent"/>
+      <circle class="c-dot" cx="${px(i)}" cy="${y(v)}" r="4"/></g>`).join('');
+  } else {
+    const gap = Math.max(2, band * 0.28), bw = Math.max(2, band - gap);
+    marks = d.values.map((v, i) => `<g class="c-hit" data-tip="${tip(i)}">
+      <rect x="${left + band * i}" y="${top}" width="${band}" height="${ph}" fill="transparent"/>
+      <path class="c-bar" d="${barPath(left + band * i + gap / 2, y(0), bw, y(v), 4)}"/></g>`).join('');
   }
 
-  const wd = r.data.widget;
-  const size = sizeFor(wd.data);
-  Object.assign(wd, freeSpot(size.w, size.h));
-  if (wd.x !== guess.x || wd.y !== guess.y || wd.w !== guess.w || wd.h !== guess.h) saveLayout(wd);
-  morphInto(wd);
-});
-
-/** El modal viaja y se encoge hasta el lugar del widget, y ahí aparece la tabla. */
-function morphInto(wd) {
-  const from = modal.getBoundingClientRect();
-  const boardBox = board.getBoundingClientRect();
-  const to = {
-    left: boardBox.left + pan.x + wd.x * GRID + 5,
-    top: boardBox.top + pan.y + wd.y * GRID + 5,
-    width: wd.w * GRID - 10,
-    height: wd.h * GRID - 10,
-  };
-  Object.assign(modal.style, { position: 'fixed', margin: 0, left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px` });
-  layer.classList.add('is-morphing');
-  modal.classList.add('is-morphing');
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    Object.assign(modal.style, { left: `${to.left}px`, top: `${to.top}px`, width: `${to.width}px`, height: `${to.height}px`, borderRadius: '16px' });
-  }));
-  setTimeout(() => {
-    widgets.push(wd);
-    mount(wd, { isNew: true });
-    refreshEmpty();
-    requestDraw();
-    busy = false;
-    layer.hidden = true;
-    resetModal();
-  }, 520);
+  host.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+    ${ticks.map((t) => `<line class="c-grid${t === 0 ? ' c-zero' : ''}" x1="${left}" x2="${W - right}" y1="${y(t)}" y2="${y(t)}"/>
+      <text class="c-ytick" x="${left - 8}" y="${y(t) + 3.5}" text-anchor="end">${fmt(t)}</text>`).join('')}
+    ${marks}
+    ${d.labels.map((l, i) => (i % every ? '' : `<text class="c-xtick" x="${left + band * i + band / 2}" y="${H - 6}" text-anchor="middle">${esc(cut(l))}</text>`)).join('')}
+  </svg>`;
 }
+
+/* ---------- tooltip compartido: cualquier elemento con data-tip ---------- */
+const tipEl = $('tip');
+document.addEventListener('pointermove', (e) => {
+  const t = e.target.closest?.('[data-tip]');
+  if (!t) { tipEl.hidden = true; return; }
+  tipEl.textContent = t.dataset.tip;
+  tipEl.hidden = false;
+  const pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+  const x = Math.min(innerWidth - w - 8, e.clientX + pad);
+  const yy = e.clientY - h - pad < 8 ? e.clientY + pad : e.clientY - h - pad;
+  tipEl.style.transform = `translate(${x}px, ${yy}px)`;
+});
+document.addEventListener('pointerleave', () => { tipEl.hidden = true; });
 
 /* ============================================================
    Integrantes (amos): qué chismosos ven este dashboard
@@ -607,7 +951,7 @@ $('dash-delete').addEventListener('click', async () => {
 
   show('dash');
   renderDock();
-  widgets = data.widgets;
+  widgets = data.widgets.map((w) => ({ ...w, state: 'done', inputs: w.inputs || [] }));
   widgets.forEach((wd) => mount(wd));
   refreshEmpty();
   frame();

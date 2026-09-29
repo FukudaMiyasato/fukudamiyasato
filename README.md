@@ -454,12 +454,33 @@ Cada dashboard (`/dashboards/?d=<id>`) es un lienzo con rejilla de puntos:
   **Mantener presionado** un widget hace temblar a todos y muestra un botón
   rojo para borrar cada uno; tocar el fondo o `Esc` sale de ese modo.
 - **Chismosos:** solo miran; su dock tiene un único botón: actualizar la página.
-- **Herramienta IA:** CSV (máx. 2 MB) + pregunta. `api/_lib/table-ai.js` se lo
-  pasa a OpenAI, que interpreta los datos y responde con el formato que mejor
-  sirva: **tabla**, **número** destacado o **texto** corto. Si la pregunta está
-  vacía, no tiene sentido o no se puede resolver con ese CSV, el modal dice
-  "No sirve tu tabla", tiembla y se borra. El CSV no se guarda: solo la
-  respuesta. Archivos grandes se recortan a ~120k caracteres.
+- **Widgets con tres estados:** al tocar una herramienta aparece el widget en el
+  lienzo con sus campos (*creación*); al aceptar pasa a *pensando* (carga al
+  centro, no se puede tocar) y luego a *terminado* con la respuesta. Cada uno es
+  independiente: puedes tener varios pensando a la vez. El lienzo se centra en
+  el widget que lanzas y en cada uno que termina (2 s entre uno y otro si
+  terminan juntos). "me arrepentí" lo descarta.
+- **Herramientas de IA** (dock de los amos, `api/_lib/ai.js`):
+  - **Tabla con IA:** pregunta + CSV opcional (máx. 2 MB). Con CSV interpreta
+    esos datos; sin CSV responde con lo que sabe GPT. Elige el formato que
+    mejor sirva: **tabla**, **gráfico** (barras o líneas), **número**
+    destacado o **texto** corto. Archivos grandes se recortan a ~120k caracteres.
+  - **Estrella roja:** solo una pregunta; responde con un párrafo como máximo.
+
+  Si la pregunta está vacía, no tiene sentido o no se puede responder, el
+  widget dice "No sirve tu tabla/pregunta", tiembla y se borra. El CSV no se
+  guarda: solo la respuesta.
+- **Conectores:** cada widget tiene uno a la izquierda (recibe) y uno con **+**
+  a la derecha (da). Arrastrar desde el + dibuja una línea roja; soltarla en el
+  conector izquierdo de otro widget los conecta (si no, desaparece). Un mismo
+  conector recibe varias líneas. Un **clic** en el + crea al lado un widget-
+  pregunta ya conectado ("pregunta porfa"): la IA responde usando como contexto
+  todos los widgets conectados a su izquierda. Mientras piensa, las líneas y
+  esos widgets brillan y quedan bloqueados. Clic sobre una línea la quita.
+  Las conexiones se guardan en `inputs` de cada widget.
+- **API keys de OpenAI:** `OPENAI_API_KEY` ("YO") y `OPENAI_API_KEY2` ("LVL").
+  En *Panel → Configuración* el amo supremo elige cuál va primero; si esa falla
+  por saldo, key inválida o límite, se reintenta sola con la otra.
 - **Crear dashboards:** en el panel, la tarjeta **+ Nuevo dashboard** abre un
   modal con título e ícono opcional (una imagen; se recorta a 128×128). Sin
   imagen, el ícono son las iniciales del título. Se borran con la papelera de

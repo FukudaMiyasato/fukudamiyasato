@@ -403,3 +403,32 @@
 .range:focus-visible { outline: none; }
 .range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 8px var(--red-glow); }
 .range-marks { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--text-faint); }
+
+/* selector de dos opciones (API key) */
+.cfg-card + .cfg-card { margin-top: 16px; }
+.seg {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+  margin-top: 18px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+}
+.seg button {
+  min-width: 130px;
+  display: grid;
+  gap: 2px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  color: var(--text-dim);
+  text-align: left;
+  transition: background .2s, color .2s;
+}
+.seg button b { font-size: 15px; font-weight: 800; letter-spacing: .04em; }
+.seg button small { font-size: 11px; color: var(--text-faint); }
+.seg button[aria-checked="true"] { background: var(--red); color: #fff; }
+.seg button[aria-checked="true"] small { color: rgba(255, 255, 255, .8); }
+.seg button:not([aria-checked="true"]):hover { background: var(--panel-2); color: #fff; }

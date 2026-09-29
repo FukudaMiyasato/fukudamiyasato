@@ -8,19 +8,25 @@
      POST   { name, image? }                        → crea un dashboard
      DELETE ?d=<id>                                 → borra el dashboard (no los fijos)
      POST   ?d=<id>&widget=table
-            { prompt, csv, filename, layout }       → OpenAI responde (tabla, número o
-                                                      texto) y se guarda como widget
+            { prompt, csv?, filename?, inputs?, layout }
+                                                    → OpenAI responde (tabla, gráfico, número o
+                                                      texto) y se guarda como widget. Sin CSV
+                                                      responde con lo que sabe; `inputs` (widgets
+                                                      conectados) se le pasan como contexto
+     POST   ?d=<id>&widget=ask { prompt, inputs?, layout }
+                                                    → un párrafo como máximo (estrella)
                                                       422 { error } si el pedido no sirve
-     PATCH  ?d=<id>  { widget, x, y, w, h }         → mueve / redimensiona
+     PATCH  ?d=<id>  { widget, x?, y?, w?, h?, inputs? }
+                                                    → mueve / redimensiona / conecta
      DELETE ?d=<id>&widget=<widgetId>               → borra el widget
    ============================================================ */
 
 import { currentUser, canSeeDashboard, forgetDashboard, isAmo, listPerms } from './_lib/auth.js';
 import {
   listDashboards, publicDash, createDashboard, deleteDashboard,
-  listWidgets, createWidget, updateWidgetLayout, deleteWidget,
+  listWidgets, createWidget, updateWidget, deleteWidget,
 } from './_lib/dashboards.js';
-import { tableFromCsv, TableError } from './_lib/table-ai.js';
+import { askVisual, askShort, AIError } from './_lib/ai.js';
 import { getConfig } from './_lib/config.js';
 
 export const maxDuration = 60; // OpenAI puede tardar
@@ -41,7 +47,30 @@ function cleanLayout(b) {
 const IMAGE_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 const MAX_IMAGE_CHARS = 120_000;
 
-const publicWidget = (w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data });
+const publicWidget = (w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [] });
+
+/** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
+function cleanInputs(v, widgets, selfId) {
+  if (!Array.isArray(v)) return [];
+  const ids = new Set(widgets.map((w) => w.id));
+  return [...new Set(v.map(String))].filter((i) => i !== selfId && ids.has(i)).slice(0, 20);
+}
+
+/** Lo que muestran los widgets conectados, en texto, para dárselo a la IA. */
+function contextFrom(list) {
+  return list.map((w) => {
+    const d = w.data || {};
+    let body;
+    if (d.kind === 'table') {
+      body = [d.columns, ...(d.rows || []).slice(0, 200)].map((r) => r.join(' | ')).join('\n');
+    } else if (d.kind === 'chart') {
+      body = d.labels.map((l, i) => `${l}: ${d.values[i]}${d.unit ? ` ${d.unit}` : ''}`).join('\n');
+    } else {
+      body = [d.value, d.detail].filter(Boolean).join('\n');
+    }
+    return `### ${d.title || 'Widget'}${d.prompt ? `\n(Pregunta original: ${d.prompt})` : ''}\n${body}`;
+  }).join('\n\n');
+}
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -92,37 +121,54 @@ export default async function handler(req, res) {
       return res.status(201).json({ dashboard: publicDash(await createDashboard(name, image)) });
     }
 
-    /* ---------- widget tabla: CSV + pedido → OpenAI ---------- */
-    if (req.method === 'POST' && dash && req.query?.widget === 'table') {
+    /* ---------- widgets de IA ---------- */
+    const tool = req.query?.widget;
+    if (req.method === 'POST' && dash && (tool === 'table' || tool === 'ask')) {
       const prompt = String(req.body?.prompt || '').trim().slice(0, 2000);
-      const csv = String(req.body?.csv || '');
-      const filename = String(req.body?.filename || 'datos.csv').slice(0, 120);
-      if (!csv.trim()) return res.status(422).json({ error: 'No sirve tu tabla: falta el archivo CSV.' });
-      if (Buffer.byteLength(csv) > MAX_CSV_BYTES) return res.status(413).json({ error: 'El CSV supera 2 MB.' });
-      if (!prompt) return res.status(422).json({ error: 'No sirve tu tabla: no escribiste qué quieres ver.' });
+      if (!prompt) return res.status(422).json({ error: 'No sirve tu pregunta: no escribiste nada.' });
 
-      let table;
+      const all = await listWidgets(dash.id);
+      const inputs = cleanInputs(req.body?.inputs, all, null);
+      const context = contextFrom(all.filter((w) => inputs.includes(w.id)));
+
+      let answer, source = '';
       try {
-        table = await tableFromCsv({ csv, filename, prompt });
+        if (tool === 'ask') {
+          answer = await askShort({ prompt, context });
+        } else {
+          // tabla con IA: el CSV es opcional; sin archivo, GPT responde con lo que sabe
+          const csv = String(req.body?.csv || '');
+          if (Buffer.byteLength(csv) > MAX_CSV_BYTES) return res.status(413).json({ error: 'El CSV supera 2 MB.' });
+          source = csv.trim() ? String(req.body?.filename || 'datos.csv').slice(0, 120) : '';
+          answer = await askVisual({ prompt, csv, filename: source, context });
+        }
       } catch (err) {
-        if (err instanceof TableError) return res.status(422).json({ error: `No sirve tu tabla: ${err.message}` });
+        if (err instanceof AIError) {
+          return res.status(422).json({ error: `${tool === 'ask' ? 'No sirve tu pregunta' : 'No sirve tu tabla'}: ${err.message}` });
+        }
         throw err;
       }
 
-      const data = { ...table, prompt, source: filename };
+      const data = { ...answer, prompt, source };
       while (JSON.stringify(data).length > MAX_DATA_CHARS && data.rows?.length > 1) {
         data.rows = data.rows.slice(0, Math.floor(data.rows.length * 0.8));
         data.cut = true;
       }
-      const widget = await createWidget(dash.id, 'table', cleanLayout(req.body?.layout), data);
+      const widget = await createWidget(dash.id, tool, cleanLayout(req.body?.layout), data, inputs);
       return res.status(201).json({ widget: publicWidget(widget) });
     }
 
-    /* ---------- mover / redimensionar ---------- */
+    /* ---------- mover / redimensionar / conectar ---------- */
     if (req.method === 'PATCH' && dash) {
       const wid = String(req.body?.widget || '');
-      if (!(await updateWidgetLayout(dash.id, wid, cleanLayout(req.body)))) return res.status(404).json({ error: 'Widget no encontrado.' });
-      return res.status(200).json({ ok: true });
+      const all = await listWidgets(dash.id);
+      const current = all.find((w) => w.id === wid);
+      if (!current) return res.status(404).json({ error: 'Widget no encontrado.' });
+      const patch = {};
+      if (req.body?.x != null) Object.assign(patch, cleanLayout({ ...current, ...req.body }));
+      if (req.body?.inputs != null) patch.inputs = cleanInputs(req.body.inputs, all, wid);
+      await updateWidget(dash.id, wid, patch);
+      return res.status(200).json({ ok: true, inputs: patch.inputs });
     }
 
     /* ---------- borrar ---------- */

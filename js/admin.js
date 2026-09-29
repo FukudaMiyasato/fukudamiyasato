@@ -363,7 +363,34 @@ async function loadConfig() {
   if (!ok) { $('fe-msg').textContent = data.error || 'No se pudo cargar.'; return; }
   feRange.value = data.config.fisheye;
   paintPreview();
+  paintAiKey(data.config.aiKey, data.keys);
 }
+
+/* ---------- qué API key de OpenAI va primero ---------- */
+
+const KEY_ENV = { yo: 'OPENAI_API_KEY', lvl: 'OPENAI_API_KEY2' };
+
+function paintAiKey(active, keys) {
+  document.querySelectorAll('#ai-key [data-key]').forEach((b) => {
+    b.setAttribute('aria-checked', String(b.dataset.key === active));
+  });
+  if (keys) {
+    for (const [k, loaded] of Object.entries(keys)) {
+      document.querySelector(`[data-key-status="${k}"]`).textContent = loaded ? KEY_ENV[k] : `falta ${KEY_ENV[k]}`;
+    }
+  }
+}
+
+document.querySelectorAll('#ai-key [data-key]').forEach((b) => b.addEventListener('click', async () => {
+  const prev = document.querySelector('#ai-key [aria-checked="true"]')?.dataset.key;
+  paintAiKey(b.dataset.key);
+  $('ai-key-msg').classList.remove('err');
+  $('ai-key-msg').textContent = 'Guardando…';
+  const r = await api('/api/config', { method: 'PUT', body: JSON.stringify({ aiKey: b.dataset.key }) });
+  if (!r.ok) paintAiKey(prev);
+  $('ai-key-msg').textContent = r.ok ? `Listo: primero ${b.querySelector('b').textContent}, y si falla, la otra.` : (r.data.error || 'No se pudo guardar.');
+  $('ai-key-msg').classList.toggle('err', !r.ok);
+}));
 
 feRange.addEventListener('input', paintPreview);
 feRange.addEventListener('change', async () => {
