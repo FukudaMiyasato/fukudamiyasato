@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<title>Kofres — Política de privacidad</title>
+<meta name="description" content="Política de privacidad de Kofres: tus fotos se guardan solo en tu dispositivo.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08080a">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/app-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/info.css">
+</head>
+<body data-meta="k.meta" data-dict="kofres">
+
+<a class="back-btn" href="/privacy/" aria-label="Volver">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.5 5.5L8 12l6.5 6.5"/>
+  </svg>
+</a>
+
+<!-- selector de idioma: el menú lo arma js/i18n.js -->
+<div class="lang">
+  <button class="lang-btn" id="lang-btn" type="button" aria-haspopup="true"
+          aria-expanded="false" aria-controls="lang-menu" data-i18n-aria="lang" aria-label="Idioma">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>
+    </svg>
+    <span id="lang-current">Español</span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+  <ul class="lang-menu" id="lang-menu" role="menu" hidden></ul>
+</div>
+
+<main class="info">
+
+  <header class="hero">
+    <p class="kicker" data-i18n="k.kicker">Política de privacidad</p>
+    <h1>Kofres</h1>
+    <p class="muted policy-date" data-i18n="k.updated"></p>
+  </header>
+
+  <article class="policy">
+    <p class="policy-summary" data-i18n="k.summary"></p>
+    <h2 data-i18n="k.h1"></h2>
+    <p data-i18n="k.p1"></p>
+    <h2 data-i18n="k.h2"></h2>
+    <p data-i18n="k.p2"></p>
+    <h2 data-i18n="k.h3"></h2>
+    <p data-i18n="k.p3"></p>
+    <h2 data-i18n="k.h4"></h2>
+    <p data-i18n="k.p4"></p>
+    <h2 data-i18n="k.h5"></h2>
+    <p data-i18n="k.p5"></p>
+    <h2 data-i18n="k.h6"></h2>
+    <p data-i18n="k.p6"></p>
+    <h2 data-i18n="k.h7"></h2>
+    <p data-i18n="k.p7"></p>
+    <h2 data-i18n="k.h8"></h2>
+    <p data-i18n="k.p8"></p>
+    <h2 data-i18n="k.h9"></h2>
+    <p data-i18n="k.p9"></p>
+    <p><a href="#" data-email data-email-text></a></p>
+  </article>
+
+  <footer class="info-foot">
+    <span>&copy; <span data-year>2026</span> fukudamiyasato · <span data-i18n="foot.rights">Todos los derechos reservados.</span></span>
+    <nav>
+      <a href="/" data-i18n="foot.home">Inicio</a>
+      <a href="/support/" data-i18n="foot.support">Soporte</a>
+      <a href="/marketing/" data-i18n="foot.marketing">Apps</a>
+      <a href="/privacy/" data-i18n="foot.privacy">Privacidad</a>
+    </nav>
+  </footer>
+</main>
+
+<script type="module" src="/js/i18n.js"></script>
+</body>
+</html>

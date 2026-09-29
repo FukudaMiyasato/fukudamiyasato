@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<title>Políticas de privacidad — fukudamiyasato</title>
+<meta name="description" content="Políticas de privacidad de las apps de fukudamiyasato.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08080a">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/app-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/info.css">
+</head>
+<body data-meta="p.meta">
+
+<a class="back-btn" href="/" aria-label="Volver al inicio" data-i18n-aria="back">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.5 5.5L8 12l6.5 6.5"/>
+  </svg>
+</a>
+
+<!-- selector de idioma: el menú lo arma js/i18n.js -->
+<div class="lang">
+  <button class="lang-btn" id="lang-btn" type="button" aria-haspopup="true"
+          aria-expanded="false" aria-controls="lang-menu" data-i18n-aria="lang" aria-label="Idioma">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>
+    </svg>
+    <span id="lang-current">Español</span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+  <ul class="lang-menu" id="lang-menu" role="menu" hidden></ul>
+</div>
+
+<main class="info">
+
+  <header class="hero">
+    <p class="kicker" data-i18n="p.kicker">Privacidad</p>
+    <h1 data-i18n="p.title">Políticas de privacidad</h1>
+    <p class="lead" data-i18n="p.lead"></p>
+  </header>
+
+  <!-- una línea por app; agrega aquí las siguientes -->
+  <ul class="plain-list">
+    <li><a href="/privacy/kofres/">Kofres</a></li>
+  </ul>
+
+  <footer class="info-foot">
+    <span>&copy; <span data-year>2026</span> fukudamiyasato · <span data-i18n="foot.rights">Todos los derechos reservados.</span></span>
+    <nav>
+      <a href="/" data-i18n="foot.home">Inicio</a>
+      <a href="/support/" data-i18n="foot.support">Soporte</a>
+      <a href="/marketing/" data-i18n="foot.marketing">Apps</a>
+      <a href="/privacy/" data-i18n="foot.privacy">Privacidad</a>
+    </nav>
+  </footer>
+</main>
+
+<script type="module" src="/js/i18n.js"></script>
+</body>
+</html>

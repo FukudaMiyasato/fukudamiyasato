@@ -274,3 +274,22 @@ a.card:hover { border-color: var(--red-hot); transform: translateY(-2px); }
   .lang-btn { height: 42px; padding: 0 14px; }
   .store { flex: 1 1 180px; }
 }
+
+/* ---------- privacidad ---------- */
+.plain-list { margin: 36px 0 0; padding: 0; list-style: none; }
+.plain-list li { padding: 6px 0; font-size: 16px; }
+.plain-list a { color: var(--text-dim); border-bottom: 1px solid var(--line); transition: color .2s, border-color .2s; }
+.plain-list a:hover { color: #fff; border-color: var(--red-hot); }
+
+.policy-date { margin: 16px 0 0; }
+.policy { max-width: 70ch; padding-top: 36px; }
+.policy h2 { margin: 36px 0 10px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.policy p { margin: 0; color: #c5c5cf; line-height: 1.75; }
+.policy a { color: var(--red-hot); }
+.policy-summary {
+  padding: 20px 22px;
+  border-left: 2px solid var(--red);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--panel);
+  color: var(--text) !important;
+}

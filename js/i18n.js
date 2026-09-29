@@ -28,6 +28,12 @@ const T = {
     'foot.support': 'Soporte',
     'foot.marketing': 'Apps',
     'foot.home': 'Inicio',
+    'foot.privacy': 'Privacidad',
+
+    'p.meta': 'Políticas de privacidad — fukudamiyasato',
+    'p.kicker': 'Privacidad',
+    'p.title': 'Políticas de privacidad',
+    'p.lead': 'Elige una app para ver su política de privacidad.',
 
     's.meta': 'Soporte — fukudamiyasato',
     's.kicker': 'Soporte',
@@ -94,6 +100,12 @@ const T = {
     'foot.support': 'サポート',
     'foot.marketing': 'アプリ',
     'foot.home': 'ホーム',
+    'foot.privacy': 'プライバシー',
+
+    'p.meta': 'プライバシーポリシー — fukudamiyasato',
+    'p.kicker': 'プライバシー',
+    'p.title': 'プライバシーポリシー',
+    'p.lead': 'アプリを選んでプライバシーポリシーをご覧ください。',
 
     's.meta': 'サポート — fukudamiyasato',
     's.kicker': 'サポート',
@@ -160,6 +172,12 @@ const T = {
     'foot.support': 'Support',
     'foot.marketing': 'Apps',
     'foot.home': 'Home',
+    'foot.privacy': 'Privacy',
+
+    'p.meta': 'Privacy policies — fukudamiyasato',
+    'p.kicker': 'Privacy',
+    'p.title': 'Privacy policies',
+    'p.lead': 'Choose an app to read its privacy policy.',
 
     's.meta': 'Support — fukudamiyasato',
     's.kicker': 'Support',
@@ -226,6 +244,12 @@ const T = {
     'foot.support': 'Assistenza',
     'foot.marketing': 'App',
     'foot.home': 'Home',
+    'foot.privacy': 'Privacy',
+
+    'p.meta': 'Informative sulla privacy — fukudamiyasato',
+    'p.kicker': 'Privacy',
+    'p.title': 'Informative sulla privacy',
+    'p.lead': 'Scegli un’app per leggere la sua informativa sulla privacy.',
 
     's.meta': 'Assistenza — fukudamiyasato',
     's.kicker': 'Assistenza',
@@ -292,6 +316,12 @@ const T = {
     'foot.support': 'Assistance',
     'foot.marketing': 'Apps',
     'foot.home': 'Accueil',
+    'foot.privacy': 'Confidentialité',
+
+    'p.meta': 'Politiques de confidentialité — fukudamiyasato',
+    'p.kicker': 'Confidentialité',
+    'p.title': 'Politiques de confidentialité',
+    'p.lead': 'Choisissez une app pour consulter sa politique de confidentialité.',
 
     's.meta': 'Assistance — fukudamiyasato',
     's.kicker': 'Assistance',
@@ -358,6 +388,12 @@ const T = {
     'foot.support': 'Support',
     'foot.marketing': 'Apps',
     'foot.home': 'Start',
+    'foot.privacy': 'Datenschutz',
+
+    'p.meta': 'Datenschutzerklärungen — fukudamiyasato',
+    'p.kicker': 'Datenschutz',
+    'p.title': 'Datenschutzerklärungen',
+    'p.lead': 'Wähle eine App, um ihre Datenschutzerklärung zu lesen.',
 
     's.meta': 'Support — fukudamiyasato',
     's.kicker': 'Support',
@@ -430,7 +466,7 @@ function store(get, value) {
 
 function initialLang() {
   const q = new URLSearchParams(location.search).get('lang');
-  if (codes.includes(q)) return q;
+  if (codes.includes(q)) { store(false, q); return q; }
   const saved = store(true);
   if (codes.includes(saved)) return saved;
   for (const l of navigator.languages ?? [navigator.language]) {
@@ -438,6 +474,14 @@ function initialLang() {
     if (codes.includes(c)) return c;
   }
   return 'es';
+}
+
+/* Textos propios de una página (p. ej. la política de Kofres): se cargan
+   de /js/i18n-<nombre>.js cuando el <body> trae data-dict="<nombre>". */
+const extra = document.body.dataset.dict;
+if (extra) {
+  const mod = await import(`./i18n-${extra}.js`);
+  for (const c of Object.keys(T)) Object.assign(T[c], mod.default[c]);
 }
 
 function apply(lang) {
