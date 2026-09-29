@@ -213,6 +213,17 @@
 }
 .ghost.is-bad { border-color: var(--text-faint); background: rgba(255, 255, 255, .03); }
 
+/* derecha de la cabecera: correo + acciones arriba, integrantes debajo */
+.board-side {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+.board-side .dash-user { margin-left: 0; }
+
 /* ---------- integrantes (amos) ---------- */
 .members { position: relative; }
 .members-btn {

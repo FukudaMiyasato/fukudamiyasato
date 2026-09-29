@@ -84,6 +84,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><circle cx="12" cy="10.5" r="2.2"/><path d="M8.6 16a3.8 3.8 0 0 1 6.8 0"/></svg>
         Permisos
       </button>
+      <!-- solo el amo supremo -->
+      <button type="button" data-tab="config" id="tab-config" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+        Configuración
+      </button>
     </nav>
     <div class="admin-me">
       <img alt="" data-user-pic>
@@ -128,6 +133,35 @@
           <span role="columnheader"></span>
         </div>
         <div id="perm-list"></div>
+      </div>
+    </section>
+    <section data-panel="config" hidden>
+      <header class="admin-head">
+        <h1>Configuración</h1>
+        <p>Lo que cambies aquí aplica a todos los dashboards.</p>
+      </header>
+
+      <div class="cfg-card">
+        <div class="cfg-row">
+          <div>
+            <h2>Ojo de pez</h2>
+            <p>Cuánto crece lo que está al centro del lienzo. En 0 no hay efecto; en negativo es al revés: el centro se achica.</p>
+          </div>
+          <output class="cfg-value" id="fe-value" for="fe-range">7</output>
+        </div>
+
+        <div class="fe-preview" id="fe-preview" aria-hidden="true">
+          <canvas id="fe-dots"></canvas>
+          <div class="fe-card" style="--x:.22;--y:.30;--w:150px;--h:84px"></div>
+          <div class="fe-card" style="--x:.52;--y:.52;--w:190px;--h:110px"></div>
+          <div class="fe-card" style="--x:.82;--y:.28;--w:140px;--h:80px"></div>
+          <div class="fe-card" style="--x:.78;--y:.80;--w:160px;--h:70px"></div>
+          <div class="fe-card" style="--x:.20;--y:.78;--w:130px;--h:74px"></div>
+        </div>
+
+        <input class="range" type="range" id="fe-range" min="-20" max="20" step="1" value="7" aria-label="Intensidad del ojo de pez">
+        <div class="range-marks"><span>−20 · al revés</span><span>0 · sin efecto</span><span>20 · máximo</span></div>
+        <p class="form-msg" id="fe-msg" role="status"></p>
       </div>
     </section>
   </main>

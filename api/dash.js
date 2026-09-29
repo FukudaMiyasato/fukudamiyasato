@@ -2,7 +2,7 @@
    /api/dash — dashboards y los widgets de su lienzo
    ------------------------------------------------------------
    Cualquiera con acceso al dashboard:
-     GET    ?d=<id>                → { dashboard, widgets, canEdit, members? }
+     GET    ?d=<id>                → { dashboard, widgets, canEdit, config, members? }
    Solo amos:
      GET    ?d=<id>&members=1      → chismosos y si tienen este dashboard activo
      POST   { name, image? }                        → crea un dashboard
@@ -21,6 +21,7 @@ import {
   listWidgets, createWidget, updateWidgetLayout, deleteWidget,
 } from './_lib/dashboards.js';
 import { tableFromCsv, TableError } from './_lib/table-ai.js';
+import { getConfig } from './_lib/config.js';
 
 export const maxDuration = 60; // OpenAI puede tardar
 
@@ -73,6 +74,7 @@ export default async function handler(req, res) {
         dashboard: publicDash(dash),
         widgets: widgets.map(publicWidget),
         canEdit,
+        config: await getConfig(),
         members: canEdit ? chismosos.filter((p) => p.dashboards.includes(dash.id)).length : undefined,
       });
     }

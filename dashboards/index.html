@@ -44,7 +44,17 @@
         <p class="kicker">Dashboard</p>
         <h1 id="dash-title"></h1>
       </div>
-      <div class="dash-user">
+      <!-- arriba: correo y acciones · abajo: integrantes (amos) -->
+      <div class="board-side">
+        <div class="dash-user">
+          <small data-user-email></small>
+          <button class="icon-btn" id="dash-delete" type="button" aria-label="Eliminar dashboard" title="Eliminar dashboard" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/></svg>
+          </button>
+          <button class="icon-btn" data-logout type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
+          </button>
+        </div>
         <div class="members" id="members" hidden>
           <button class="members-btn" id="members-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="members-panel">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c0-3.2 2.7-5.3 6-5.3s6 2.1 6 5.3"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 6"/><path d="M17.5 14.5c2 .6 3.5 2.3 3.5 5"/></svg>
@@ -55,13 +65,6 @@
             <ul id="members-list"></ul>
           </div>
         </div>
-        <small data-user-email></small>
-        <button class="icon-btn" id="dash-delete" type="button" aria-label="Eliminar dashboard" title="Eliminar dashboard" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/></svg>
-        </button>
-        <button class="icon-btn" data-logout type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
-        </button>
       </div>
     </div>
   </header>

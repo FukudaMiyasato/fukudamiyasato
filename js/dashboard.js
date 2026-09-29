@@ -20,12 +20,13 @@
 
 import { dashIconHTML, TOOL_ICONS, ATTACHED_ICON } from './dashboard-icons.js';
 import { parseCSV } from './csv.js';
+import { drawDots, fitCanvas, lensTransform } from './fisheye.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('d') || '';
 const GRID = 32;              // px por celda
 const MIN_W = 4, MIN_H = 3;   // tamaño mínimo de un widget, en celdas
-const FISHEYE = 0.07;         // cuánto más grande al centro (7%) y más chico en los bordes
+let fisheye = 0.07;           // intensidad del ojo de pez; la define el amo supremo en Configuración
 const MAX_CSV = 2 * 1024 * 1024;
 const LONG_PRESS = 520;       // ms presionando para que tiemblen
 const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
@@ -71,52 +72,19 @@ document.querySelectorAll('[data-logout]').forEach((b) => b.addEventListener('cl
 let raf = 0;
 const requestDraw = () => { if (!raf) raf = requestAnimationFrame(draw); };
 
-/** 1 al centro de la pantalla → 0 en las esquinas. */
-function lens(sx, sy, w, h) {
-  const dx = (sx - w / 2) / (w / 2), dy = (sy - h / 2) / (h / 2);
-  return clamp(1 - (dx * dx + dy * dy) / 2, 0, 1);
-}
-
-/** Escala de la lente según lens(): 1+FISHEYE al centro, 1−FISHEYE en las esquinas. */
-const zoomAt = (f) => 1 - FISHEYE + 2 * FISHEYE * f;
-
 function draw() {
   raf = 0;
-  const w = board.clientWidth, h = board.clientHeight, dpr = devicePixelRatio || 1;
-  if (dots.width !== Math.round(w * dpr) || dots.height !== Math.round(h * dpr)) {
-    dots.width = Math.round(w * dpr);
-    dots.height = Math.round(h * dpr);
-  }
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-
-  const ox = ((pan.x % GRID) + GRID) % GRID, oy = ((pan.y % GRID) + GRID) % GRID;
-  for (let y = oy - GRID; y <= h + GRID; y += GRID) {
-    for (let x = ox - GRID; x <= w + GRID; x += GRID) {
-      const f = lens(x, y, w, h);
-      const s = zoomAt(f);
-      // el punto se aleja del centro en la misma proporción que crece (lente)
-      const px = w / 2 + (x - w / 2) * s, py = h / 2 + (y - h / 2) * s;
-      ctx.globalAlpha = 0.07 + 0.2 * f;
-      ctx.fillStyle = '#e8e8ee';
-      ctx.beginPath();
-      ctx.arc(px, py, 0.8 + 0.7 * f, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.globalAlpha = 1;
+  const { w, h } = fitCanvas(dots);
+  drawDots(ctx, w, h, { panX: pan.x, panY: pan.y, grid: GRID, amount: fisheye });
 
   world.style.transform = `translate(${pan.x}px, ${pan.y}px)`;
 
-  // ojo de pez en los widgets: crecen hacia el centro y se corren hacia afuera
-  // en la misma proporción, así los vecinos no se enciman
+  // ojo de pez en los widgets (la tarjeta, su asa y su botón rojo, juntos)
   for (const wd of widgets) {
-    const card = wd.el.querySelector('.wbox');
-    if (wd.el.classList.contains('is-dragging')) { card.style.transform = ''; continue; }
+    const box = wd.el.querySelector('.wbox');
+    if (wd.el.classList.contains('is-dragging')) { box.style.transform = ''; continue; }
     const cx = pan.x + (wd.x + wd.w / 2) * GRID, cy = pan.y + (wd.y + wd.h / 2) * GRID;
-    const s = zoomAt(lens(clamp(cx, -w, 2 * w), clamp(cy, -h, 2 * h), w, h));
-    const dx = (cx - w / 2) * (s - 1), dy = (cy - h / 2) * (s - 1);
-    card.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) scale(${s.toFixed(4)})`;
+    box.style.transform = lensTransform(cx, cy, w, h, fisheye);
   }
 }
 
@@ -625,6 +593,7 @@ $('dash-delete').addEventListener('click', async () => {
   }
 
   canEdit = data.canEdit;
+  fisheye = (data.config?.fisheye ?? 7) / 100;
   document.body.classList.toggle('can-edit', canEdit);
   document.title = `${data.dashboard.name} — fukudamiyasato`;
   $('dash-title').textContent = data.dashboard.name;

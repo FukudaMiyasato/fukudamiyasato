@@ -10,6 +10,7 @@
    ============================================================ */
 
 import { dashIconHTML } from './dashboard-icons.js';
+import { drawDots, fitCanvas, lensTransform } from './fisheye.js';
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = ['loading', 'login', 'denied', 'nodash', 'picker', 'admin'];
@@ -58,6 +59,7 @@ function enter(user) {
 
   if (isAmo(user.role)) {
     show('admin');
+    $('tab-config').hidden = user.role !== 'supremo';
     const grid = $('dash-grid');
     grid.innerHTML = '';
     // primera tarjeta: crear
@@ -85,6 +87,7 @@ document.querySelectorAll('.admin-nav [data-tab]').forEach((b) => b.addEventList
   document.querySelectorAll('.admin-nav [data-tab]').forEach((x) => x.classList.toggle('is-active', x === b));
   document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== b.dataset.tab; });
   if (b.dataset.tab === 'perms') loadPerms();
+  if (b.dataset.tab === 'config') loadConfig();
 }));
 
 /* ============================================================
@@ -335,6 +338,42 @@ $('perm-form').addEventListener('submit', async (e) => {
     : `${email} ahora es ${ROLE_LABEL[role]}.`);
   loadPerms();
 });
+
+/* ============================================================
+   Configuración (amo supremo): intensidad del ojo de pez
+   ============================================================ */
+
+const feRange = $('fe-range');
+
+/** Vista previa: la misma rejilla y el mismo efecto que el lienzo real. */
+function paintPreview() {
+  const amount = Number(feRange.value) / 100;
+  const v = Number(feRange.value);
+  $('fe-value').textContent = v > 0 ? `+${v}` : v < 0 ? `−${-v}` : '0';
+  const { w, h } = fitCanvas($('fe-dots'));
+  drawDots($('fe-dots').getContext('2d'), w, h, { amount, grid: 26 });
+  for (const card of $('fe-preview').querySelectorAll('.fe-card')) {
+    const cx = card.offsetLeft + card.offsetWidth / 2, cy = card.offsetTop + card.offsetHeight / 2;
+    card.style.transform = lensTransform(cx, cy, w, h, amount);
+  }
+}
+
+async function loadConfig() {
+  const { ok, data } = await api('/api/config');
+  if (!ok) { $('fe-msg').textContent = data.error || 'No se pudo cargar.'; return; }
+  feRange.value = data.config.fisheye;
+  paintPreview();
+}
+
+feRange.addEventListener('input', paintPreview);
+feRange.addEventListener('change', async () => {
+  $('fe-msg').textContent = 'Guardando…';
+  $('fe-msg').classList.remove('err');
+  const r = await api('/api/config', { method: 'PUT', body: JSON.stringify({ fisheye: Number(feRange.value) }) });
+  $('fe-msg').textContent = r.ok ? 'Guardado. Se aplica al abrir o actualizar cada dashboard.' : (r.data.error || 'No se pudo guardar.');
+  $('fe-msg').classList.toggle('err', !r.ok);
+});
+new ResizeObserver(() => { if (!$('fe-preview').closest('[hidden]')) paintPreview(); }).observe($('fe-preview'));
 
 /* ---------- arranque ---------- */
 
