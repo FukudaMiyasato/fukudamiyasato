@@ -10,6 +10,9 @@
        text    → un dato corto en palabras
    askShort({ prompt, context? })            — botón de la estrella
      Una respuesta en texto, de un párrafo como máximo.
+   askFollow({ prompt, context })            — clic en el + de un widget
+     Más libre: un párrafo que interpreta la cadena de widgets conectados
+     junto con la pregunta (puede inferir, relacionar o sugerir).
 
    `context` es el contenido de los widgets conectados (por su conector
    izquierdo): la IA lo usa como fuente principal.
@@ -49,7 +52,7 @@ async function keysInOrder() {
     .filter((k) => k.key);
 }
 
-async function callOpenAI(system, user, schema) {
+async function callOpenAI(system, user, schema, { temperature = 0 } = {}) {
   const keys = await keysInOrder();
   if (!keys.length) throw new Error('No hay API key de OpenAI: carga OPENAI_API_KEY u OPENAI_API_KEY2 en Vercel.');
 
@@ -60,7 +63,7 @@ async function callOpenAI(system, user, schema) {
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || 'gpt-4o',
-        temperature: 0,
+        temperature,
         response_format: { type: 'json_schema', json_schema: schema },
         messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
       }),
@@ -242,6 +245,31 @@ export async function askShort({ prompt, context = '' }) {
   const out = await callOpenAI(SYSTEM_SHORT, contextBlock(context) + prompt, SHORT_SCHEMA);
   if (!out.ok) throw new AIError(out.error || 'No se puede responder eso.');
   const value = str(out.answer, 700);
+  if (!value) throw new AIError('No salió ninguna respuesta.');
+  return { kind: 'text', title: str(out.title || 'Respuesta', 80), value, detail: str(out.detail) };
+}
+
+/* ============================================================
+   Clic en el + de un widget: un párrafo, más libre
+   ============================================================ */
+
+const SYSTEM_FOLLOW = `Eres un analista que lee un tablero de trabajo. Recibes el contenido de una cadena de widgets
+conectados (tablas, gráficos, cifras, textos, usuarios, líneas de tiempo; los primeros están conectados
+directamente y los siguientes, antes en la cadena) y un pedido o pregunta del usuario.
+Responde en el idioma del pedido, en UN párrafo (máx. 700 caracteres), sin listas ni saludos.
+Tienes libertad: puedes interpretar, relacionar los widgets entre sí, inferir, resumir, comparar,
+proponer ideas o próximos pasos. Usa el contenido conectado como base y, si no alcanza, complétalo con
+conocimiento general (dilo en "detail").
+- "answer": el párrafo.
+- "title": 2 a 6 palabras que resuman la respuesta.
+- "detail": una aclaración muy corta si hace falta, o "".
+Responde ok=false (con un motivo breve en español en "error") SOLO si el pedido está vacío o no se entiende.`;
+
+/** Devuelve { kind: 'text', title, value, detail } o lanza AIError / Error. */
+export async function askFollow({ prompt, context = '' }) {
+  const out = await callOpenAI(SYSTEM_FOLLOW, contextBlock(context) + `Pedido: ${prompt}`, SHORT_SCHEMA, { temperature: 0.5 });
+  if (!out.ok) throw new AIError(out.error || 'No entendí la pregunta.');
+  const value = str(out.answer, 800);
   if (!value) throw new AIError('No salió ninguna respuesta.');
   return { kind: 'text', title: str(out.title || 'Respuesta', 80), value, detail: str(out.detail) };
 }

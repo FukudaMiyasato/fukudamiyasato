@@ -479,7 +479,8 @@ mouse encima) igual que el dock:
   - **Estrella roja:** solo una pregunta; responde con un párrafo como máximo.
 
   Si la pregunta está vacía, no tiene sentido o no se puede responder, el
-  widget dice "No sirve tu tabla/pregunta", tiembla y se borra. El CSV no se
+  widget dice "No sirve tu tabla/pregunta", tiembla y se borra (el mensaje
+  queda ~4,5 s para poder leerlo). El CSV no se
   guarda: solo la respuesta.
 - **Línea de tiempo** (tercera herramienta, `js/timeline.js`): un círculo por
   hito unidos por una línea, y la cabeza de un personaje que avanza según los
@@ -511,8 +512,9 @@ mouse encima) igual que el dock:
   a la derecha (da). Arrastrar desde el + dibuja una línea roja; soltarla en el
   conector izquierdo de otro widget los conecta (si no, desaparece). Un mismo
   conector recibe varias líneas. Los puntos rojos de cada línea se ven encima de los conectores. Un **clic** en el + crea al lado un widget de la IA normal (estrella), ya
-  conectado ("pregunta porfa"): responde con un párrafo usando como contexto
-  todos los widgets conectados a su izquierda. Mientras piensa, las líneas y
+  conectado ("pregunta porfa"): responde con un párrafo más libre (puede
+  interpretar, relacionar y sugerir) usando la pregunta y como contexto toda la
+  cadena de widgets conectados hacia atrás, no solo el inmediato. Mientras piensa, las líneas y
   esos widgets brillan y quedan bloqueados. Clic sobre una línea la quita.
   Las conexiones se guardan en `inputs` de cada widget.
 - **API keys de OpenAI:** `OPENAI_API_KEY` ("YO") y `OPENAI_API_KEY2` ("LVL").

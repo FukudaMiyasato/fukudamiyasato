@@ -15,6 +15,10 @@
                                                       conectados) se le pasan como contexto
      POST   ?d=<id>&widget=ask { prompt, inputs?, layout }
                                                     → un párrafo como máximo (estrella)
+     POST   ?d=<id>&widget=follow { prompt, inputs, layout }
+                                                    → clic en el + de un widget: un párrafo más
+                                                      libre con el contexto de TODA la cadena
+                                                      conectada hacia atrás (se guarda como "ask")
                                                       422 { error } si el pedido no sirve
      POST   ?d=<id>&widget=timeline { data, layout }
                                                     → línea de tiempo (sin IA): hitos + personaje
@@ -31,7 +35,7 @@ import {
   listDashboards, publicDash, createDashboard, deleteDashboard,
   listWidgets, createWidget, updateWidget, deleteWidget,
 } from './_lib/dashboards.js';
-import { askVisual, askShort, AIError } from './_lib/ai.js';
+import { askVisual, askShort, askFollow, AIError } from './_lib/ai.js';
 import { getConfig } from './_lib/config.js';
 
 export const maxDuration = 60; // OpenAI puede tardar
@@ -98,6 +102,26 @@ function cleanInputs(v, widgets, selfId) {
   if (!Array.isArray(v)) return [];
   const ids = new Set(widgets.map((w) => w.id));
   return [...new Set(v.map(String))].filter((i) => i !== selfId && ids.has(i)).slice(0, 20);
+}
+
+/** Los widgets conectados y, hacia atrás, los conectados a esos (sin repetir,
+    sin ciclos): primero los directos, luego los de más atrás en la cadena. */
+function chainOf(ids, all, max = 30) {
+  const byId = new Map(all.map((w) => [w.id, w]));
+  const seen = new Set(), out = [];
+  let level = ids;
+  while (level.length && out.length < max) {
+    const next = [];
+    for (const id of level) {
+      const w = byId.get(id);
+      if (!w || seen.has(id)) continue;
+      seen.add(id);
+      out.push(w);
+      next.push(...(w.inputs || []));
+    }
+    level = next;
+  }
+  return out.slice(0, max);
 }
 
 /** Lo que muestran los widgets conectados, en texto, para dárselo a la IA. */
@@ -171,17 +195,20 @@ export default async function handler(req, res) {
 
     /* ---------- widgets de IA ---------- */
     const tool = req.query?.widget;
-    if (req.method === 'POST' && dash && (tool === 'table' || tool === 'ask')) {
+    if (req.method === 'POST' && dash && (tool === 'table' || tool === 'ask' || tool === 'follow')) {
       const prompt = String(req.body?.prompt || '').trim().slice(0, 2000);
       if (!prompt) return res.status(422).json({ error: 'No sirve tu pregunta: no escribiste nada.' });
 
       const all = await listWidgets(dash.id);
       const inputs = cleanInputs(req.body?.inputs, all, null);
-      const context = contextFrom(all.filter((w) => inputs.includes(w.id)));
+      // el + de un widget usa toda la cadena conectada hacia atrás; el resto, solo lo directo
+      const context = contextFrom(tool === 'follow' ? chainOf(inputs, all) : all.filter((w) => inputs.includes(w.id)));
 
       let answer, source = '';
       try {
-        if (tool === 'ask') {
+        if (tool === 'follow') {
+          answer = await askFollow({ prompt, context });
+        } else if (tool === 'ask') {
           answer = await askShort({ prompt, context });
         } else {
           // tabla con IA: el CSV es opcional; sin archivo, GPT responde con lo que sabe
@@ -192,7 +219,7 @@ export default async function handler(req, res) {
         }
       } catch (err) {
         if (err instanceof AIError) {
-          return res.status(422).json({ error: `${tool === 'ask' ? 'No sirve tu pregunta' : 'No sirve tu tabla'}: ${err.message}` });
+          return res.status(422).json({ error: `${tool === 'table' ? 'No sirve tu tabla' : 'No sirve tu pregunta'}: ${err.message}` });
         }
         throw err;
       }
@@ -202,7 +229,8 @@ export default async function handler(req, res) {
         data.rows = data.rows.slice(0, Math.floor(data.rows.length * 0.8));
         data.cut = true;
       }
-      const widget = await createWidget(dash.id, tool, cleanLayout(req.body?.layout), data, inputs);
+      const type = tool === 'follow' ? 'ask' : tool; // se ve igual que un widget de la estrella
+      const widget = await createWidget(dash.id, type, cleanLayout(req.body?.layout), data, inputs);
       return res.status(201).json({ widget: publicWidget(widget) });
     }
 

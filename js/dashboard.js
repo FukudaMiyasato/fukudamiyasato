@@ -51,7 +51,8 @@ let fisheye = 0.07;           // intensidad del ojo de pez; la define el amo sup
 const MAX_CSV = 2 * 1024 * 1024;
 const LONG_PRESS = 520;       // ms presionando para que tiemblen
 const FOCUS_GAP = 2000;       // ms entre un enfoque automático y el siguiente
-const SNAP_PORT = 28;         // px: qué tan cerca hay que soltar la línea del conector
+const SNAP_PORT = 28;
+const REJECT_MS = 4500;       // cuánto se ve "No sirve tu…" antes de borrarse         // px: qué tan cerca hay que soltar la línea del conector
 const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
 
 const board = $('board');
@@ -236,7 +237,7 @@ const MODES = {
     placeholder: 'Pregunta que me aburro', submit: 'Apura', fail: 'No sirve tu tabla', size: { w: 12, h: 10 },
   },
   ask: {
-    title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'ask', file: false,
+    title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'follow', file: false,
     placeholder: '¿Qué quieres saber?', submit: 'Apura', fail: 'No sirve tu pregunta', size: { w: 11, h: 7 },
   },
   // clic en el + de un widget: la IA normal (estrella), con lo conectado como contexto
@@ -646,10 +647,11 @@ function reject(wd, message) {
   requestDraw();
   wd.el.querySelector('.m-err').textContent = message;
   shake(wd);
+  // el mensaje queda un rato para poder leerlo; después se borra
   setTimeout(() => {
     wd.el.querySelector('.wcard').classList.add('is-erasing');
     setTimeout(() => unmount(wd, false), 480);
-  }, 1500);
+  }, REJECT_MS);
 }
 
 async function submit(wd) {
