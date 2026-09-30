@@ -494,9 +494,10 @@ mouse encima) igual que el dock:
   por ahora usa la cara normal).
 - **Usuario** (cuarta herramienta, `js/persona.js`): un widget con la imagen y
   el nombre de un tipo de usuario. Empieza como el usuario por defecto; en su
-  bloque de información se elige uno de los predefinidos (joven, papá
-  divorciado, mamá soltera, familia feliz, nido vacío, jubilado) y se le suben
-  archivos de contexto (arrastrando o eligiéndolos). Por ahora la subida es
+  bloque de información van primero los archivos de contexto (arrastrando o
+  eligiéndolos) y debajo el tipo, que se cambia con las flechas ‹ › entre los
+  predefinidos (joven, papá divorciado, mamá soltera, familia feliz, nido
+  vacío, jubilado). Por ahora la subida es
   simulada: solo se guarda el nombre y el tamaño de cada archivo. Imágenes en
   `assets/users/`.
 - **Seleccionar:** tocar un widget terminado lo marca con brillo rojo y abre, al
@@ -509,8 +510,8 @@ mouse encima) igual que el dock:
 - **Conectores:** cada widget tiene uno a la izquierda (recibe) y uno con **+**
   a la derecha (da). Arrastrar desde el + dibuja una línea roja; soltarla en el
   conector izquierdo de otro widget los conecta (si no, desaparece). Un mismo
-  conector recibe varias líneas. Los puntos rojos de cada línea se ven encima de los conectores. Un **clic** en el + crea al lado un widget-
-  pregunta ya conectado ("pregunta porfa"): la IA responde usando como contexto
+  conector recibe varias líneas. Los puntos rojos de cada línea se ven encima de los conectores. Un **clic** en el + crea al lado un widget de la IA normal (estrella), ya
+  conectado ("pregunta porfa"): responde con un párrafo usando como contexto
   todos los widgets conectados a su izquierda. Mientras piensa, las líneas y
   esos widgets brillan y quedan bloqueados. Clic sobre una línea la quita.
   Las conexiones se guardan en `inputs` de cada widget.

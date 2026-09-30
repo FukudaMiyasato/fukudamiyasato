@@ -239,8 +239,9 @@ const MODES = {
     title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'ask', file: false,
     placeholder: '¿Qué quieres saber?', submit: 'Apura', fail: 'No sirve tu pregunta', size: { w: 11, h: 7 },
   },
+  // clic en el + de un widget: la IA normal (estrella), con lo conectado como contexto
   follow: {
-    title: 'Pregunta sobre lo conectado', icon: 'table', endpoint: 'table', file: false,
+    title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'ask', file: false,
     placeholder: '¿Qué quieres saber de lo conectado?', submit: 'pregunta porfa', fail: 'No sirve tu pregunta', size: { w: 11, h: 8 },
   },
 };
@@ -1101,39 +1102,13 @@ function renderUserInfo(box) {
   const wd = selected;
   const d = wd.data;
   $('info-kind').textContent = 'Usuario';
-  $('info-title').textContent = personaOf(d.persona).name;
+  $('info-title').hidden = true; // el nombre va bajo la imagen, como en la línea de tiempo
   const list = $('info-list');
   list.innerHTML = '';
 
-  // tipo de usuario
-  const head = document.createElement('p');
-  head.className = 'tl-head';
-  head.textContent = 'Tipo';
-  list.append(head);
-  const grid = document.createElement('div');
-  grid.className = 'us-grid';
-  for (const p of PERSONAS) {
-    const b = document.createElement(canEdit ? 'button' : 'div');
-    if (canEdit) b.type = 'button';
-    b.className = 'us-opt';
-    b.setAttribute('aria-pressed', String(p.id === d.persona));
-    b.innerHTML = `<img src="${p.img}" alt=""><span></span>`;
-    b.querySelector('span').textContent = p.name;
-    if (canEdit) {
-      b.addEventListener('click', () => {
-        d.persona = p.id;
-        grid.querySelectorAll('.us-opt').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
-        $('info-title').textContent = p.name;
-        saveUser(wd);
-      });
-    } else if (p.id !== d.persona) continue; // quien solo mira, ve el suyo
-    grid.append(b);
-  }
-  list.append(grid);
-
   // contexto: archivos
   const ch = document.createElement('p');
-  ch.className = 'tl-head us-ctx-head';
+  ch.className = 'tl-head';
   ch.textContent = 'Contexto';
   list.append(ch);
   const files = document.createElement('ul');
@@ -1169,6 +1144,31 @@ function renderUserInfo(box) {
     none.textContent = 'Sin archivos de contexto.';
     list.append(none);
   }
+
+
+  // tipo de usuario: ‹ imagen › (igual que el personaje de la línea de tiempo)
+  const th = document.createElement('p');
+  th.className = 'tl-head us-type-head';
+  th.textContent = 'Tipo de usuario';
+  list.append(th);
+  const pick = document.createElement('div');
+  pick.className = 'tl-pick us-pick';
+  pick.innerHTML = `${canEdit ? '<button type="button" class="tl-arrow" data-step="-1" aria-label="Tipo anterior">‹</button>' : ''}
+    <figure><img alt=""><figcaption></figcaption></figure>
+    ${canEdit ? '<button type="button" class="tl-arrow" data-step="1" aria-label="Tipo siguiente">›</button>' : ''}`;
+  const paint = () => {
+    const p = personaOf(d.persona);
+    pick.querySelector('img').src = p.img;
+    pick.querySelector('figcaption').textContent = p.name;
+  };
+  paint();
+  pick.querySelectorAll('.tl-arrow').forEach((btn) => btn.addEventListener('click', () => {
+    const i = PERSONAS.findIndex((p) => p.id === d.persona);
+    d.persona = PERSONAS[(i + Number(btn.dataset.step) + PERSONAS.length) % PERSONAS.length].id;
+    paint(); // mismo panel: solo cambian la imagen y el nombre
+    saveUser(wd);
+  }));
+  list.append(pick);
 
   showInfo(box);
 }
