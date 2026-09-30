@@ -540,7 +540,7 @@
 .wport {
   position: absolute;
   top: 50%;
-  z-index: 3;
+  z-index: 25;                   /* por encima de las tarjetas vecinas */
   width: 22px;
   height: 22px;
   margin-top: -11px;
@@ -552,11 +552,14 @@
   box-shadow: 0 4px 10px -4px #000;
   transition: border-color .15s, transform .15s var(--ease);
 }
-.wport--in { left: -6px; cursor: default; }
+/* el + tiene una zona sensible invisible, más grande que el círculo */
+.wport--out::before { content: ""; position: absolute; inset: -12px; border-radius: 50%; }
+.wport--in { left: -6px; pointer-events: none; } /* solo recibe líneas: no tapa al + vecino */
 .wport--out { right: -6px; cursor: crosshair; color: #fff; touch-action: none; }
 .wport--out svg { width: 11px; height: 11px; }
 .wport--out:hover, .wport--out.is-hover { border-color: var(--red-hot); transform: scale(1.15); }
 .widget:hover .wport--in, .widget.is-hover .wport--in { border-color: var(--text-faint); }
+.wport--in.is-target { border-color: var(--red-hot); transform: scale(1.2); } /* la línea va a caer aquí */
 .is-thinking .wport, .is-jiggle .wport { visibility: hidden; }
 
 /* líneas entre widgets */
@@ -584,7 +587,7 @@
   position: absolute;
   right: calc(22px + env(safe-area-inset-right, 0px));
   top: 50%;
-  z-index: 4;
+  z-index: 5;                                   /* sobre el control de zoom */
   width: min(300px, 36vw);
   transform: translateY(-50%);
 }
@@ -593,7 +596,8 @@
 @keyframes info-in { from { opacity: 0; translate: 16px 0; } }
 .info-card {
   position: relative;
-  max-height: min(70vh, 520px);
+  /* centrado, pero sin subir hasta el control de zoom (que va bajo la cabecera) */
+  max-height: min(560px, calc(100dvh - var(--head-h, 76px) - 214px));
   overflow: auto;
   padding: 18px 20px 20px;
   border-radius: 16px;
@@ -768,16 +772,116 @@ body:not(.can-edit) .wtl { cursor: default; }
 .tl-row span.tl-date { font-size: 12.5px; color: #6c6c78; font-variant-numeric: tabular-nums; }
 .tl-del { width: 24px; height: 24px; border-radius: 7px; font-size: 16px; color: #8a8a96; }
 .tl-del:hover { background: rgba(0, 0, 0, .06); color: var(--red); }
+.tl-head { margin: 0 0 8px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #6c6c78; }
 .tl-add {
-  display: block;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
   margin: 12px auto 0;
-  padding: 6px 16px;
-  border-radius: 99px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #16161b;
+  border-radius: 50%;
+  transition: background .15s;
 }
-.tl-add:hover { background: rgba(0, 0, 0, .06); }
+.tl-add:hover { background: rgba(0, 0, 0, .07); }
+.tl-add:active { transform: scale(.92); }
+.tl-plus { position: relative; display: block; width: 16px; height: 4px; border-radius: 2px; background: #16161b; }
+.tl-plus::after { content: ""; position: absolute; left: 6px; top: -6px; width: 4px; height: 16px; border-radius: 2px; background: #16161b; }
+
+/* ============================================================
+   Usuario: imagen + nombre (el tipo se elige en su bloque)
+   ============================================================ */
+.wuser {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 10px 12px;
+  cursor: move;
+}
+body:not(.can-edit) .wuser { cursor: default; }
+.wuser img { width: 72%; max-height: 72%; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .45)); }
+.wuser b {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.1;
+  color: #fff;
+}
+.wuser-ctx {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: rgba(224, 16, 43, .18);
+  color: var(--red-hot);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* bloque de información: tipos y contexto */
+.us-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+.us-opt {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  background: rgba(255, 255, 255, .55);
+  color: #22222a;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  transition: border-color .15s, background .15s;
+}
+.us-opt img { width: 44px; height: 44px; object-fit: contain; }
+button.us-opt:hover { background: #fff; }
+.us-opt[aria-pressed="true"] { border-color: var(--red); background: #fff; }
+.us-ctx-head { margin-top: 16px; }
+.us-files { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.us-file {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .6);
+  font-size: 12.5px;
+  overflow: hidden;
+}
+.us-fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.us-file small { color: #6c6c78; font-size: 11px; }
+.us-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; }
+.us-bar i { display: block; width: 0; height: 100%; background: var(--red); transition: width 1s ease-out; }
+.us-file:not(.is-uploading) .us-bar { display: none; }
+.us-drop {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  padding: 14px 10px;
+  border-radius: 12px;
+  border: 1.5px dashed rgba(0, 0, 0, .2);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.us-drop b { font-size: 13px; color: #22222a; }
+.us-drop small { font-size: 11px; color: #6c6c78; }
+.us-drop:hover, .us-drop.is-over { border-color: var(--red); background: rgba(224, 16, 43, .05); }
+.us-none { margin: 0; font-size: 12.5px; color: #6c6c78; }
 
 /* ---------- tooltip (gráficos) ---------- */
 .tip {

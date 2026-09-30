@@ -488,10 +488,17 @@ mouse encima) igual que el dock:
   30% durmiendo (Z Z Z), siguiente 40% normal, último 30% asustado (gotas); el
   día de un hito, asustado (salvo el inicio: durmiendo). Pasar el mouse por un
   hito muestra su nombre y los días que faltan. En su bloque de información se
-  cambia el personaje (‹ cara ›), se editan nombres y fechas, y "agregar" suma
+  cambia el personaje (‹ cara ›), se editan nombres y fechas, y el + suma
   hitos: se ordenan solos por fecha y el widget crece con cada uno. Las caras
   están en `assets/faces/` (`m_*` chico, `f_*` chica; falta `m_scared.png`, que
   por ahora usa la cara normal).
+- **Usuario** (cuarta herramienta, `js/persona.js`): un widget con la imagen y
+  el nombre de un tipo de usuario. Empieza como el usuario por defecto; en su
+  bloque de información se elige uno de los predefinidos (joven, papá
+  divorciado, mamá soltera, familia feliz, nido vacío, jubilado) y se le suben
+  archivos de contexto (arrastrando o eligiéndolos). Por ahora la subida es
+  simulada: solo se guarda el nombre y el tamaño de cada archivo. Imágenes en
+  `assets/users/`.
 - **Seleccionar:** tocar un widget terminado lo marca con brillo rojo y abre, al
   centro-derecha, un bloque claro (sin lente, flota suave y se queda quieto con
   el mouse encima) con la pregunta usada, el archivo CSV, lo conectado y el

@@ -18,9 +18,11 @@
                                                       422 { error } si el pedido no sirve
      POST   ?d=<id>&widget=timeline { data, layout }
                                                     → línea de tiempo (sin IA): hitos + personaje
+     POST   ?d=<id>&widget=user { data, layout }
+                                                    → usuario (sin IA): tipo + archivos de contexto
      PATCH  ?d=<id>  { widget, x?, y?, w?, h?, inputs?, data? }
                                                     → mueve / redimensiona / conecta;
-                                                      `data` solo en líneas de tiempo
+                                                      `data` solo en líneas de tiempo y usuarios
      DELETE ?d=<id>&widget=<widgetId>               → borra el widget
    ============================================================ */
 
@@ -75,6 +77,22 @@ function cleanTimeline(d) {
   };
 }
 
+/* ---------- usuario ---------- */
+const PERSONAS = ['default', 'joven', 'papa', 'mama', 'familia', 'nido', 'jubilado'];
+
+/** Datos válidos de un widget de usuario. Del contexto solo se guarda nombre y
+    tamaño de cada archivo (por ahora la subida es simulada). */
+function cleanUser(d) {
+  if (!d || typeof d !== 'object') return null;
+  const context = (Array.isArray(d.context) ? d.context : []).slice(0, 10).map((f) => ({
+    name: String(f?.name ?? '').trim().slice(0, 120),
+    size: Math.max(0, Math.round(Number(f?.size) || 0)),
+  })).filter((f) => f.name);
+  return { kind: 'user', persona: PERSONAS.includes(d.persona) ? d.persona : 'default', context };
+}
+
+const CLEANERS = { timeline: cleanTimeline, user: cleanUser };
+
 /** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
 function cleanInputs(v, widgets, selfId) {
   if (!Array.isArray(v)) return [];
@@ -89,6 +107,8 @@ function contextFrom(list) {
     let body;
     if (d.kind === 'table') {
       body = [d.columns, ...(d.rows || []).slice(0, 200)].map((r) => r.join(' | ')).join('\n');
+    } else if (d.kind === 'user') {
+      body = [`Tipo de usuario: ${d.persona}`, ...(d.context || []).map((f) => `Archivo de contexto: ${f.name}`)].join('\n');
     } else if (d.kind === 'timeline') {
       body = d.milestones.map((m) => `${m.date}: ${m.name}`).join('\n');
     } else if (d.kind === 'chart') {
@@ -186,11 +206,11 @@ export default async function handler(req, res) {
       return res.status(201).json({ widget: publicWidget(widget) });
     }
 
-    /* ---------- línea de tiempo (sin IA) ---------- */
-    if (req.method === 'POST' && dash && tool === 'timeline') {
-      const data = cleanTimeline(req.body?.data);
-      if (!data) return res.status(400).json({ error: 'Faltan hitos válidos (mínimo 2, con fecha).' });
-      const widget = await createWidget(dash.id, 'timeline', cleanLayout(req.body?.layout), data);
+    /* ---------- widgets sin IA: línea de tiempo y usuario ---------- */
+    if (req.method === 'POST' && dash && CLEANERS[tool]) {
+      const data = CLEANERS[tool](req.body?.data);
+      if (!data) return res.status(400).json({ error: 'Datos del widget inválidos.' });
+      const widget = await createWidget(dash.id, tool, cleanLayout(req.body?.layout), data);
       return res.status(201).json({ widget: publicWidget(widget) });
     }
 
@@ -204,9 +224,10 @@ export default async function handler(req, res) {
       if (req.body?.x != null) Object.assign(patch, cleanLayout({ ...current, ...req.body }));
       if (req.body?.inputs != null) patch.inputs = cleanInputs(req.body.inputs, all, wid);
       if (req.body?.data != null) {
-        if (current.type !== 'timeline') return res.status(400).json({ error: 'Este widget no se edita así.' });
-        patch.data = cleanTimeline(req.body.data);
-        if (!patch.data) return res.status(400).json({ error: 'Faltan hitos válidos (mínimo 2, con fecha).' });
+        const clean = CLEANERS[current.type];
+        if (!clean) return res.status(400).json({ error: 'Este widget no se edita así.' });
+        patch.data = clean(req.body.data);
+        if (!patch.data) return res.status(400).json({ error: 'Datos del widget inválidos.' });
       }
       await updateWidget(dash.id, wid, patch);
       return res.status(200).json({ ok: true, inputs: patch.inputs, data: patch.data });

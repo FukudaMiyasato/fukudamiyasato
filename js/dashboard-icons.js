@@ -50,6 +50,12 @@ export function dashIconHTML(d) {
 /* ---------- herramientas del dock (admin) ---------- */
 
 export const TOOL_ICONS = {
+  // usuario: silueta
+  user: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="8.2" r="4" fill="currentColor"/>
+    <path d="M4.2 20.5c.4-4.2 3.6-6.8 7.8-6.8s7.4 2.6 7.8 6.8z" fill="currentColor"/>
+  </svg>`,
+
   // línea de tiempo: dos hitos unidos por una barra
   timeline: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <rect x="5" y="10.9" width="14" height="2.2" rx="1.1" fill="currentColor"/>

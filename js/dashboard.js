@@ -41,6 +41,7 @@ import { drawDots, fitCanvas, buildLensFilter, unwarp } from './fisheye.js';
 import {
   FACES, CHARACTERS, todayISO, addDays, defaultTimeline, timelineHTML, timelineSize, daysLeftText,
 } from './timeline.js';
+import { PERSONAS, personaOf, defaultUser, userHTML, userSize, fileSize } from './persona.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('d') || '';
@@ -276,6 +277,7 @@ function draftHTML(wd) {
 function doneHTML(wd) {
   const d = wd.data || {};
   if (d.kind === 'timeline') return timelineHTML(d);
+  if (d.kind === 'user') return userHTML(d);
   return `
     <header class="whead" title="${esc(d.prompt || '')}">
       <h3>${esc(d.title || 'Respuesta')}</h3>
@@ -291,7 +293,7 @@ function render(wd) {
   el.dataset.id = wd.id;
   const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
   el.innerHTML = `<div class="wbox">
-    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}">${inner}</div>
+    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' ? ' wcard--user' : ''}">${inner}</div>
     ${canEdit ? `
       <button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>
       ${wd.state === 'done' ? `<button class="wport wport--out" type="button" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
@@ -306,7 +308,7 @@ function render(wd) {
   if (chart) new ResizeObserver(() => drawChart(chart, wd.data)).observe(chart);
 
   if (!canEdit) return;
-  (el.querySelector('.whead') || el.querySelector('.wtl')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
+  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
   el.querySelector('.whandle')?.addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
   el.querySelector('.wport--out')?.addEventListener('pointerdown', (e) => startLink(e, wd));
   el.querySelector('.wx')?.addEventListener('click', () => removeWidget(wd));
@@ -499,6 +501,7 @@ function startLink(e, src) {
     const sp = sourcePoint(ev.clientX, ev.clientY); // la línea termina bajo el dedo, ya con la lente
     const px = sp.x - b0.left, py = sp.y - b0.top;
     const hit = nearestIn(px, py);
+    markTarget(hit);
     tempLine = { a: portPoint(src, 'out'), z: hit ? portPoint(hit, 'in') : { x: px, y: py }, snap: Boolean(hit) };
     requestDraw();
   };
@@ -508,6 +511,7 @@ function startLink(e, src) {
     port.removeEventListener('pointerup', onUp);
     port.removeEventListener('pointercancel', onUp);
     tempLine = null;
+    markTarget(null);
     if (!dragging) { createFollow(src); requestDraw(); return; } // clic: pregunta sobre este widget
     const sp = sourcePoint(ev.clientX, ev.clientY);
     const t = nearestIn(sp.x - b0.left, sp.y - b0.top);
@@ -522,6 +526,16 @@ function startLink(e, src) {
   port.addEventListener('pointermove', onMove);
   port.addEventListener('pointerup', onUp);
   port.addEventListener('pointercancel', onUp);
+}
+
+/** Resalta el conector de entrada donde caería la línea que se arrastra. */
+let targetPort = null;
+function markTarget(wd) {
+  const port = wd?.el.querySelector('.wport--in') || null;
+  if (port === targetPort) return;
+  targetPort?.classList.remove('is-target');
+  port?.classList.add('is-target');
+  targetPort = port;
 }
 
 /** Nota en el borrador: "Contexto: 2 widgets conectados". */
@@ -688,6 +702,7 @@ async function submit(wd) {
 /** Tamaño según el tipo de respuesta (y, si es tabla, sus columnas y filas). */
 function sizeFor(d) {
   if (d.kind === 'timeline') return timelineSize(d.milestones.length);
+  if (d.kind === 'user') return userSize();
   if (d.kind === 'number') return { w: 7, h: 6 };
   if (d.kind === 'text') {
     const n = d.value.length;
@@ -764,6 +779,7 @@ board.addEventListener('pointerdown', (e) => {
 });
 
 board.addEventListener('wheel', (e) => {
+  if (e.target.closest('.info-wrap')) return; // el bloque de información hace su propio scroll
   if (e.ctrlKey) { // pellizco en el trackpad / Ctrl + rueda: zoom hacia el puntero
     e.preventDefault();
     const b = board.getBoundingClientRect();
@@ -830,13 +846,26 @@ $('info-x').addEventListener('click', () => select(null));
 /* ---------- bloque de información del seleccionado ---------- */
 
 const KIND_LABEL = { table: 'Tabla', chart: 'Gráfico', number: 'Número', text: 'Texto' };
-const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo' };
+const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario' };
+
+/** Muestra el bloque; la animación de entrada solo cuando cambia de widget
+    (editarlo no lo "recarga"). */
+function showInfo(box) {
+  box.hidden = false;
+  if (box.dataset.for === selected.id) return;
+  box.dataset.for = selected.id;
+  box.classList.remove('is-in');
+  void box.offsetWidth; // reinicia la animación de entrada
+  box.classList.add('is-in');
+}
 
 function renderInfo() {
   const box = $('info');
-  if (!selected) { box.hidden = true; return; }
+  if (!selected) { box.hidden = true; delete box.dataset.for; return; }
   const d = selected.data || {};
+  $('info-title').hidden = false;
   if (d.kind === 'timeline') return renderTimelineInfo(box);
+  if (d.kind === 'user') return renderUserInfo(box);
   const rows = [];
   const add = (label, value) => { if (value) rows.push(`<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`); };
   add('Pregunta', d.prompt);
@@ -851,32 +880,16 @@ function renderInfo() {
   $('info-kind').textContent = [TOOL_LABEL[selected.type], KIND_LABEL[d.kind]].filter(Boolean).join(' · ');
   $('info-title').textContent = d.title || 'Widget';
   $('info-list').innerHTML = rows.join('');
-  box.hidden = false;
-  box.classList.remove('is-in');
-  void box.offsetWidth; // reinicia la animación de entrada
-  box.classList.add('is-in');
+  showInfo(box);
 }
 
 /* ============================================================
    Línea de tiempo: crear y editar desde el bloque de información
    ============================================================ */
 
-async function createTimeline() {
-  select(null);
+function createTimeline() {
   const data = defaultTimeline(todayISO());
-  const { w, h } = timelineSize(data.milestones.length);
-  const layout = freeSpot(w, h);
-  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=timeline`, {
-    method: 'POST', body: JSON.stringify({ data, layout }),
-  });
-  if (!r.ok) return alert(r.data.error || 'No se pudo crear la línea de tiempo.');
-  const wd = { ...r.data.widget, state: 'done', inputs: [] };
-  widgets.push(wd);
-  mount(wd, { isNew: true });
-  refreshEmpty();
-  focusOn(wd);
-  select(wd); // abre su bloque para editar hitos y personaje
-  requestDraw();
+  return createPlain('timeline', data, timelineSize(data.milestones.length));
 }
 
 /** Guarda la línea de tiempo: reordena por fecha, redibuja y ajusta el ancho. */
@@ -907,7 +920,7 @@ function renderTimelineInfo(box) {
   const d = wd.data;
   const today = todayISO();
   $('info-kind').textContent = 'Línea de tiempo';
-  $('info-title').textContent = d.title || 'Línea de tiempo';
+  $('info-title').hidden = true; // no se repite el nombre: arriba ya dice línea de tiempo
   const list = $('info-list');
   list.innerHTML = '';
 
@@ -920,11 +933,16 @@ function renderTimelineInfo(box) {
   pick.querySelectorAll('.tl-arrow').forEach((b) => b.addEventListener('click', () => {
     const i = CHARACTERS.indexOf(d.character);
     d.character = CHARACTERS[(i + Number(b.dataset.step) + CHARACTERS.length) % CHARACTERS.length];
-    saveTimeline(wd, { rerenderInfo: true });
+    pick.querySelector('img').src = FACES[d.character].normal; // mismo panel: solo cambia la cara
+    saveTimeline(wd);
   }));
   list.append(pick);
 
   // hitos, del más antiguo al más lejano
+  const head = document.createElement('p');
+  head.className = 'tl-head';
+  head.textContent = 'Hitos';
+  list.append(head);
   const rows = document.createElement('div');
   rows.className = 'tl-rows';
   for (const m of d.milestones) {
@@ -957,7 +975,9 @@ function renderTimelineInfo(box) {
     const add = document.createElement('button');
     add.type = 'button';
     add.className = 'tl-add';
-    add.textContent = 'agregar';
+    add.setAttribute('aria-label', 'Agregar hito');
+    add.title = 'Agregar hito';
+    add.innerHTML = '<span class="tl-plus" aria-hidden="true"></span>';
     add.addEventListener('click', () => {
       const last = d.milestones[d.milestones.length - 1];
       const m = { id: `h${Date.now().toString(36)}`, name: `hito ${d.milestones.length + 1}`, date: addDays(last.date, 7) };
@@ -970,10 +990,7 @@ function renderTimelineInfo(box) {
     list.append(add);
   }
 
-  box.hidden = false;
-  box.classList.remove('is-in');
-  void box.offsetWidth;
-  box.classList.add('is-in');
+  showInfo(box);
 }
 
 // la cabeza avanza con los días: si la página queda abierta, se redibuja al cambiar el día
@@ -1020,6 +1037,143 @@ new ResizeObserver(([e]) => {
 }).observe(document.querySelector('.board-top'));
 
 /* ============================================================
+   Usuario: tipo predefinido + archivos de contexto (subida simulada)
+   ============================================================ */
+
+/** Crea un widget sin IA (línea de tiempo, usuario) y lo deja seleccionado. */
+async function createPlain(type, data, size) {
+  select(null);
+  const layout = freeSpot(size.w, size.h);
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=${type}`, {
+    method: 'POST', body: JSON.stringify({ data, layout }),
+  });
+  if (!r.ok) return alert(r.data.error || 'No se pudo crear el widget.');
+  const wd = { ...r.data.widget, state: 'done', inputs: [] };
+  widgets.push(wd);
+  mount(wd, { isNew: true });
+  refreshEmpty();
+  focusOn(wd);
+  select(wd); // abre su bloque para editarlo
+  requestDraw();
+}
+
+const createUser = () => createPlain('user', defaultUser(), userSize());
+
+let userSaveTimer = 0;
+function saveUser(wd) {
+  render(wd);
+  requestDraw();
+  clearTimeout(userSaveTimer);
+  userSaveTimer = setTimeout(async () => {
+    const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify({ widget: wd.id, data: wd.data }),
+    });
+    if (!r.ok) alert(r.data.error || 'No se pudo guardar el usuario.');
+  }, 250);
+}
+
+/* "Sube" los archivos: una barra de progreso corta y solo se guarda nombre y tamaño. */
+function fakeUpload(wd, files, listEl) {
+  for (const f of [...files].slice(0, 10 - wd.data.context.length)) {
+    const row = document.createElement('li');
+    row.className = 'us-file is-uploading';
+    row.innerHTML = '<span class="us-fname"></span><small></small><span class="us-bar"><i></i></span>';
+    row.querySelector('.us-fname').textContent = f.name;
+    row.querySelector('small').textContent = 'subiendo…';
+    listEl.append(row);
+    const bar = row.querySelector('.us-bar i');
+    requestAnimationFrame(() => { bar.style.width = '100%'; });
+    wd.uploading = (wd.uploading || 0) + 1;
+    setTimeout(() => {
+      wd.data.context.push({ name: f.name.slice(0, 120), size: f.size });
+      row.classList.remove('is-uploading');
+      row.querySelector('small').textContent = fileSize(f.size);
+      // cuando terminan todas, se guarda y se rearma la lista (con sus botones ×)
+      if (--wd.uploading === 0) {
+        saveUser(wd);
+        if (selected === wd) renderInfo();
+      }
+    }, 900 + Math.random() * 500);
+  }
+}
+
+function renderUserInfo(box) {
+  const wd = selected;
+  const d = wd.data;
+  $('info-kind').textContent = 'Usuario';
+  $('info-title').textContent = personaOf(d.persona).name;
+  const list = $('info-list');
+  list.innerHTML = '';
+
+  // tipo de usuario
+  const head = document.createElement('p');
+  head.className = 'tl-head';
+  head.textContent = 'Tipo';
+  list.append(head);
+  const grid = document.createElement('div');
+  grid.className = 'us-grid';
+  for (const p of PERSONAS) {
+    const b = document.createElement(canEdit ? 'button' : 'div');
+    if (canEdit) b.type = 'button';
+    b.className = 'us-opt';
+    b.setAttribute('aria-pressed', String(p.id === d.persona));
+    b.innerHTML = `<img src="${p.img}" alt=""><span></span>`;
+    b.querySelector('span').textContent = p.name;
+    if (canEdit) {
+      b.addEventListener('click', () => {
+        d.persona = p.id;
+        grid.querySelectorAll('.us-opt').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+        $('info-title').textContent = p.name;
+        saveUser(wd);
+      });
+    } else if (p.id !== d.persona) continue; // quien solo mira, ve el suyo
+    grid.append(b);
+  }
+  list.append(grid);
+
+  // contexto: archivos
+  const ch = document.createElement('p');
+  ch.className = 'tl-head us-ctx-head';
+  ch.textContent = 'Contexto';
+  list.append(ch);
+  const files = document.createElement('ul');
+  files.className = 'us-files';
+  for (const f of d.context) {
+    const li = document.createElement('li');
+    li.className = 'us-file';
+    li.innerHTML = `<span class="us-fname"></span><small>${fileSize(f.size)}</small>
+      ${canEdit ? '<button type="button" class="tl-del" aria-label="Quitar archivo">×</button>' : ''}`;
+    li.querySelector('.us-fname').textContent = f.name;
+    li.querySelector('.tl-del')?.addEventListener('click', () => {
+      d.context = d.context.filter((x) => x !== f);
+      saveUser(wd);
+      renderInfo();
+    });
+    files.append(li);
+  }
+  list.append(files);
+
+  if (canEdit && d.context.length < 10) {
+    const drop = document.createElement('label');
+    drop.className = 'us-drop';
+    drop.innerHTML = `<b>Arrastra o sube un archivo</b><small>Contexto de este usuario</small>
+      <input type="file" multiple hidden>`;
+    drop.querySelector('input').addEventListener('change', (e) => { fakeUpload(wd, e.target.files, files); e.target.value = ''; });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('is-over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('is-over'));
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('is-over'); fakeUpload(wd, e.dataTransfer.files, files); });
+    list.append(drop);
+  } else if (!d.context.length) {
+    const none = document.createElement('p');
+    none.className = 'us-none';
+    none.textContent = 'Sin archivos de contexto.';
+    list.append(none);
+  }
+
+  showInfo(box);
+}
+
+/* ============================================================
    Dock
    ============================================================ */
 
@@ -1027,6 +1181,7 @@ const TOOLS = [
   { key: 'table', label: 'Tabla con IA', open: () => createDraft('table') },
   { key: 'ask', label: 'Pregúntale a la IA', open: () => createDraft('ask') },
   { key: 'timeline', label: 'Línea de tiempo', open: () => createTimeline() },
+  { key: 'user', label: 'Usuario', open: () => createUser() },
 ];
 // los chismosos solo tienen un botón: actualizar toda la página
 const VIEWER_TOOLS = [{ key: 'refresh', label: 'Actualizar', open: () => location.reload() }];
@@ -1152,8 +1307,28 @@ function sourcePoint(cx, cy) {
 }
 
 /** Elemento de la capa deformada que se ve bajo (cx, cy), o null. */
+const PORT_REACH = 20; // px: a esta distancia del centro de un +, gana el +
+
+/** El + (conector de salida) más cercano a (x, y) — en px reales, sin lente —
+    si está al alcance. Tiene prioridad sobre lo que haya encima (el borde de una
+    tarjeta vecina, etc.). El conector de entrada no cuenta: no se toca, solo
+    recibe líneas (startLink tiene su propio imán para eso). */
+function portNear(x, y) {
+  if (!canEdit || jiggling) return null;
+  let best = null, bestD = PORT_REACH;
+  for (const port of world.querySelectorAll('.wport--out')) {
+    if (port.closest('.is-thinking, .is-glowing')) continue;
+    const r = port.getBoundingClientRect();
+    const d = Math.hypot(r.left + r.width / 2 - x, r.top + r.height / 2 - y);
+    if (d < bestD) { best = port; bestD = d; }
+  }
+  return best;
+}
+
 function hitAt(cx, cy) {
   const p = sourcePoint(cx, cy);
+  const port = portNear(p.x, p.y);
+  if (port) return port;
   lensEl.classList.add('is-hittable');
   const el = document.elementsFromPoint(p.x, p.y)
     .find((n) => lensEl.contains(n) && n !== lensEl && n !== world && n !== linksSvg && n !== linksTop);
