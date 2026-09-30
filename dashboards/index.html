@@ -103,6 +103,13 @@
     </aside>
   </main>
 
+  <!-- zoom del lienzo: debajo de la cabecera, arriba a la derecha -->
+  <div class="zoom" role="group" aria-label="Zoom">
+    <button class="zoom-btn" type="button" data-step="-1" aria-label="Alejar"><span class="zoom-minus"></span></button>
+    <input class="zoom-range" id="zoom-range" type="range" min="0" max="1000" value="500" aria-label="Zoom del lienzo">
+    <button class="zoom-btn" type="button" data-step="1" aria-label="Acercar"><span class="zoom-plus"></span></button>
+  </div>
+
   <!-- herramientas (solo admin) -->
   <nav class="dock" id="dock" aria-label="Herramientas" hidden></nav>
 </div>

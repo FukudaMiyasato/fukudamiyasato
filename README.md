@@ -444,6 +444,10 @@ ocupa toda la pantalla; la cabecera flota encima (fondo al 50%, al 90% con el
 mouse encima) igual que el dock:
 
 - **Moverse:** arrastrar el fondo (o la rueda / el trackpad). Todos pueden.
+- **Zoom:** control arriba a la derecha, debajo de la cabecera (− · esfera · +),
+  blanco semitransparente. De 0,5× a 2×; la esfera al centro es 1×. También
+  con Ctrl + rueda o pellizcando el trackpad (hacia el puntero). Cada navegador
+  recuerda el zoom de cada dashboard.
 - **Ojo de pez:** una sola función de lente (`warp` en `js/fisheye.js`) curva
   la rejilla y todo lo que va encima. Los puntos se dibujan desplazados en su
   canvas; las tarjetas, tablas y líneas se deforman con un filtro SVG

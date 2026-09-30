@@ -26,6 +26,8 @@
      · mientras piensa, las líneas y los widgets conectados brillan
    · Enfoque: el lienzo se centra en el widget que lanzas y en cada
      uno que termina (con 2 s entre uno y otro si terminan juntos).
+   · Zoom (control arriba a la derecha, o Ctrl/pellizco + rueda): de 0,5× a
+     2×; la esfera al centro es 1×. Escala el mundo alrededor del centro.
    · Seleccionar un widget (tocarlo): brillo rojo + bloque de información
      al centro-derecha (pregunta, archivo, lo conectado), sin lente.
    · Los widgets en creación son temporales: tocar otra zona los borra
@@ -62,6 +64,8 @@ const ctx = dots.getContext('2d');
 let canEdit = false;
 let widgets = [];   // { id, type, x, y, w, h, data, inputs, state, mode?, el, file?, fileText? }
 const pan = { x: 0, y: 0 };
+let zoom = 1;                      // 0,5× … 2×; lo cambia el control de zoom
+const cell = () => GRID * zoom;    // px en pantalla de una celda
 let draftSeq = 0;
 
 /* ---------- utilidades ---------- */
@@ -100,9 +104,9 @@ const requestDraw = () => { if (!raf) raf = requestAnimationFrame(draw); };
 function draw() {
   raf = 0;
   const { w, h } = fitCanvas(dots);
-  drawDots(ctx, w, h, { panX: pan.x, panY: pan.y, grid: GRID, amount: fisheye });
+  drawDots(ctx, w, h, { panX: pan.x, panY: pan.y, grid: cell(), amount: fisheye });
 
-  world.style.transform = `translate(${pan.x}px, ${pan.y}px)`;
+  world.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
   drawLinks();
 }
 
@@ -414,9 +418,10 @@ function startEdit(e, wd, mode) {
   const press = mode === 'move' && !jiggling && wd.state === 'done' ? setTimeout(startJiggle, LONG_PRESS) : 0;
 
   const onMove = (ev) => {
-    const dx = ev.clientX - start.px, dy = ev.clientY - start.py;
+    const sx = ev.clientX - start.px, sy = ev.clientY - start.py;
+    const dx = sx / zoom, dy = sy / zoom; // en px del mundo
     if (!dragging) {
-      if (Math.hypot(dx, dy) < 4) return;
+      if (Math.hypot(sx, sy) < 4) return;
       dragging = true;
       clearTimeout(press);
       world.append(ghost);
@@ -543,8 +548,8 @@ function refreshGlow() {
 /** Primer lugar libre de w×h lo más cerca posible de (cx, cy) en celdas
     (por defecto, el centro de la pantalla). */
 function freeSpot(w, h, near) {
-  const cx = near ? near.x : Math.round((board.clientWidth / 2 - pan.x) / GRID - w / 2);
-  const cy = near ? near.y : Math.round((board.clientHeight / 2 - pan.y) / GRID - h / 2);
+  const cx = near ? near.x : Math.round((board.clientWidth / 2 - pan.x) / cell() - w / 2);
+  const cy = near ? near.y : Math.round((board.clientHeight / 2 - pan.y) / cell() - h / 2);
   for (let r = 0; r < 80; r++) {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
@@ -699,8 +704,8 @@ function sizeFor(d) {
 
 let panAnim = 0;
 function focusOn(wd) {
-  const tx = Math.round(board.clientWidth / 2 - (wd.x + wd.w / 2) * GRID);
-  const ty = Math.round(board.clientHeight / 2 - (wd.y + wd.h / 2) * GRID);
+  const tx = Math.round(board.clientWidth / 2 - (wd.x + wd.w / 2) * cell());
+  const ty = Math.round(board.clientHeight / 2 - (wd.y + wd.h / 2) * cell());
   const from = { ...pan }, t0 = performance.now(), dur = 600;
   const ease = (t) => 1 - (1 - t) ** 3;
   cancelAnimationFrame(panAnim);
@@ -759,6 +764,12 @@ board.addEventListener('pointerdown', (e) => {
 });
 
 board.addEventListener('wheel', (e) => {
+  if (e.ctrlKey) { // pellizco en el trackpad / Ctrl + rueda: zoom hacia el puntero
+    e.preventDefault();
+    const b = board.getBoundingClientRect();
+    setZoom(zoom * Math.exp(-e.deltaY * 0.01), { x: e.clientX - b.left, y: e.clientY - b.top });
+    return;
+  }
   const body = e.target.closest('.wbody, textarea');
   if (body && (body.scrollHeight > body.clientHeight || body.scrollWidth > body.clientWidth)) return;
   e.preventDefault();
@@ -774,8 +785,8 @@ function frame() {
   if (!widgets.length) { pan.x = Math.round(w / 2); pan.y = Math.round(h / 2); return; }
   const minX = Math.min(...widgets.map((o) => o.x)), maxX = Math.max(...widgets.map((o) => o.x + o.w));
   const minY = Math.min(...widgets.map((o) => o.y)), maxY = Math.max(...widgets.map((o) => o.y + o.h));
-  pan.x = Math.round(w / 2 - ((minX + maxX) / 2) * GRID);
-  pan.y = Math.round(h / 2 - ((minY + maxY) / 2) * GRID);
+  pan.x = Math.round(w / 2 - ((minX + maxX) / 2) * cell());
+  pan.y = Math.round(h / 2 - ((minY + maxY) / 2) * cell());
 }
 
 /* ============================================================
@@ -800,6 +811,8 @@ document.addEventListener('pointerdown', (e) => {
   if (routing && board.contains(el) && !el.closest('.info-wrap')) el = hitAt(e.clientX, e.clientY) || el;
   const wEl = el.closest?.('.widget');
   const wd = wEl ? widgets.find((w) => w.el === wEl) : null;
+
+  if (el.closest?.('.zoom')) return; // hacer zoom no cambia nada más
 
   // temporales: sin crear, se van al tocar otra zona (el + de otro widget no cuenta)
   if (!el.closest?.('.wport--out')) {
@@ -972,6 +985,39 @@ setInterval(() => {
   widgets.filter((w) => w.data?.kind === 'timeline').forEach((w) => render(w));
   requestDraw();
 }, 60_000);
+
+/* ============================================================
+   Zoom: 0,5× … 2× en escala logarítmica (la esfera al centro = 1×)
+   ============================================================ */
+
+const Z_MIN = 0.5, Z_MAX = 2, Z_STEP = 0.1; // el paso de −/+ es en posición del control (0…1)
+const zoomRange = $('zoom-range');
+const toZoom = (t) => Z_MIN * (Z_MAX / Z_MIN) ** t;
+const toT = (z) => Math.log(z / Z_MIN) / Math.log(Z_MAX / Z_MIN);
+const ZOOM_KEY = `fm-zoom:${id}`;
+
+/** Cambia el zoom dejando fijo el punto `anchor` de la pantalla (por defecto, el centro). */
+function setZoom(z, anchor) {
+  const next = Math.min(Z_MAX, Math.max(Z_MIN, z));
+  if (Math.abs(next - zoom) < 1e-4) return;
+  const a = anchor || { x: board.clientWidth / 2, y: board.clientHeight / 2 };
+  pan.x = a.x - (a.x - pan.x) * (next / zoom);
+  pan.y = a.y - (a.y - pan.y) * (next / zoom);
+  zoom = next;
+  zoomRange.value = Math.round(toT(zoom) * 1000);
+  try { localStorage.setItem(ZOOM_KEY, String(zoom)); } catch { /* sin almacenamiento */ }
+  requestDraw();
+}
+
+zoomRange.addEventListener('input', () => setZoom(toZoom(zoomRange.value / 1000)));
+document.querySelectorAll('.zoom-btn').forEach((b) => b.addEventListener('click', () => {
+  setZoom(toZoom(Math.min(1, Math.max(0, toT(zoom) + Number(b.dataset.step) * Z_STEP))));
+}));
+
+/* el control va justo debajo de la cabecera, que cambia de alto según la pantalla */
+new ResizeObserver(([e]) => {
+  document.documentElement.style.setProperty('--head-h', `${Math.round(e.target.offsetHeight)}px`);
+}).observe(document.querySelector('.board-top'));
 
 /* ============================================================
    Dock
@@ -1285,6 +1331,11 @@ $('dash-delete').addEventListener('click', async () => {
   widgets = data.widgets.map((w) => ({ ...w, state: 'done', inputs: w.inputs || [] }));
   widgets.forEach((wd) => mount(wd));
   refreshEmpty();
+  try {
+    const saved = Number(localStorage.getItem(ZOOM_KEY));
+    if (saved >= Z_MIN && saved <= Z_MAX) zoom = saved;
+  } catch { /* sin almacenamiento */ }
+  zoomRange.value = Math.round(toT(zoom) * 1000);
   frame();
   updateLens();
   draw(); // primer cuadro ya, sin esperar a requestAnimationFrame

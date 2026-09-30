@@ -329,6 +329,61 @@
 .switch[aria-checked="true"] span { transform: translateX(16px); }
 .switch:disabled { opacity: .6; }
 
+/* ---------- zoom (arriba a la derecha, debajo de la cabecera) ----------
+   Blanco semitransparente para que no pese; con el mouse encima se ve más. */
+.zoom {
+  position: absolute;
+  top: calc(var(--head-h, 76px) + 12px);
+  right: calc(18px + env(safe-area-inset-right, 0px));
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: .45;
+  transition: opacity .2s ease;
+}
+.zoom:hover, .zoom:focus-within { opacity: .9; }
+.zoom-btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+}
+.zoom-minus, .zoom-plus { position: relative; display: block; width: 16px; height: 6px; border-radius: 3px; background: #fff; }
+.zoom-plus::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: -5px;
+  width: 6px;
+  height: 16px;
+  border-radius: 3px;
+  background: #fff;
+}
+.zoom-btn:active { transform: scale(.92); }
+
+.zoom-range { width: 150px; height: 30px; margin: 0; background: none; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.zoom-range::-webkit-slider-runnable-track { height: 6px; border-radius: 99px; background: #fff; }
+.zoom-range::-moz-range-track { height: 6px; border-radius: 99px; background: #fff; }
+.zoom-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: #ececef;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, .6);
+}
+.zoom-range::-moz-range-thumb { width: 28px; height: 28px; border: 0; border-radius: 50%; background: #ececef; }
+.zoom-range:focus-visible { outline: none; }
+.zoom-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(255, 255, 255, .35); }
+
+@media (max-width: 620px) {
+  .zoom { gap: 6px; right: 12px; }
+  .zoom-range { width: 110px; }
+}
+
 /* ---------- dock de herramientas ---------- */
 .dock {
   position: absolute;
