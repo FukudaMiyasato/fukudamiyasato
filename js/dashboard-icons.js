@@ -50,6 +50,12 @@ export function dashIconHTML(d) {
 /* ---------- herramientas del dock (admin) ---------- */
 
 export const TOOL_ICONS = {
+  // línea de tiempo: dos hitos unidos por una barra
+  timeline: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="5" y="10.9" width="14" height="2.2" rx="1.1" fill="currentColor"/>
+    <circle cx="5" cy="12" r="3.3" fill="currentColor"/><circle cx="19" cy="12" r="3.3" fill="currentColor"/>
+  </svg>`,
+
   // pregúntale a la IA: estrella roja de cuatro puntas
   ask: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M12 3.2c.75 4.7 3.3 7.3 8.3 8.8-5 1.5-7.55 4.1-8.3 8.8-.75-4.7-3.3-7.3-8.3-8.8 5-1.5 7.55-4.1 8.3-8.8z"

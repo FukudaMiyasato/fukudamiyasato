@@ -16,8 +16,11 @@
      POST   ?d=<id>&widget=ask { prompt, inputs?, layout }
                                                     → un párrafo como máximo (estrella)
                                                       422 { error } si el pedido no sirve
-     PATCH  ?d=<id>  { widget, x?, y?, w?, h?, inputs? }
-                                                    → mueve / redimensiona / conecta
+     POST   ?d=<id>&widget=timeline { data, layout }
+                                                    → línea de tiempo (sin IA): hitos + personaje
+     PATCH  ?d=<id>  { widget, x?, y?, w?, h?, inputs?, data? }
+                                                    → mueve / redimensiona / conecta;
+                                                      `data` solo en líneas de tiempo
      DELETE ?d=<id>&widget=<widgetId>               → borra el widget
    ============================================================ */
 
@@ -49,6 +52,29 @@ const MAX_IMAGE_CHARS = 120_000;
 
 const publicWidget = (w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [] });
 
+/* ---------- línea de tiempo ---------- */
+const CHARACTERS = ['m', 'f'];
+const MAX_MILESTONES = 30;
+const isDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+
+/** Datos válidos de una línea de tiempo (hitos ordenados por fecha), o null. */
+function cleanTimeline(d) {
+  if (!d || !Array.isArray(d.milestones)) return null;
+  const milestones = d.milestones.slice(0, MAX_MILESTONES).map((m, i) => ({
+    id: /^[\w-]{1,24}$/.test(String(m?.id)) ? String(m.id) : `h${i}`,
+    name: String(m?.name ?? '').trim().slice(0, 40) || `Hito ${i + 1}`,
+    date: String(m?.date ?? ''),
+  }));
+  if (milestones.length < 2 || !milestones.every((m) => isDate(m.date))) return null;
+  milestones.sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    kind: 'timeline',
+    title: String(d.title ?? '').trim().slice(0, 60) || 'Línea de tiempo',
+    character: CHARACTERS.includes(d.character) ? d.character : 'm',
+    milestones,
+  };
+}
+
 /** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
 function cleanInputs(v, widgets, selfId) {
   if (!Array.isArray(v)) return [];
@@ -63,6 +89,8 @@ function contextFrom(list) {
     let body;
     if (d.kind === 'table') {
       body = [d.columns, ...(d.rows || []).slice(0, 200)].map((r) => r.join(' | ')).join('\n');
+    } else if (d.kind === 'timeline') {
+      body = d.milestones.map((m) => `${m.date}: ${m.name}`).join('\n');
     } else if (d.kind === 'chart') {
       body = d.labels.map((l, i) => `${l}: ${d.values[i]}${d.unit ? ` ${d.unit}` : ''}`).join('\n');
     } else {
@@ -158,6 +186,14 @@ export default async function handler(req, res) {
       return res.status(201).json({ widget: publicWidget(widget) });
     }
 
+    /* ---------- línea de tiempo (sin IA) ---------- */
+    if (req.method === 'POST' && dash && tool === 'timeline') {
+      const data = cleanTimeline(req.body?.data);
+      if (!data) return res.status(400).json({ error: 'Faltan hitos válidos (mínimo 2, con fecha).' });
+      const widget = await createWidget(dash.id, 'timeline', cleanLayout(req.body?.layout), data);
+      return res.status(201).json({ widget: publicWidget(widget) });
+    }
+
     /* ---------- mover / redimensionar / conectar ---------- */
     if (req.method === 'PATCH' && dash) {
       const wid = String(req.body?.widget || '');
@@ -167,8 +203,13 @@ export default async function handler(req, res) {
       const patch = {};
       if (req.body?.x != null) Object.assign(patch, cleanLayout({ ...current, ...req.body }));
       if (req.body?.inputs != null) patch.inputs = cleanInputs(req.body.inputs, all, wid);
+      if (req.body?.data != null) {
+        if (current.type !== 'timeline') return res.status(400).json({ error: 'Este widget no se edita así.' });
+        patch.data = cleanTimeline(req.body.data);
+        if (!patch.data) return res.status(400).json({ error: 'Faltan hitos válidos (mínimo 2, con fecha).' });
+      }
       await updateWidget(dash.id, wid, patch);
-      return res.status(200).json({ ok: true, inputs: patch.inputs });
+      return res.status(200).json({ ok: true, inputs: patch.inputs, data: patch.data });
     }
 
     /* ---------- borrar ---------- */

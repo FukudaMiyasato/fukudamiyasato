@@ -439,7 +439,9 @@ rol se vuelve a consultar en cada request: los cambios aplican al instante.
 
 ### Dashboards: lienzo de widgets
 
-Cada dashboard (`/dashboards/?d=<id>`) es un lienzo con rejilla de puntos:
+Cada dashboard (`/dashboards/?d=<id>`) es un lienzo con rejilla de puntos que
+ocupa toda la pantalla; la cabecera flota encima (fondo al 50%, al 90% con el
+mouse encima) igual que el dock:
 
 - **Moverse:** arrastrar el fondo (o la rueda / el trackpad). Todos pueden.
 - **Ojo de pez:** una sola función de lente (`warp` en `js/fisheye.js`) curva
@@ -475,10 +477,28 @@ Cada dashboard (`/dashboards/?d=<id>`) es un lienzo con rejilla de puntos:
   Si la pregunta está vacía, no tiene sentido o no se puede responder, el
   widget dice "No sirve tu tabla/pregunta", tiembla y se borra. El CSV no se
   guarda: solo la respuesta.
+- **Línea de tiempo** (tercera herramienta, `js/timeline.js`): un círculo por
+  hito unidos por una línea, y la cabeza de un personaje que avanza según los
+  días transcurridos entre el hito anterior y el siguiente. Al crearla: inicio
+  = hoy, fin = en 7 días. Cara según el tramo hacia el siguiente hito: primer
+  30% durmiendo (Z Z Z), siguiente 40% normal, último 30% asustado (gotas); el
+  día de un hito, asustado (salvo el inicio: durmiendo). Pasar el mouse por un
+  hito muestra su nombre y los días que faltan. En su bloque de información se
+  cambia el personaje (‹ cara ›), se editan nombres y fechas, y "agregar" suma
+  hitos: se ordenan solos por fecha y el widget crece con cada uno. Las caras
+  están en `assets/faces/` (`m_*` chico, `f_*` chica; falta `m_scared.png`, que
+  por ahora usa la cara normal).
+- **Seleccionar:** tocar un widget terminado lo marca con brillo rojo y abre, al
+  centro-derecha, un bloque claro (sin lente, flota suave y se queda quieto con
+  el mouse encima) con la pregunta usada, el archivo CSV, lo conectado y el
+  tamaño de la respuesta. Tocar el fondo, la × o `Esc` lo cierra.
+- **Borradores temporales:** un widget en creación que no se envía desaparece
+  al tocar cualquier otra zona (salvo el + de otro widget, para poder
+  conectarle cosas antes de preguntar).
 - **Conectores:** cada widget tiene uno a la izquierda (recibe) y uno con **+**
   a la derecha (da). Arrastrar desde el + dibuja una línea roja; soltarla en el
   conector izquierdo de otro widget los conecta (si no, desaparece). Un mismo
-  conector recibe varias líneas. Un **clic** en el + crea al lado un widget-
+  conector recibe varias líneas. Los puntos rojos de cada línea se ven encima de los conectores. Un **clic** en el + crea al lado un widget-
   pregunta ya conectado ("pregunta porfa"): la IA responde usando como contexto
   todos los widgets conectados a su izquierda. Mientras piensa, las líneas y
   esos widgets brillan y quedan bloqueados. Clic sobre una línea la quita.

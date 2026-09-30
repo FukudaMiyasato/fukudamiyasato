@@ -1,9 +1,8 @@
 /* ============================================================
    Dashboard — lienzo de widgets
    ------------------------------------------------------------
-   Pantalla completa: cabecera arriba, lienzo con rejilla de puntos
-   (se arrastra para moverse) y, para el admin, un dock de
-   herramientas centrado abajo.
+   El lienzo con rejilla de puntos ocupa toda la pantalla (se arrastra
+   para moverse); la cabecera y el dock de herramientas flotan encima.
    ============================================================ */
 
 .board-body { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
@@ -16,17 +15,23 @@
   flex-direction: column;
 }
 
-/* ---------- cabecera ---------- */
+/* ---------- cabecera ----------
+   Flota encima del lienzo (que ocupa toda la pantalla). Fondo al 50%;
+   con el mouse encima sube al 90% para leerla mejor. */
 .board-top {
-  flex: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
   padding: calc(6px + env(safe-area-inset-top, 0px)) calc(18px + env(safe-area-inset-right, 0px)) 8px calc(18px + env(safe-area-inset-left, 0px));
   border-bottom: 1px solid var(--line-soft);
-  background: rgba(8, 8, 10, .8); /* 20% de transparencia */
+  background: rgba(8, 8, 10, .5);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  position: relative;
-  z-index: 5;
+  transition: background .25s ease;
 }
+.board-top:hover, .board-top:focus-within { background: rgba(8, 8, 10, .9); }
 .exit {
   display: inline-flex;
   align-items: center;
@@ -502,7 +507,8 @@
 /* líneas entre widgets */
 .links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .link-line { fill: none; stroke: var(--red-hot); stroke-width: 2; stroke-linecap: round; opacity: .85; }
-.link-end { fill: var(--red-hot); }
+.link-end { fill: var(--red-hot); stroke: #16161b; stroke-width: 1.5; } /* encima del conector */
+.link-end.is-glowing { filter: drop-shadow(0 0 4px rgba(255, 31, 61, .9)); }
 .link-hit { fill: none; stroke: transparent; stroke-width: 14; }
 .can-edit .link-hit { pointer-events: stroke; cursor: pointer; }
 .can-edit .link:hover .link-line, .can-edit .link.is-hover .link-line { stroke-width: 3; opacity: 1; }
@@ -510,6 +516,213 @@
 .link-temp.is-snapped { stroke-dasharray: none; opacity: 1; }
 .link.is-glowing .link-line { stroke-width: 2.5; opacity: 1; filter: drop-shadow(0 0 5px rgba(255, 31, 61, .85)); animation: flow .9s linear infinite; stroke-dasharray: 10 6; }
 @keyframes flow { to { stroke-dashoffset: -16; } }
+
+/* ---------- widget seleccionado: brillo rojo ---------- */
+.widget.is-selected .wcard {
+  border-color: var(--red-hot);
+  box-shadow: 0 0 0 1.5px rgba(255, 31, 61, .55), 0 0 30px -2px rgba(255, 31, 61, .5), 0 18px 40px -26px #000;
+}
+
+/* ---------- bloque de información (sin lente) ----------
+   Parece un widget, pero claro. Flota suave; con el mouse encima se queda quieto. */
+.info-wrap {
+  position: absolute;
+  right: calc(22px + env(safe-area-inset-right, 0px));
+  top: 50%;
+  z-index: 4;
+  width: min(300px, 36vw);
+  transform: translateY(-50%);
+}
+.info-wrap[hidden] { display: none; }
+.info-wrap.is-in { animation: info-in .35s var(--ease) both; }
+@keyframes info-in { from { opacity: 0; translate: 16px 0; } }
+.info-card {
+  position: relative;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 18px 20px 20px;
+  border-radius: 16px;
+  background: linear-gradient(165deg, #f5f5f8, #dcdce3);
+  border: 1px solid rgba(255, 255, 255, .7);
+  color: #16161b;
+  box-shadow: 0 24px 50px -24px rgba(0, 0, 0, .8), inset 0 1px 0 #fff;
+  cursor: auto;
+  animation: float 4.5s ease-in-out infinite;
+}
+.info-card:hover { animation-play-state: paused; }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.info-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 17px;
+  line-height: 1;
+  color: #6c6c78;
+}
+.info-x:hover { background: rgba(0, 0, 0, .06); color: #16161b; }
+.info-kind { margin: 0 30px 6px 0; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: #b1001c; }
+.info-title { margin: 0 30px 14px 0; font-size: 16px; font-weight: 800; letter-spacing: -.01em; line-height: 1.25; }
+.info-list { margin: 0; }
+.info-list dt { margin: 12px 0 2px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #6c6c78; }
+.info-list dt:first-child { margin-top: 0; }
+.info-list dd { margin: 0; font-size: 13.5px; line-height: 1.5; color: #22222a; overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .info-wrap { top: auto; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); right: 12px; left: 12px; width: auto; transform: none; }
+  .info-card { max-height: 38vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .info-card, .info-wrap.is-in { animation: none; }
+}
+
+/* ============================================================
+   Línea de tiempo con personaje
+   ============================================================ */
+.wcard--timeline { overflow: visible; }            /* la cabeza puede asomar por arriba */
+.wtl { position: relative; flex: 1; min-height: 0; cursor: move; }
+body:not(.can-edit) .wtl { cursor: default; }
+.wtl-track { position: absolute; left: 26px; right: 26px; bottom: 26px; height: 18px; }
+.wtl-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 99px;
+  background: #fff;
+}
+.wtl-dot {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px -2px #000;
+  transition: transform .15s var(--ease);
+}
+.wtl-dot::before { content: ""; position: absolute; inset: -8px; border-radius: 50%; } /* zona de hover más grande */
+.wtl-dot:hover, .wtl-dot.is-hover { transform: scale(1.25); }
+
+/* cabeza: parada sobre la línea, en su posición del día */
+.wtl-face {
+  position: absolute;
+  bottom: 12px;
+  width: 46px;
+  margin-left: -23px;
+  pointer-events: none;
+  transition: left .6s var(--ease);
+}
+.wtl-face img { display: block; width: 100%; height: auto; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .45)); }
+.wtl-face.mood-normal img { animation: tl-bob 2.6s ease-in-out infinite; }
+.wtl-face.mood-sleep img { animation: tl-breathe 3.2s ease-in-out infinite; }
+.wtl-face.mood-scared img { animation: tl-shiver .35s ease-in-out infinite alternate; }
+@keyframes tl-bob { 50% { transform: translateY(-3px); } }
+@keyframes tl-breathe { 50% { transform: scale(1.04) translateY(1px); } }
+@keyframes tl-shiver { from { transform: translateX(-.8px) rotate(-1deg); } to { transform: translateX(.8px) rotate(1deg); } }
+
+/* durmiendo: Z Z Z que suben */
+.wtl-zzz { position: absolute; top: -4px; right: -10px; width: 30px; height: 30px; }
+.wtl-zzz i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  font-style: normal;
+  font-weight: 800;
+  font-size: 12px;
+  color: #dfe6ff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+  opacity: 0;
+  animation: tl-z 2.4s ease-out infinite;
+}
+.wtl-zzz i:nth-child(2) { animation-delay: .8s; font-size: 10px; }
+.wtl-zzz i:nth-child(3) { animation-delay: 1.6s; font-size: 8px; }
+@keyframes tl-z {
+  0% { opacity: 0; transform: translate(0, 0) scale(.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translate(16px, -26px) scale(1.2); }
+}
+
+/* asustado: gotas de sudor que caen */
+.wtl-drops { position: absolute; top: 8px; left: -6px; right: -6px; height: 30px; }
+.wtl-drops i {
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 9px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: #8fd3ff;
+  box-shadow: inset -1px -1px 0 rgba(0, 0, 0, .15);
+  opacity: 0;
+  animation: tl-drop 1.3s ease-in infinite;
+}
+.wtl-drops i:nth-child(1) { left: 2px; }
+.wtl-drops i:nth-child(2) { right: 2px; animation-delay: .45s; }
+.wtl-drops i:nth-child(3) { left: 8px; animation-delay: .9s; width: 5px; height: 7px; }
+@keyframes tl-drop {
+  0% { opacity: 0; transform: translateY(0) scale(.7); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(18px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wtl-face img, .wtl-zzz i, .wtl-drops i { animation: none; }
+  .wtl-zzz i, .wtl-drops i { opacity: 1; }
+}
+
+/* editor en el bloque de información */
+.tl-pick { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 4px 0 14px; }
+.tl-pick img { width: 64px; height: auto; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .25)); }
+.tl-arrow {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--red);
+}
+.tl-arrow:hover { background: rgba(0, 0, 0, .06); }
+.tl-rows { display: grid; gap: 6px; }
+.tl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; }
+.tl-row input {
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  background: rgba(255, 255, 255, .7);
+  color: #16161b;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.tl-row input:focus { border-color: var(--red); background: #fff; }
+.tl-row input[type="date"] { width: 128px; color-scheme: light; }
+.tl-row span.tl-name { font-size: 13.5px; }
+.tl-row span.tl-date { font-size: 12.5px; color: #6c6c78; font-variant-numeric: tabular-nums; }
+.tl-del { width: 24px; height: 24px; border-radius: 7px; font-size: 16px; color: #8a8a96; }
+.tl-del:hover { background: rgba(0, 0, 0, .06); color: var(--red); }
+.tl-add {
+  display: block;
+  margin: 12px auto 0;
+  padding: 6px 16px;
+  border-radius: 99px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #16161b;
+}
+.tl-add:hover { background: rgba(0, 0, 0, .06); }
 
 /* ---------- tooltip (gráficos) ---------- */
 .tip {
@@ -527,3 +740,4 @@
   pointer-events: none;
   box-shadow: 0 10px 24px -12px #000;
 }
+.tip.tip--light { background: #f5f5f8; color: #16161b; border-color: #fff; font-weight: 500; }

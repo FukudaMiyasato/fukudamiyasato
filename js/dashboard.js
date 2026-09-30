@@ -26,12 +26,19 @@
      · mientras piensa, las líneas y los widgets conectados brillan
    · Enfoque: el lienzo se centra en el widget que lanzas y en cada
      uno que termina (con 2 s entre uno y otro si terminan juntos).
+   · Seleccionar un widget (tocarlo): brillo rojo + bloque de información
+     al centro-derecha (pregunta, archivo, lo conectado), sin lente.
+   · Los widgets en creación son temporales: tocar otra zona los borra
+     (salvo el + de otro widget, para poder conectarles cosas).
    Los permisos reales los aplica /api/dash en el servidor.
    ============================================================ */
 
 import { dashIconHTML, TOOL_ICONS, ATTACHED_ICON } from './dashboard-icons.js';
 import { parseCSV } from './csv.js';
 import { drawDots, fitCanvas, buildLensFilter, unwarp } from './fisheye.js';
+import {
+  FACES, CHARACTERS, todayISO, addDays, defaultTimeline, timelineHTML, timelineSize, daysLeftText,
+} from './timeline.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('d') || '';
@@ -48,6 +55,7 @@ const board = $('board');
 const world = $('world');
 const dots = $('dots');
 const linksSvg = $('links');
+const linksTop = $('links-top');
 const lensEl = $('lens');
 const ctx = dots.getContext('2d');
 
@@ -136,7 +144,8 @@ let tempLine = null; // línea que sigue al dedo mientras se conecta
 function drawLinks() {
   const b = board.getBoundingClientRect();
   linksSvg.setAttribute('viewBox', `0 0 ${b.width} ${b.height}`);
-  let html = '';
+  linksTop.setAttribute('viewBox', `0 0 ${b.width} ${b.height}`);
+  let html = '', ends = '';
   for (const t of widgets) {
     for (const srcId of t.inputs || []) {
       const s = byId(srcId);
@@ -146,12 +155,13 @@ function drawLinks() {
       html += `<g class="link${glow}" data-from="${esc(s.id)}" data-to="${esc(t.id)}">
         <path class="link-hit" d="${curve(a, z)}"/>
         <path class="link-line" d="${curve(a, z)}"/>
-        <circle class="link-end" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end" cx="${z.x}" cy="${z.y}" r="3.5"/>
       </g>`;
+      ends += `<circle class="link-end${glow}" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end${glow}" cx="${z.x}" cy="${z.y}" r="3.5"/>`;
     }
   }
   if (tempLine) html += `<path class="link-line link-temp${tempLine.snap ? ' is-snapped' : ''}" d="${curve(tempLine.a, tempLine.z)}"/>`;
   linksSvg.innerHTML = html;
+  linksTop.innerHTML = ends;
 }
 
 /* quitar una conexión: clic sobre la línea (amos) */
@@ -261,6 +271,7 @@ function draftHTML(wd) {
 
 function doneHTML(wd) {
   const d = wd.data || {};
+  if (d.kind === 'timeline') return timelineHTML(d);
   return `
     <header class="whead" title="${esc(d.prompt || '')}">
       <h3>${esc(d.title || 'Respuesta')}</h3>
@@ -272,16 +283,16 @@ function doneHTML(wd) {
 /** Arma (o rearma, al cambiar de estado) el contenido del widget. */
 function render(wd) {
   const el = wd.el;
-  el.className = `widget is-${wd.state}`;
+  el.className = `widget is-${wd.state}${wd === selected ? ' is-selected' : ''}`;
   el.dataset.id = wd.id;
   const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
   el.innerHTML = `<div class="wbox">
-    <div class="wcard">${inner}</div>
+    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}">${inner}</div>
     ${canEdit ? `
       <button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>
       ${wd.state === 'done' ? `<button class="wport wport--out" type="button" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>` : ''}
-      <span class="whandle" aria-hidden="true"></span>
+      ${wd.data?.kind === 'timeline' ? '' : '<span class="whandle" aria-hidden="true"></span>'}
       ${wd.state === 'done' ? `<button class="wx" type="button" aria-label="Borrar «${esc(wd.data?.title || 'widget')}»">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg></button>` : ''}` : ''}
   </div>`;
@@ -291,8 +302,8 @@ function render(wd) {
   if (chart) new ResizeObserver(() => drawChart(chart, wd.data)).observe(chart);
 
   if (!canEdit) return;
-  el.querySelector('.whead').addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
-  el.querySelector('.whandle').addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
+  (el.querySelector('.whead') || el.querySelector('.wtl')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
+  el.querySelector('.whandle')?.addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
   el.querySelector('.wport--out')?.addEventListener('pointerdown', (e) => startLink(e, wd));
   el.querySelector('.wx')?.addEventListener('click', () => removeWidget(wd));
   if (wd.state === 'done') bindLongPress(wd);
@@ -354,6 +365,7 @@ async function saveInputs(wd) {
 
 /** Quita el widget del lienzo (y las líneas que salían de él). */
 function unmount(wd, animate = true) {
+  if (selected === wd) select(null);
   widgets = widgets.filter((x) => x !== wd);
   for (const o of widgets) if (o.inputs?.includes(wd.id)) { o.inputs = o.inputs.filter((i) => i !== wd.id); refreshContextNote(o); }
   if (animate) { wd.el.classList.add('is-leaving'); setTimeout(() => wd.el.remove(), 250); } else wd.el.remove();
@@ -547,6 +559,7 @@ function freeSpot(w, h, near) {
 
 function createDraft(mode, { near, inputs = [] } = {}) {
   const { w, h } = MODES[mode].size;
+  select(null); // el foco pasa al widget nuevo
   const wd = { id: `draft-${++draftSeq}`, type: MODES[mode].endpoint, mode, state: 'draft', inputs, ...freeSpot(w, h, near) };
   widgets.push(wd);
   mount(wd, { isNew: true });
@@ -669,6 +682,7 @@ async function submit(wd) {
 
 /** Tamaño según el tipo de respuesta (y, si es tabla, sus columnas y filas). */
 function sizeFor(d) {
+  if (d.kind === 'timeline') return timelineSize(d.milestones.length);
   if (d.kind === 'number') return { w: 7, h: 6 };
   if (d.kind === 'text') {
     const n = d.value.length;
@@ -721,7 +735,7 @@ function nextFocus() {
 
 board.addEventListener('pointerdown', (e) => {
   // en tablas y formularios se hace scroll/escribe; en controles, su acción
-  if (e.button !== 0 || e.target.closest('.wbody, .wform, .whandle, .wx, .wport, .link-hit')) return;
+  if (e.button !== 0 || e.target.closest('.wbody, .wform, .whandle, .wx, .wport, .link-hit, .info-wrap')) return;
   if (canEdit && e.target.closest('.whead')) return;
   if (jiggling && !e.target.closest('.widget')) stopJiggle();
   cancelAnimationFrame(panAnim);
@@ -765,12 +779,208 @@ function frame() {
 }
 
 /* ============================================================
+   Selección y widgets temporales
+   ============================================================ */
+
+let selected = null;
+
+function select(wd) {
+  if (selected === wd) return;
+  selected?.el.classList.remove('is-selected');
+  selected = wd;
+  wd?.el.classList.add('is-selected');
+  renderInfo();
+}
+
+/* Cada toque: qué hay debajo (con la lente, lo que se ve ahí), para
+   seleccionar y para borrar los borradores que quedaron sin crear. */
+document.addEventListener('pointerdown', (e) => {
+  if (!e.isTrusted || e.button > 0) return;
+  let el = e.target;
+  if (routing && board.contains(el) && !el.closest('.info-wrap')) el = hitAt(e.clientX, e.clientY) || el;
+  const wEl = el.closest?.('.widget');
+  const wd = wEl ? widgets.find((w) => w.el === wEl) : null;
+
+  // temporales: sin crear, se van al tocar otra zona (el + de otro widget no cuenta)
+  if (!el.closest?.('.wport--out')) {
+    for (const d of widgets.filter((w) => w.state === 'draft' && w !== wd)) unmount(d);
+  }
+
+  if (el.closest?.('.wport')) return; // conectar no selecciona ni deselecciona
+  if (wd?.state === 'done') select(wd);
+  else if (!el.closest?.('.info-wrap, .dock, .board-top')) select(null);
+}, true);
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selected && !jiggling) select(null); });
+$('info-x').addEventListener('click', () => select(null));
+
+/* ---------- bloque de información del seleccionado ---------- */
+
+const KIND_LABEL = { table: 'Tabla', chart: 'Gráfico', number: 'Número', text: 'Texto' };
+const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo' };
+
+function renderInfo() {
+  const box = $('info');
+  if (!selected) { box.hidden = true; return; }
+  const d = selected.data || {};
+  if (d.kind === 'timeline') return renderTimelineInfo(box);
+  const rows = [];
+  const add = (label, value) => { if (value) rows.push(`<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`); };
+  add('Pregunta', d.prompt);
+  add('Archivo', d.source);
+  const ctx = (selected.inputs || []).map((i) => byId(i)?.data?.title).filter(Boolean);
+  add(ctx.length === 1 ? 'Conectado' : 'Conectados', ctx.join(' · '));
+  if (d.kind === 'table') add('Tamaño', `${d.rows?.length || 0} filas × ${d.columns?.length || 0} columnas`);
+  if (d.kind === 'chart') add('Datos', `${d.labels?.length || 0} valores${d.unit ? ` · ${d.unit}` : ''}`);
+  add('Nota', d.cut ? 'Se guardaron solo las primeras filas.' : d.truncated ? 'Se usaron las primeras líneas del archivo (era muy grande).' : '');
+  if (!d.prompt && !d.source) add('Origen', 'Sin datos de origen guardados.');
+
+  $('info-kind').textContent = [TOOL_LABEL[selected.type], KIND_LABEL[d.kind]].filter(Boolean).join(' · ');
+  $('info-title').textContent = d.title || 'Widget';
+  $('info-list').innerHTML = rows.join('');
+  box.hidden = false;
+  box.classList.remove('is-in');
+  void box.offsetWidth; // reinicia la animación de entrada
+  box.classList.add('is-in');
+}
+
+/* ============================================================
+   Línea de tiempo: crear y editar desde el bloque de información
+   ============================================================ */
+
+async function createTimeline() {
+  select(null);
+  const data = defaultTimeline(todayISO());
+  const { w, h } = timelineSize(data.milestones.length);
+  const layout = freeSpot(w, h);
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=timeline`, {
+    method: 'POST', body: JSON.stringify({ data, layout }),
+  });
+  if (!r.ok) return alert(r.data.error || 'No se pudo crear la línea de tiempo.');
+  const wd = { ...r.data.widget, state: 'done', inputs: [] };
+  widgets.push(wd);
+  mount(wd, { isNew: true });
+  refreshEmpty();
+  focusOn(wd);
+  select(wd); // abre su bloque para editar hitos y personaje
+  requestDraw();
+}
+
+/** Guarda la línea de tiempo: reordena por fecha, redibuja y ajusta el ancho. */
+let tlSaveTimer = 0;
+function saveTimeline(wd, { rerenderInfo = false } = {}) {
+  const d = wd.data;
+  d.milestones.sort((a, b) => a.date.localeCompare(b.date));
+  const size = timelineSize(d.milestones.length);
+  if (size.w !== wd.w || size.h !== wd.h) {
+    const fits = !collides({ x: wd.x, y: wd.y, ...size }, wd.id);
+    Object.assign(wd, fits ? { x: wd.x, y: wd.y, ...size } : freeSpot(size.w, size.h, { x: wd.x, y: wd.y }));
+    saveLayout(wd);
+  }
+  render(wd);
+  requestDraw();
+  if (rerenderInfo) renderInfo();
+  clearTimeout(tlSaveTimer);
+  tlSaveTimer = setTimeout(async () => {
+    const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify({ widget: wd.id, data: wd.data }),
+    });
+    if (!r.ok) alert(r.data.error || 'No se pudo guardar la línea de tiempo.');
+  }, 250);
+}
+
+function renderTimelineInfo(box) {
+  const wd = selected;
+  const d = wd.data;
+  const today = todayISO();
+  $('info-kind').textContent = 'Línea de tiempo';
+  $('info-title').textContent = d.title || 'Línea de tiempo';
+  const list = $('info-list');
+  list.innerHTML = '';
+
+  // personaje: ‹ cara › (solo la cara normal en el selector)
+  const pick = document.createElement('div');
+  pick.className = 'tl-pick';
+  pick.innerHTML = `${canEdit ? '<button type="button" class="tl-arrow" data-step="-1" aria-label="Personaje anterior">‹</button>' : ''}
+    <img src="${FACES[d.character].normal}" alt="Personaje">
+    ${canEdit ? '<button type="button" class="tl-arrow" data-step="1" aria-label="Personaje siguiente">›</button>' : ''}`;
+  pick.querySelectorAll('.tl-arrow').forEach((b) => b.addEventListener('click', () => {
+    const i = CHARACTERS.indexOf(d.character);
+    d.character = CHARACTERS[(i + Number(b.dataset.step) + CHARACTERS.length) % CHARACTERS.length];
+    saveTimeline(wd, { rerenderInfo: true });
+  }));
+  list.append(pick);
+
+  // hitos, del más antiguo al más lejano
+  const rows = document.createElement('div');
+  rows.className = 'tl-rows';
+  for (const m of d.milestones) {
+    const row = document.createElement('div');
+    row.className = 'tl-row';
+    if (canEdit) {
+      row.innerHTML = `<input class="tl-name" maxlength="40" aria-label="Nombre del hito">
+        <input class="tl-date" type="date" aria-label="Fecha del hito">
+        ${d.milestones.length > 2 ? '<button type="button" class="tl-del" aria-label="Quitar hito">×</button>' : ''}`;
+      const name = row.querySelector('.tl-name'), date = row.querySelector('.tl-date');
+      name.value = m.name;
+      date.value = m.date;
+      name.addEventListener('change', () => { m.name = name.value.trim().slice(0, 40) || m.name; saveTimeline(wd); });
+      date.addEventListener('change', () => { if (date.value) { m.date = date.value; saveTimeline(wd, { rerenderInfo: true }); } });
+      row.querySelector('.tl-del')?.addEventListener('click', () => {
+        d.milestones = d.milestones.filter((x) => x !== m);
+        saveTimeline(wd, { rerenderInfo: true });
+      });
+    } else {
+      row.innerHTML = '<span class="tl-name"></span><span class="tl-date"></span>';
+      row.querySelector('.tl-name').textContent = m.name;
+      row.querySelector('.tl-date').textContent = m.date;
+    }
+    row.title = daysLeftText(m.date, today);
+    rows.append(row);
+  }
+  list.append(rows);
+
+  if (canEdit) {
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'tl-add';
+    add.textContent = 'agregar';
+    add.addEventListener('click', () => {
+      const last = d.milestones[d.milestones.length - 1];
+      const m = { id: `h${Date.now().toString(36)}`, name: `hito ${d.milestones.length + 1}`, date: addDays(last.date, 7) };
+      d.milestones.push(m);
+      saveTimeline(wd, { rerenderInfo: true });
+      const input = [...$('info-list').querySelectorAll('.tl-name')].find((x) => x.value === m.name);
+      input?.focus();
+      input?.select();
+    });
+    list.append(add);
+  }
+
+  box.hidden = false;
+  box.classList.remove('is-in');
+  void box.offsetWidth;
+  box.classList.add('is-in');
+}
+
+// la cabeza avanza con los días: si la página queda abierta, se redibuja al cambiar el día
+let lastDay = todayISO();
+setInterval(() => {
+  const now = todayISO();
+  if (now === lastDay) return;
+  lastDay = now;
+  widgets.filter((w) => w.data?.kind === 'timeline').forEach((w) => render(w));
+  requestDraw();
+}, 60_000);
+
+/* ============================================================
    Dock
    ============================================================ */
 
 const TOOLS = [
   { key: 'table', label: 'Tabla con IA', open: () => createDraft('table') },
   { key: 'ask', label: 'Pregúntale a la IA', open: () => createDraft('ask') },
+  { key: 'timeline', label: 'Línea de tiempo', open: () => createTimeline() },
 ];
 // los chismosos solo tienen un botón: actualizar toda la página
 const VIEWER_TOOLS = [{ key: 'refresh', label: 'Actualizar', open: () => location.reload() }];
@@ -867,6 +1077,7 @@ function showTip(el, cx, cy) {
   const t = el?.closest?.('[data-tip]');
   if (!t) { tipEl.hidden = true; return; }
   tipEl.textContent = t.dataset.tip;
+  tipEl.classList.toggle('tip--light', t.hasAttribute('data-tip-light'));
   tipEl.hidden = false;
   const pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight;
   const x = Math.min(innerWidth - w - 8, cx + pad);
@@ -899,7 +1110,7 @@ function hitAt(cx, cy) {
   const p = sourcePoint(cx, cy);
   lensEl.classList.add('is-hittable');
   const el = document.elementsFromPoint(p.x, p.y)
-    .find((n) => lensEl.contains(n) && n !== lensEl && n !== world && n !== linksSvg);
+    .find((n) => lensEl.contains(n) && n !== lensEl && n !== world && n !== linksSvg && n !== linksTop);
   lensEl.classList.remove('is-hittable');
   return el || null;
 }
@@ -913,7 +1124,7 @@ const eventInit = (e) => ({
 });
 
 board.addEventListener('pointerdown', (e) => {
-  if (!routing || !e.isTrusted) return;
+  if (!routing || !e.isTrusted || e.target.closest('.info-wrap')) return;
   const el = hitAt(e.clientX, e.clientY);
   if (!el) return; // fondo: sigue al manejo normal (moverse por el lienzo)
   e.stopPropagation();
@@ -924,7 +1135,7 @@ board.addEventListener('pointerdown', (e) => {
 }, true);
 
 board.addEventListener('click', (e) => {
-  if (!routing || !e.isTrusted) return;
+  if (!routing || !e.isTrusted || e.target.closest('.info-wrap')) return;
   const el = hitAt(e.clientX, e.clientY);
   if (!el) return;
   e.stopPropagation();
@@ -935,7 +1146,7 @@ board.addEventListener('click', (e) => {
 }, true);
 
 board.addEventListener('wheel', (e) => {
-  if (!routing) return;
+  if (!routing || e.target.closest('.info-wrap')) return;
   const el = hitAt(e.clientX, e.clientY);
   const sc = el?.closest('.wbody, .wform, textarea');
   if (!sc || (sc.scrollHeight <= sc.clientHeight && sc.scrollWidth <= sc.clientWidth)) return; // mueve el lienzo
@@ -958,6 +1169,7 @@ function setHover(el, cx, cy) {
 }
 board.addEventListener('pointermove', (e) => {
   if (!routing || e.buttons || e.pointerType === 'touch') return;
+  if (e.target.closest('.info-wrap')) { setHover(null); return; }
   cancelAnimationFrame(hoverRaf);
   hoverRaf = requestAnimationFrame(() => setHover(hitAt(e.clientX, e.clientY), e.clientX, e.clientY));
 });

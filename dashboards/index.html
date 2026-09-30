@@ -82,6 +82,8 @@
           <!-- líneas entre widgets conectados (debajo de los widgets) -->
           <svg class="links" id="links" aria-hidden="true"></svg>
           <div class="world" id="world"></div>
+          <!-- puntos de las líneas: encima de los conectores -->
+          <svg class="links links-top" id="links-top" aria-hidden="true"></svg>
         </div>
       </div>
     </div>
@@ -89,6 +91,16 @@
       <filter id="lens-filter"></filter>
     </svg>
     <p class="board-empty" id="board-empty" hidden></p>
+
+    <!-- info del widget seleccionado: fuera de .lens (no se deforma) -->
+    <aside class="info-wrap" id="info" hidden aria-live="polite">
+      <div class="info-card">
+        <button class="info-x" id="info-x" type="button" aria-label="Cerrar">×</button>
+        <p class="info-kind" id="info-kind"></p>
+        <h2 class="info-title" id="info-title"></h2>
+        <dl class="info-list" id="info-list"></dl>
+      </div>
+    </aside>
   </main>
 
   <!-- herramientas (solo admin) -->
