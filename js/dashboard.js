@@ -1325,8 +1325,25 @@ function portNear(x, y) {
   return best;
 }
 
+const WX_REACH = 26; // px: en modo "tiemblan", a esta distancia gana el botón rojo
+
+/** Botón rojo de borrar más cercano a (x, y) — px reales, sin lente — mientras
+    los widgets tiemblan. Tiene prioridad sobre todo lo demás. */
+function wxNear(x, y) {
+  if (!jiggling) return null;
+  let best = null, bestD = WX_REACH;
+  for (const wx of world.querySelectorAll('.wx')) {
+    const r = wx.getBoundingClientRect();
+    const d = Math.hypot(r.left + r.width / 2 - x, r.top + r.height / 2 - y);
+    if (d < bestD) { best = wx; bestD = d; }
+  }
+  return best;
+}
+
 function hitAt(cx, cy) {
   const p = sourcePoint(cx, cy);
+  const wx = wxNear(p.x, p.y);
+  if (wx) return wx;
   const port = portNear(p.x, p.y);
   if (port) return port;
   lensEl.classList.add('is-hittable');
@@ -1343,6 +1360,22 @@ const eventInit = (e) => ({
   button: e.button, buttons: e.buttons,
   ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey,
 });
+
+/* Sin lente el navegador detecta solo, pero el botón rojo igual necesita
+   prioridad: los widgets que tiemblan se tapan entre sí. */
+board.addEventListener('pointerdown', (e) => {
+  if (routing || !e.isTrusted || !wxNear(e.clientX, e.clientY)) return;
+  e.stopPropagation(); // ni arrastre ni moverse por el lienzo: es para el botón
+  e.preventDefault();
+}, true);
+board.addEventListener('click', (e) => {
+  if (routing || !e.isTrusted) return;
+  const wx = wxNear(e.clientX, e.clientY);
+  if (!wx || e.target === wx) return;
+  e.stopPropagation();
+  e.preventDefault();
+  wx.click();
+}, true);
 
 board.addEventListener('pointerdown', (e) => {
   if (!routing || !e.isTrusted || e.target.closest('.info-wrap')) return;

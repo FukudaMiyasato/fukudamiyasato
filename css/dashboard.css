@@ -216,6 +216,7 @@
   transition: transform .15s var(--ease);
 }
 .wx svg { width: 13px; height: 13px; }
+.wx::before { content: ""; position: absolute; inset: -12px; border-radius: 50%; } /* zona sensible más grande */
 .wx:hover, .wx.is-hover { transform: scale(1.12); background: var(--red-hot); }
 .is-jiggle .wx { display: grid; animation: pop .2s var(--ease) both; }
 @keyframes pop { from { transform: scale(0); } }
