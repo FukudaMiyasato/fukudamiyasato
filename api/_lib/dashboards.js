@@ -6,6 +6,8 @@
                            image: ícono subido (data URL chica) o null →
                            el navegador dibuja uno por defecto con las iniciales
      fm:widgets:<dashId>   [{ id, type, x, y, w, h, data, inputs }]
+     fm:marks:<dashId>     { flags: [{ id, x, y, color }], divider: { x } | null }
+                           banderas y raya divisoria (no son widgets)
    x, y, w, h van en celdas de la rejilla del lienzo. `inputs` son los ids
    de los widgets conectados a su conector izquierdo (le dan contexto).
    Los de BUILTIN existen siempre y no se pueden borrar (su `icon` es una
@@ -16,6 +18,7 @@ import { getJSON, setJSON, del, newId } from './store.js';
 
 const DASH_KEY = 'fm:dashboards';
 const widgetsKey = (dashId) => `fm:widgets:${dashId}`;
+const marksKey = (dashId) => `fm:marks:${dashId}`;
 
 const BUILTIN = [
   { id: 'proyecto-jazz', name: 'PROYECTO-JAZZ', icon: 'sax' },
@@ -58,6 +61,7 @@ export async function createDashboard(name, image) {
 
 export async function deleteDashboard(d) {
   await del(widgetsKey(d.id));
+  await del(marksKey(d.id));
   await setJSON(DASH_KEY, (await getJSON(DASH_KEY, [])).filter((x) => x.id !== d.id));
 }
 
@@ -88,5 +92,48 @@ export async function deleteWidget(dashId, id) {
   const rest = list.filter((x) => x.id !== id);
   for (const w of rest) if (w.inputs?.includes(id)) w.inputs = w.inputs.filter((i) => i !== id);
   await setJSON(widgetsKey(dashId), rest);
+  return true;
+}
+
+/* ---------- banderas y raya divisoria ---------- */
+
+export const FLAG_COLORS = ['#ff3b4f', '#ff9f1c', '#ffd60a', '#2ecc71', '#22d3ee', '#3b82f6', '#a855f7', '#ff5fa2'];
+
+export async function getMarks(dashId) {
+  const m = await getJSON(marksKey(dashId), null);
+  return { flags: m?.flags || [], divider: m?.divider || null };
+}
+
+/** Pone una bandera con un color al azar que no tenga otra. null si ya están los 8. */
+export async function addFlag(dashId, x, y) {
+  const marks = await getMarks(dashId);
+  const free = FLAG_COLORS.filter((c) => !marks.flags.some((f) => f.color === c));
+  if (!free.length) return null;
+  const flag = { id: newId(), x, y, color: free[Math.floor(Math.random() * free.length)] };
+  marks.flags.push(flag);
+  await setJSON(marksKey(dashId), marks);
+  return flag;
+}
+
+/** Pone la raya divisoria en la columna x. false si ya hay una. */
+export async function setDivider(dashId, x) {
+  const marks = await getMarks(dashId);
+  if (marks.divider) return false;
+  marks.divider = { x };
+  await setJSON(marksKey(dashId), marks);
+  return marks.divider;
+}
+
+/** Quita una bandera (por id) o la raya ('divider'). */
+export async function deleteMark(dashId, markId) {
+  const marks = await getMarks(dashId);
+  if (markId === 'divider') {
+    if (!marks.divider) return false;
+    marks.divider = null;
+  } else {
+    if (!marks.flags.some((f) => f.id === markId)) return false;
+    marks.flags = marks.flags.filter((f) => f.id !== markId);
+  }
+  await setJSON(marksKey(dashId), marks);
   return true;
 }

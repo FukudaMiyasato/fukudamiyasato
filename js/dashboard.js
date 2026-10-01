@@ -32,6 +32,10 @@
      al centro-derecha (pregunta, archivo, lo conectado), sin lente.
    · Los widgets en creación son temporales: tocar otra zona los borra
      (salvo el + de otro widget, para poder conectarles cosas).
+   · Maleta (dock, amos): bandera al centro de la vista (color al azar, sin
+     repetir, máx. 8) y raya divisoria a la derecha de todo (solo una). No son
+     widgets. Con la primera bandera aparece, junto al zoom, un botón con el
+     listado: elegir una centra el lienzo en ella.
    Los permisos reales los aplica /api/dash en el servidor.
    ============================================================ */
 
@@ -51,8 +55,8 @@ let fisheye = 0.07;           // intensidad del ojo de pez; la define el amo sup
 const MAX_CSV = 2 * 1024 * 1024;
 const LONG_PRESS = 520;       // ms presionando para que tiemblen
 const FOCUS_GAP = 2000;       // ms entre un enfoque automático y el siguiente
-const SNAP_PORT = 28;
-const REJECT_MS = 4500;       // cuánto se ve "No sirve tu…" antes de borrarse         // px: qué tan cerca hay que soltar la línea del conector
+const SNAP_PORT = 28;         // px: qué tan cerca hay que soltar la línea del conector
+const REJECT_MS = 4500;       // cuánto se ve "No sirve tu…" antes de borrarse
 const FILE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
 
 const board = $('board');
@@ -109,6 +113,7 @@ function draw() {
   drawDots(ctx, w, h, { panX: pan.x, panY: pan.y, grid: cell(), amount: fisheye });
 
   world.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
+  if (jiggling) placeDividerX();
   drawLinks();
 }
 
@@ -237,12 +242,12 @@ const MODES = {
     placeholder: 'Pregunta que me aburro', submit: 'Apura', fail: 'No sirve tu tabla', size: { w: 12, h: 10 },
   },
   ask: {
-    title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'follow', file: false,
+    title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'ask', file: false,
     placeholder: '¿Qué quieres saber?', submit: 'Apura', fail: 'No sirve tu pregunta', size: { w: 11, h: 7 },
   },
   // clic en el + de un widget: la IA normal (estrella), con lo conectado como contexto
   follow: {
-    title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'ask', file: false,
+    title: 'Pregúntale a la IA', icon: 'ask', endpoint: 'follow', file: false,
     placeholder: '¿Qué quieres saber de lo conectado?', submit: 'pregunta porfa', fail: 'No sirve tu pregunta', size: { w: 11, h: 8 },
   },
 };
@@ -280,6 +285,7 @@ function doneHTML(wd) {
   const d = wd.data || {};
   if (d.kind === 'timeline') return timelineHTML(d);
   if (d.kind === 'user') return userHTML(d);
+  if (d.kind === 'nebula') return nebulaHTML(wd);
   return `
     <header class="whead" title="${esc(d.prompt || '')}">
       <h3>${esc(d.title || 'Respuesta')}</h3>
@@ -295,7 +301,7 @@ function render(wd) {
   el.dataset.id = wd.id;
   const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
   el.innerHTML = `<div class="wbox">
-    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' ? ' wcard--user' : ''}">${inner}</div>
+    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' ? ' wcard--user' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}">${inner}</div>
     ${canEdit ? `
       <button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>
       ${wd.state === 'done' ? `<button class="wport wport--out" type="button" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
@@ -310,7 +316,7 @@ function render(wd) {
   if (chart) new ResizeObserver(() => drawChart(chart, wd.data)).observe(chart);
 
   if (!canEdit) return;
-  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
+  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser, .wneb')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
   el.querySelector('.whandle')?.addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
   el.querySelector('.wport--out')?.addEventListener('pointerdown', (e) => startLink(e, wd));
   el.querySelector('.wx')?.addEventListener('click', () => removeWidget(wd));
@@ -375,7 +381,13 @@ async function saveInputs(wd) {
 function unmount(wd, animate = true) {
   if (selected === wd) select(null);
   widgets = widgets.filter((x) => x !== wd);
-  for (const o of widgets) if (o.inputs?.includes(wd.id)) { o.inputs = o.inputs.filter((i) => i !== wd.id); refreshContextNote(o); }
+  for (const o of widgets) {
+    if (o.inputs?.includes(wd.id) || o.about?.includes(wd.id)) {
+      o.inputs = o.inputs.filter((i) => i !== wd.id);
+      if (o.about) o.about = o.about.filter((i) => i !== wd.id);
+      refreshContextNote(o);
+    }
+  }
   if (animate) { wd.el.classList.add('is-leaving'); setTimeout(() => wd.el.remove(), 250); } else wd.el.remove();
   refreshEmpty();
   refreshGlow();
@@ -397,6 +409,7 @@ function startJiggle() {
   if (jiggling) return;
   jiggling = true;
   board.classList.add('is-jiggle');
+  placeDividerX();
   navigator.vibrate?.(12);
 }
 function stopJiggle() {
@@ -544,9 +557,13 @@ function markTarget(wd) {
 function refreshContextNote(wd) {
   const note = wd.el.querySelector('.wctx');
   if (!note) return;
+  const title = (i) => byId(i)?.data?.title || 'un widget';
+  const parts = [];
+  if (wd.about?.length) parts.push(`Sobre «${title(wd.about[0])}»`);
   const n = wd.inputs.length;
-  note.hidden = !n;
-  note.textContent = n === 1 ? `Contexto: «${byId(wd.inputs[0])?.data?.title || '1 widget'}»` : `Contexto: ${n} widgets conectados`;
+  if (n) parts.push(n === 1 ? `Contexto: «${title(wd.inputs[0])}»` : `Contexto: ${n} widgets conectados`);
+  note.hidden = !parts.length;
+  note.textContent = parts.join(' · ');
 }
 
 /** Brillo y bloqueo: los que piensan y los widgets conectados a ellos. */
@@ -578,10 +595,12 @@ function freeSpot(w, h, near) {
   return { x: cx, y: cy + 100, w, h };
 }
 
-function createDraft(mode, { near, inputs = [] } = {}) {
+/* `about`: ids de los widgets sobre los que se pregunta sin quedar conectados
+   (el + de un widget): la IA los usa como contexto, pero no hay línea. */
+function createDraft(mode, { near, inputs = [], about = [] } = {}) {
   const { w, h } = MODES[mode].size;
   select(null); // el foco pasa al widget nuevo
-  const wd = { id: `draft-${++draftSeq}`, type: MODES[mode].endpoint, mode, state: 'draft', inputs, ...freeSpot(w, h, near) };
+  const wd = { id: `draft-${++draftSeq}`, type: MODES[mode].endpoint, mode, state: 'draft', inputs, about, ...freeSpot(w, h, near) };
   widgets.push(wd);
   mount(wd, { isNew: true });
   refreshContextNote(wd);
@@ -591,10 +610,11 @@ function createDraft(mode, { near, inputs = [] } = {}) {
   return wd;
 }
 
-/** Clic en el + de un widget: pregunta nueva a su derecha, ya conectada. */
+/** Clic en el + de un widget: pregunta nueva en el primer lugar libre a su
+    costado, SIN conectar (usa ese widget y su cadena como contexto). */
 function createFollow(src) {
   const { h } = MODES.follow.size;
-  createDraft('follow', { near: { x: src.x + src.w + 2, y: src.y + Math.round((src.h - h) / 2) }, inputs: [src.id] });
+  createDraft('follow', { near: { x: src.x + src.w + 2, y: src.y + Math.round((src.h - h) / 2) }, about: [src.id] });
 }
 
 function bindDraft(wd) {
@@ -669,7 +689,7 @@ async function submit(wd) {
   refreshGlow();
   requestDraw();
 
-  const body = { prompt, inputs: wd.inputs, layout: { x: wd.x, y: wd.y, w: wd.w, h: wd.h } };
+  const body = { prompt, inputs: wd.inputs, about: wd.about || [], layout: { x: wd.x, y: wd.y, w: wd.w, h: wd.h } };
   if (wd.file) Object.assign(body, { csv: wd.fileText, filename: wd.file.name });
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=${m.endpoint}`, { method: 'POST', body: JSON.stringify(body) });
 
@@ -706,6 +726,7 @@ async function submit(wd) {
 function sizeFor(d) {
   if (d.kind === 'timeline') return timelineSize(d.milestones.length);
   if (d.kind === 'user') return userSize();
+  if (d.kind === 'nebula') return NEBULA_SIZE;
   if (d.kind === 'number') return { w: 7, h: 6 };
   if (d.kind === 'text') {
     const n = d.value.length;
@@ -721,9 +742,12 @@ function sizeFor(d) {
    ============================================================ */
 
 let panAnim = 0;
-function focusOn(wd) {
-  const tx = Math.round(board.clientWidth / 2 - (wd.x + wd.w / 2) * cell());
-  const ty = Math.round(board.clientHeight / 2 - (wd.y + wd.h / 2) * cell());
+const focusOn = (wd) => focusAt(wd.x + wd.w / 2, wd.y + wd.h / 2);
+
+/** Mueve el lienzo hasta dejar el punto (en celdas) al centro de la vista. */
+function focusAt(cx, cy) {
+  const tx = Math.round(board.clientWidth / 2 - cx * cell());
+  const ty = Math.round(board.clientHeight / 2 - cy * cell());
   const from = { ...pan }, t0 = performance.now(), dur = 600;
   const ease = (t) => 1 - (1 - t) ** 3;
   cancelAnimationFrame(panAnim);
@@ -831,7 +855,7 @@ document.addEventListener('pointerdown', (e) => {
   const wEl = el.closest?.('.widget');
   const wd = wEl ? widgets.find((w) => w.el === wEl) : null;
 
-  if (el.closest?.('.zoom')) return; // hacer zoom no cambia nada más
+  if (el.closest?.('.view-tools')) return; // zoom y banderas no cambian nada más
 
   // temporales: sin crear, se van al tocar otra zona (el + de otro widget no cuenta)
   if (!el.closest?.('.wport--out')) {
@@ -849,7 +873,7 @@ $('info-x').addEventListener('click', () => select(null));
 /* ---------- bloque de información del seleccionado ---------- */
 
 const KIND_LABEL = { table: 'Tabla', chart: 'Gráfico', number: 'Número', text: 'Texto' };
-const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario' };
+const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', nebula: 'Nebulosa de IA' };
 
 /** Muestra el bloque; la animación de entrada solo cuando cambia de widget
     (editarlo no lo "recarga"). */
@@ -873,12 +897,13 @@ function renderInfo() {
   const add = (label, value) => { if (value) rows.push(`<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`); };
   add('Pregunta', d.prompt);
   add('Archivo', d.source);
+  if (d.kind === 'nebula') add('Qué es', 'Una nebulosa de IA. Todavía no hace nada más que verse.');
   const ctx = (selected.inputs || []).map((i) => byId(i)?.data?.title).filter(Boolean);
   add(ctx.length === 1 ? 'Conectado' : 'Conectados', ctx.join(' · '));
   if (d.kind === 'table') add('Tamaño', `${d.rows?.length || 0} filas × ${d.columns?.length || 0} columnas`);
   if (d.kind === 'chart') add('Datos', `${d.labels?.length || 0} valores${d.unit ? ` · ${d.unit}` : ''}`);
   add('Nota', d.cut ? 'Se guardaron solo las primeras filas.' : d.truncated ? 'Se usaron las primeras líneas del archivo (era muy grande).' : '');
-  if (!d.prompt && !d.source) add('Origen', 'Sin datos de origen guardados.');
+  if (!d.prompt && !d.source && d.kind !== 'nebula') add('Origen', 'Sin datos de origen guardados.');
 
   $('info-kind').textContent = [TOOL_LABEL[selected.type], KIND_LABEL[d.kind]].filter(Boolean).join(' · ');
   $('info-title').textContent = d.title || 'Widget';
@@ -1184,6 +1209,12 @@ const TOOLS = [
   { key: 'ask', label: 'Pregúntale a la IA', open: () => createDraft('ask') },
   { key: 'timeline', label: 'Línea de tiempo', open: () => createTimeline() },
   { key: 'user', label: 'Usuario', open: () => createUser() },
+  { key: 'nebula', label: 'Nebulosa de IA', open: () => createPlain('nebula', { kind: 'nebula', title: 'Nebulosa de IA' }, NEBULA_SIZE) },
+];
+// dentro de la maleta: no son widgets
+const KIT = [
+  { key: 'flag', label: 'Bandera', open: () => placeFlag() },
+  { key: 'divider', label: 'Raya divisoria', open: () => placeDivider() },
 ];
 // los chismosos solo tienen un botón: actualizar toda la página
 const VIEWER_TOOLS = [{ key: 'refresh', label: 'Actualizar', open: () => location.reload() }];
@@ -1202,6 +1233,176 @@ function renderDock() {
     b.addEventListener('click', t.open);
     dock.append(b);
   }
+  if (!canEdit) return;
+
+  // separación + maleta (se ve distinta: abre más herramientas)
+  const sep = document.createElement('span');
+  sep.className = 'dock-sep';
+  sep.setAttribute('aria-hidden', 'true');
+  const kit = document.createElement('div');
+  kit.className = 'kit';
+  kit.innerHTML = `
+    <button class="tool tool--kit" id="kit-btn" type="button" title="Maleta" aria-label="Maleta" aria-haspopup="true" aria-expanded="false" aria-controls="kit-menu">${TOOL_ICONS.kit}</button>
+    <div class="kit-menu" id="kit-menu" role="menu" hidden>
+      ${KIT.map((t) => `<button class="tool tool--${t.key}" type="button" role="menuitem" data-kit="${t.key}" title="${t.label}" aria-label="${t.label}">${TOOL_ICONS[t.key]}</button>`).join('')}
+    </div>`;
+  kit.querySelector('#kit-btn').addEventListener('click', () => toggleKit($('kit-menu').hidden));
+  for (const t of KIT) {
+    kit.querySelector(`[data-kit="${t.key}"]`).addEventListener('click', () => { toggleKit(false); t.open(); });
+  }
+  dock.append(sep, kit);
+  refreshKit();
+}
+
+function toggleKit(open) {
+  const menu = $('kit-menu');
+  if (!menu) return;
+  menu.hidden = !open;
+  $('kit-btn').setAttribute('aria-expanded', String(open));
+}
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest?.('.kit')) toggleKit(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleKit(false); });
+
+/** Bandera: sin colores libres no se puede. Raya: solo una. */
+function refreshKit() {
+  const flag = document.querySelector('[data-kit="flag"]');
+  const line = document.querySelector('[data-kit="divider"]');
+  if (!flag) return;
+  const full = marks.flags.length >= FLAG_MAX;
+  flag.disabled = full;
+  flag.title = full ? `Ya hay ${FLAG_MAX} banderas` : 'Bandera';
+  line.disabled = !!marks.divider;
+  line.title = marks.divider ? 'Ya hay una raya divisoria' : 'Raya divisoria';
+}
+
+/* ============================================================
+   Banderas y raya divisoria (no son widgets: sin tarjeta ni bloque)
+   ============================================================ */
+
+const FLAG_MAX = 8;
+const FLAG_NAMES = {
+  '#ff3b4f': 'Roja', '#ff9f1c': 'Naranja', '#ffd60a': 'Amarilla', '#2ecc71': 'Verde',
+  '#22d3ee': 'Celeste', '#3b82f6': 'Azul', '#a855f7': 'Morada', '#ff5fa2': 'Rosada',
+};
+const flagName = (f) => `Bandera ${(FLAG_NAMES[f.color] || '').toLowerCase()}`.trim();
+let marks = { flags: [], divider: null };
+const marksEl = document.createElement('div');
+marksEl.className = 'marks';
+world.prepend(marksEl); // debajo de los widgets (las banderas suben con z-index)
+
+const DEL_BTN = (label) => `<button class="wx" type="button" aria-label="${esc(label)}">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 12h12"/></svg></button>`;
+
+function renderMarks({ fresh } = {}) {
+  marksEl.innerHTML = '';
+  if (marks.divider) {
+    const d = document.createElement('div');
+    d.className = 'mark-divider';
+    d.style.left = `${marks.divider.x * GRID}px`;
+    if (canEdit) {
+      d.innerHTML = DEL_BTN('Quitar la raya divisoria');
+      d.querySelector('.wx').addEventListener('click', () => removeMark('divider'));
+    }
+    marksEl.append(d);
+    placeDividerX();
+  }
+  for (const f of marks.flags) {
+    const el = document.createElement('div');
+    el.className = `mark-flag${f.id === fresh ? ' is-new' : ''}`;
+    el.style.cssText = `left:${f.x * GRID}px;top:${f.y * GRID}px;--flag:${f.color}`;
+    el.dataset.tip = flagName(f);
+    el.innerHTML = TOOL_ICONS.flag + (canEdit ? DEL_BTN(`Quitar ${flagName(f).toLowerCase()}`) : '');
+    el.querySelector('.wx')?.addEventListener('click', () => removeMark(f.id));
+    marksEl.append(el);
+  }
+  renderFlagsMenu();
+  refreshKit();
+}
+
+/* el botón rojo de la raya va a la altura del centro de la vista */
+function placeDividerX() {
+  const wx = marksEl.querySelector('.mark-divider .wx');
+  if (wx) wx.style.top = `${50000 + (board.clientHeight / 2 - pan.y) / zoom - 13}px`;
+}
+
+/** Punto de la rejilla al centro de la vista, en celdas. */
+const viewCenter = () => ({
+  x: Math.round((board.clientWidth / 2 - pan.x) / cell()),
+  y: Math.round((board.clientHeight / 2 - pan.y) / cell()),
+});
+
+async function placeFlag() {
+  if (marks.flags.length >= FLAG_MAX) return;
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&mark=flag`, { method: 'POST', body: JSON.stringify(viewCenter()) });
+  if (!r.ok) return alert(r.data.error || 'No se pudo poner la bandera.');
+  marks.flags.push(r.data.flag);
+  renderMarks({ fresh: r.data.flag.id });
+  requestDraw();
+}
+
+async function placeDivider() {
+  if (marks.divider) return;
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&mark=divider`, { method: 'POST', body: '{}' });
+  if (!r.ok) return alert(r.data.error || 'No se pudo poner la raya.');
+  marks.divider = r.data.divider;
+  renderMarks();
+  requestDraw();
+}
+
+async function removeMark(markId) {
+  const what = markId === 'divider' ? 'la raya divisoria' : flagName(marks.flags.find((f) => f.id === markId) || {}).toLowerCase();
+  if (!confirm(`¿Quitar ${what}?`)) return;
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&mark=${encodeURIComponent(markId)}`, { method: 'DELETE' });
+  if (!r.ok) return alert(r.data.error || 'No se pudo quitar.');
+  if (markId === 'divider') marks.divider = null;
+  else marks.flags = marks.flags.filter((f) => f.id !== markId);
+  renderMarks();
+  requestDraw();
+}
+
+/* ---------- listado de banderas (junto al zoom) ---------- */
+
+function renderFlagsMenu() {
+  const box = $('flags');
+  box.hidden = !marks.flags.length;
+  if (!marks.flags.length) { toggleFlags(false); return; }
+  const btn = $('flags-btn');
+  btn.innerHTML = TOOL_ICONS.flag;
+  btn.style.setProperty('--flag', marks.flags[marks.flags.length - 1].color);
+  const list = $('flags-list');
+  list.innerHTML = marks.flags.map((f) => `<li><button type="button" data-flag="${esc(f.id)}" style="color:${f.color}">
+    ${TOOL_ICONS.flag}<span style="color:#f2f2f4">${esc(flagName(f))}</span></button></li>`).join('');
+  list.querySelectorAll('[data-flag]').forEach((b) => b.addEventListener('click', () => {
+    const f = marks.flags.find((x) => x.id === b.dataset.flag);
+    toggleFlags(false);
+    if (f) focusAt(f.x, f.y);
+  }));
+}
+
+function toggleFlags(open) {
+  $('flags-list').hidden = !open;
+  $('flags-btn').setAttribute('aria-expanded', String(open));
+}
+$('flags-btn').addEventListener('click', () => toggleFlags($('flags-list').hidden));
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest?.('.flags')) toggleFlags(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleFlags(false); });
+
+/* ============================================================
+   Nebulosa de IA (por ahora solo se ve: nube que gira y estrellas)
+   ============================================================ */
+
+const NEBULA_SIZE = { w: 8, h: 7 };
+
+function nebulaHTML(wd) {
+  // estrellas fijas por widget (salen del id), para que no salten al redibujar
+  let seed = [...String(wd.id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 2 ** 32);
+  const stars = Array.from({ length: 18 }, () => `<i style="left:${(rnd() * 100).toFixed(1)}%;top:${(rnd() * 100).toFixed(1)}%;animation-delay:${(-rnd() * 3).toFixed(2)}s"></i>`).join('');
+  return `<div class="wneb" role="img" aria-label="Nebulosa de IA">
+    <span class="wneb-cloud"></span><span class="wneb-cloud"></span>
+    <span class="wneb-stars">${stars}</span>
+    <b>Nebulosa de IA</b>
+  </div>`;
 }
 
 /* ============================================================
@@ -1540,6 +1741,8 @@ $('dash-delete').addEventListener('click', async () => {
   renderDock();
   widgets = data.widgets.map((w) => ({ ...w, state: 'done', inputs: w.inputs || [] }));
   widgets.forEach((wd) => mount(wd));
+  marks = { flags: data.marks?.flags || [], divider: data.marks?.divider || null };
+  renderMarks();
   refreshEmpty();
   try {
     const saved = Number(localStorage.getItem(ZOOM_KEY));

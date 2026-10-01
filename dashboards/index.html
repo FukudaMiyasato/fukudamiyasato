@@ -103,11 +103,17 @@
     </aside>
   </main>
 
-  <!-- zoom del lienzo: debajo de la cabecera, arriba a la derecha -->
-  <div class="zoom" role="group" aria-label="Zoom">
-    <button class="zoom-btn" type="button" data-step="-1" aria-label="Alejar"><span class="zoom-minus"></span></button>
-    <input class="zoom-range" id="zoom-range" type="range" min="0" max="1000" value="500" aria-label="Zoom del lienzo">
-    <button class="zoom-btn" type="button" data-step="1" aria-label="Acercar"><span class="zoom-plus"></span></button>
+  <!-- debajo de la cabecera, arriba a la derecha: banderas (si hay) y zoom -->
+  <div class="view-tools">
+    <div class="flags" id="flags" hidden>
+      <button class="flags-btn" id="flags-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="flags-list" aria-label="Banderas" title="Banderas"></button>
+      <ul class="flags-list" id="flags-list" hidden></ul>
+    </div>
+    <div class="zoom" role="group" aria-label="Zoom">
+      <button class="zoom-btn" type="button" data-step="-1" aria-label="Alejar"><span class="zoom-minus"></span></button>
+      <input class="zoom-range" id="zoom-range" type="range" min="0" max="1000" value="500" aria-label="Zoom del lienzo">
+      <button class="zoom-btn" type="button" data-step="1" aria-label="Acercar"><span class="zoom-plus"></span></button>
+    </div>
   </div>
 
   <!-- herramientas (solo admin) -->

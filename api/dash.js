@@ -15,15 +15,22 @@
                                                       conectados) se le pasan como contexto
      POST   ?d=<id>&widget=ask { prompt, inputs?, layout }
                                                     → un párrafo como máximo (estrella)
-     POST   ?d=<id>&widget=follow { prompt, inputs, layout }
+     POST   ?d=<id>&widget=follow { prompt, about, inputs?, layout }
                                                     → clic en el + de un widget: un párrafo más
                                                       libre con el contexto de TODA la cadena
-                                                      conectada hacia atrás (se guarda como "ask")
+                                                      hacia atrás de `about` (el widget de origen,
+                                                      que NO queda conectado) y de `inputs`.
+                                                      Se guarda como "ask".
                                                       422 { error } si el pedido no sirve
      POST   ?d=<id>&widget=timeline { data, layout }
                                                     → línea de tiempo (sin IA): hitos + personaje
      POST   ?d=<id>&widget=user { data, layout }
                                                     → usuario (sin IA): tipo + archivos de contexto
+     POST   ?d=<id>&widget=nebula { data, layout }  → nebulosa de IA (sin IA por ahora)
+     POST   ?d=<id>&mark=flag { x, y }              → bandera (color al azar, sin repetir; máx. 8)
+     POST   ?d=<id>&mark=divider                    → raya divisoria una columna a la derecha
+                                                      de lo más a la derecha (solo una)
+     DELETE ?d=<id>&mark=<flagId|divider>           → quita una bandera o la raya
      PATCH  ?d=<id>  { widget, x?, y?, w?, h?, inputs?, data? }
                                                     → mueve / redimensiona / conecta;
                                                       `data` solo en líneas de tiempo y usuarios
@@ -34,6 +41,7 @@ import { currentUser, canSeeDashboard, forgetDashboard, isAmo, listPerms } from 
 import {
   listDashboards, publicDash, createDashboard, deleteDashboard,
   listWidgets, createWidget, updateWidget, deleteWidget,
+  getMarks, addFlag, setDivider, deleteMark,
 } from './_lib/dashboards.js';
 import { askVisual, askShort, askFollow, AIError } from './_lib/ai.js';
 import { getConfig } from './_lib/config.js';
@@ -95,7 +103,10 @@ function cleanUser(d) {
   return { kind: 'user', persona: PERSONAS.includes(d.persona) ? d.persona : 'default', context };
 }
 
-const CLEANERS = { timeline: cleanTimeline, user: cleanUser };
+/* ---------- nebulosa de IA ---------- */
+const cleanNebula = () => ({ kind: 'nebula', title: 'Nebulosa de IA' });
+
+const CLEANERS = { timeline: cleanTimeline, user: cleanUser, nebula: cleanNebula };
 
 /** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
 function cleanInputs(v, widgets, selfId) {
@@ -135,6 +146,8 @@ function contextFrom(list) {
       body = [`Tipo de usuario: ${d.persona}`, ...(d.context || []).map((f) => `Archivo de contexto: ${f.name}`)].join('\n');
     } else if (d.kind === 'timeline') {
       body = d.milestones.map((m) => `${m.date}: ${m.name}`).join('\n');
+    } else if (d.kind === 'nebula') {
+      body = 'Nebulosa de IA (todavía sin contenido)';
     } else if (d.kind === 'chart') {
       body = d.labels.map((l, i) => `${l}: ${d.values[i]}${d.unit ? ` ${d.unit}` : ''}`).join('\n');
     } else {
@@ -174,6 +187,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         dashboard: publicDash(dash),
         widgets: widgets.map(publicWidget),
+        marks: await getMarks(dash.id),
         canEdit,
         config: await getConfig(),
         members: canEdit ? chismosos.filter((p) => p.dashboards.includes(dash.id)).length : undefined,
@@ -193,6 +207,28 @@ export default async function handler(req, res) {
       return res.status(201).json({ dashboard: publicDash(await createDashboard(name, image)) });
     }
 
+    /* ---------- banderas y raya divisoria ---------- */
+    const mark = req.query?.mark;
+    if (req.method === 'POST' && dash && mark === 'flag') {
+      const int = (v) => Math.min(500, Math.max(-500, Math.round(Number(v)) || 0));
+      const flag = await addFlag(dash.id, int(req.body?.x), int(req.body?.y));
+      if (!flag) return res.status(409).json({ error: 'Ya hay 8 banderas: no quedan colores.' });
+      return res.status(201).json({ flag });
+    }
+    if (req.method === 'POST' && dash && mark === 'divider') {
+      // una columna de puntos a la derecha de lo que esté más a la derecha
+      const [widgets, marks] = await Promise.all([listWidgets(dash.id), getMarks(dash.id)]);
+      const rights = [...widgets.map((w) => w.x + w.w), ...marks.flags.map((f) => f.x)];
+      if (!rights.length) return res.status(400).json({ error: 'No hay nada en el lienzo todavía.' });
+      const divider = await setDivider(dash.id, Math.max(...rights) + 1);
+      if (!divider) return res.status(409).json({ error: 'Ya hay una raya divisoria.' });
+      return res.status(201).json({ divider });
+    }
+    if (req.method === 'DELETE' && dash && mark) {
+      if (!(await deleteMark(dash.id, String(mark)))) return res.status(404).json({ error: 'No existe.' });
+      return res.status(200).json({ ok: true });
+    }
+
     /* ---------- widgets de IA ---------- */
     const tool = req.query?.widget;
     if (req.method === 'POST' && dash && (tool === 'table' || tool === 'ask' || tool === 'follow')) {
@@ -201,8 +237,12 @@ export default async function handler(req, res) {
 
       const all = await listWidgets(dash.id);
       const inputs = cleanInputs(req.body?.inputs, all, null);
-      // el + de un widget usa toda la cadena conectada hacia atrás; el resto, solo lo directo
-      const context = contextFrom(tool === 'follow' ? chainOf(inputs, all) : all.filter((w) => inputs.includes(w.id)));
+      // el + de un widget usa toda la cadena hacia atrás (de su widget de origen, que no
+      // queda conectado, y de lo que se le haya conectado); el resto, solo lo directo
+      const about = tool === 'follow' ? cleanInputs(req.body?.about, all, null) : [];
+      const context = contextFrom(tool === 'follow'
+        ? chainOf([...about, ...inputs], all)
+        : all.filter((w) => inputs.includes(w.id)));
 
       let answer, source = '';
       try {
@@ -234,7 +274,7 @@ export default async function handler(req, res) {
       return res.status(201).json({ widget: publicWidget(widget) });
     }
 
-    /* ---------- widgets sin IA: línea de tiempo y usuario ---------- */
+    /* ---------- widgets sin IA: línea de tiempo, usuario y nebulosa ---------- */
     if (req.method === 'POST' && dash && CLEANERS[tool]) {
       const data = CLEANERS[tool](req.body?.data);
       if (!data) return res.status(400).json({ error: 'Datos del widget inválidos.' });

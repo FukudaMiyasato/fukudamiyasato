@@ -50,6 +50,36 @@ export function dashIconHTML(d) {
 /* ---------- herramientas del dock (admin) ---------- */
 
 export const TOOL_ICONS = {
+  // nebulosa de IA: nube de color con un destello
+  nebula: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <defs><radialGradient id="neb-ico" cx="45%" cy="50%" r="60%">
+      <stop offset="0" stop-color="#ffd1f0"/><stop offset=".45" stop-color="#b44dff"/><stop offset="1" stop-color="#ff1f3d" stop-opacity="0"/>
+    </radialGradient></defs>
+    <ellipse cx="12" cy="12.5" rx="10" ry="7.2" fill="url(#neb-ico)" transform="rotate(-18 12 12.5)"/>
+    <circle cx="6" cy="6" r="1" fill="#fff"/><circle cx="19" cy="18.5" r=".8" fill="#fff"/>
+    <path d="M13 8.2c.3 1.9 1.1 2.7 3 3-1.9.3-2.7 1.1-3 3-.3-1.9-1.1-2.7-3-3 1.9-.3 2.7-1.1 3-3z" fill="#fff"/>
+  </svg>`,
+
+  // maleta: abre más herramientas (bandera, raya)
+  kit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="3" y="7.5" width="18" height="12.5" rx="2.6"/>
+    <path d="M8.5 7.5V5.6a1.6 1.6 0 0 1 1.6-1.6h3.8a1.6 1.6 0 0 1 1.6 1.6v1.9"/>
+    <path d="M3 12.6h18"/><rect x="10.3" y="11.2" width="3.4" height="2.8" rx=".8" fill="currentColor"/>
+  </svg>`,
+
+  // bandera (el color lo pone quien la usa con currentColor en la tela)
+  flag: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5.5 21V3.5" stroke="#f2f2f4" stroke-width="2" stroke-linecap="round"/>
+    <path d="M6.5 4.2h11.2l-2.6 4.1 2.6 4.1H6.5z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+  </svg>`,
+
+  // raya divisoria: línea vertical entre dos columnas de puntos
+  divider: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <g fill="currentColor" opacity=".45"><circle cx="6" cy="6" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="6" cy="18" r="1.4"/>
+    <circle cx="18" cy="6" r="1.4"/><circle cx="18" cy="12" r="1.4"/><circle cx="18" cy="18" r="1.4"/></g>
+    <rect x="11" y="2.5" width="2" height="19" rx="1" fill="currentColor"/>
+  </svg>`,
+
   // usuario: silueta
   user: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <circle cx="12" cy="8.2" r="4" fill="currentColor"/>

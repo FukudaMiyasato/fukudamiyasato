@@ -501,6 +501,19 @@ mouse encima) igual que el dock:
   vacío, jubilado). Por ahora la subida es
   simulada: solo se guarda el nombre y el tamaño de cada archivo. Imágenes en
   `assets/users/`.
+- **Nebulosa de IA** (quinta herramienta): un widget con una nube de color que
+  gira lento y estrellas. Por ahora solo se ve; se conecta como cualquier otro.
+- **Maleta** (después de la separación del dock, redonda y color cuero): abre
+  dos herramientas que **no son widgets** (sin tarjeta ni bloque de información).
+  Se guardan en `fm:marks:<dashId>` y se quitan con el botón rojo en modo
+  "tiemblan".
+  - **Bandera:** se clava en el punto de la rejilla al centro de la vista, con
+    un color al azar que no tenga otra (8 colores → máximo 8 banderas). Con la
+    primera aparece, a la izquierda del zoom, un botón de bandera que despliega
+    el listado; elegir una mueve el lienzo hasta dejarla al centro (también
+    para los chismosos).
+  - **Raya divisoria:** una línea blanca vertical sobre la columna de puntos
+    siguiente a lo que esté más a la derecha (widgets y banderas). Solo una.
 - **Seleccionar:** tocar un widget terminado lo marca con brillo rojo y abre, al
   centro-derecha, un bloque claro (sin lente, flota suave y se queda quieto con
   el mouse encima) con la pregunta usada, el archivo CSV, lo conectado y el
@@ -511,11 +524,12 @@ mouse encima) igual que el dock:
 - **Conectores:** cada widget tiene uno a la izquierda (recibe) y uno con **+**
   a la derecha (da). Arrastrar desde el + dibuja una línea roja; soltarla en el
   conector izquierdo de otro widget los conecta (si no, desaparece). Un mismo
-  conector recibe varias líneas. Los puntos rojos de cada línea se ven encima de los conectores. Un **clic** en el + crea al lado un widget de la IA normal (estrella), ya
-  conectado ("pregunta porfa"): responde con un párrafo más libre (puede
-  interpretar, relacionar y sugerir) usando la pregunta y como contexto toda la
-  cadena de widgets conectados hacia atrás, no solo el inmediato. Mientras piensa, las líneas y
-  esos widgets brillan y quedan bloqueados. Clic sobre una línea la quita.
+  conector recibe varias líneas. Los puntos rojos de cada línea se ven encima de los conectores. Un **clic** en el + crea al lado, en un espacio libre y **sin
+  línea**, un widget de la IA normal (estrella) ("pregunta porfa"): responde con
+  un párrafo más libre (puede interpretar, relacionar y sugerir) usando la
+  pregunta y como contexto ese widget más toda su cadena de widgets conectados
+  hacia atrás (se envía como `about`, no se guarda como conexión). Mientras
+  piensa, las líneas y esos widgets brillan y quedan bloqueados. Clic sobre una línea la quita.
   Las conexiones se guardan en `inputs` de cada widget.
 - **API keys de OpenAI:** `OPENAI_API_KEY` ("YO") y `OPENAI_API_KEY2` ("LVL").
   En *Panel → Configuración* el amo supremo elige cuál va primero; si esa falla
