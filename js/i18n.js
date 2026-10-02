@@ -34,6 +34,7 @@ const T = {
     'p.kicker': 'Privacidad',
     'p.title': 'Políticas de privacidad',
     'p.lead': 'Elige una app para ver su política de privacidad.',
+    'p.general': 'General — todas las apps',
 
     's.meta': 'Soporte — fukudamiyasato',
     's.kicker': 'Soporte',
@@ -106,6 +107,7 @@ const T = {
     'p.kicker': 'プライバシー',
     'p.title': 'プライバシーポリシー',
     'p.lead': 'アプリを選んでプライバシーポリシーをご覧ください。',
+    'p.general': '共通 — すべてのアプリ',
 
     's.meta': 'サポート — fukudamiyasato',
     's.kicker': 'サポート',
@@ -178,6 +180,7 @@ const T = {
     'p.kicker': 'Privacy',
     'p.title': 'Privacy policies',
     'p.lead': 'Choose an app to read its privacy policy.',
+    'p.general': 'General — all apps',
 
     's.meta': 'Support — fukudamiyasato',
     's.kicker': 'Support',
@@ -250,6 +253,7 @@ const T = {
     'p.kicker': 'Privacy',
     'p.title': 'Informative sulla privacy',
     'p.lead': 'Scegli un’app per leggere la sua informativa sulla privacy.',
+    'p.general': 'Generale — tutte le app',
 
     's.meta': 'Assistenza — fukudamiyasato',
     's.kicker': 'Assistenza',
@@ -322,6 +326,7 @@ const T = {
     'p.kicker': 'Confidentialité',
     'p.title': 'Politiques de confidentialité',
     'p.lead': 'Choisissez une app pour consulter sa politique de confidentialité.',
+    'p.general': 'Générale — toutes les apps',
 
     's.meta': 'Assistance — fukudamiyasato',
     's.kicker': 'Assistance',
@@ -394,6 +399,7 @@ const T = {
     'p.kicker': 'Datenschutz',
     'p.title': 'Datenschutzerklärungen',
     'p.lead': 'Wähle eine App, um ihre Datenschutzerklärung zu lesen.',
+    'p.general': 'Allgemein — alle Apps',
 
     's.meta': 'Support — fukudamiyasato',
     's.kicker': 'Support',
