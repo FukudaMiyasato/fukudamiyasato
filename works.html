@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Works — fukudamiyasato</title>
+<title>Apps — fukudamiyasato</title>
 <meta name="theme-color" content="#08080a">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/app-icon.png">
@@ -28,8 +28,16 @@
 
 <main class="page">
 
+  <!-- descargas que faltan para el millón: se llena con /api/site?t=apps -->
+  <section class="million" id="million" hidden aria-live="polite">
+    <p class="million-text"><b id="million-left">1,000,000</b> descargas antes de volverme millonario</p>
+    <div class="million-bar" role="progressbar" aria-label="Descargas hacia el millón" aria-valuemin="0" aria-valuemax="1000000" id="million-bar">
+      <span id="million-fill"></span>
+    </div>
+  </section>
+
   <div class="page-head">
-    <p class="page-sub">Trabajos</p>
+    <p class="page-sub">Apps</p>
     <div class="filters">
       <span class="field"><select id="f-year" aria-label="Filtrar por año"><option value="">Todos los años</option></select></span>
       <span class="field"><select id="f-type" aria-label="Filtrar por tipo"><option value="">Todos los tipos</option></select></span>

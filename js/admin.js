@@ -3,7 +3,8 @@
    ------------------------------------------------------------
    Quién entra y qué ve lo decide el servidor (/api/auth). Esta
    página solo elige la vista:
-     amo supremo / amo  → panel (Dashboards · Permisos)
+     amo supremo / amo  → panel (Dashboards · Permisos; el supremo además
+                          Aplicaciones · YO · Configuración)
      chismoso sin nada  → "No tienes permisos"
      chismoso con uno   → entra directo
      chismoso con más   → lista para elegir
@@ -11,6 +12,8 @@
 
 import { dashIconHTML } from './dashboard-icons.js';
 import { drawDots, fitCanvas, buildLensFilter } from './fisheye.js';
+import { PLATFORMS, platformIcon } from './app-platforms.js';
+import { CONFIG } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = ['loading', 'login', 'denied', 'nodash', 'picker', 'admin'];
@@ -59,7 +62,7 @@ function enter(user) {
 
   if (isAmo(user.role)) {
     show('admin');
-    $('tab-config').hidden = user.role !== 'supremo';
+    document.querySelectorAll('[data-supremo]').forEach((b) => { b.hidden = user.role !== 'supremo'; });
     const grid = $('dash-grid');
     grid.innerHTML = '';
     // primera tarjeta: crear
@@ -88,7 +91,180 @@ document.querySelectorAll('.admin-nav [data-tab]').forEach((b) => b.addEventList
   document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== b.dataset.tab; });
   if (b.dataset.tab === 'perms') loadPerms();
   if (b.dataset.tab === 'config') loadConfig();
+  if (b.dataset.tab === 'apps') loadApps();
+  if (b.dataset.tab === 'me') loadMe();
 }));
+
+/* ============================================================
+   Aplicaciones (amo supremo): lo que muestra la página Apps
+   ============================================================ */
+
+const escA = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nfApps = new Intl.NumberFormat('es-PE');
+let apps = [];
+let editing = null;   // app que se edita (null = nueva)
+let appImage = '';
+
+async function loadApps() {
+  const grid = $('app-grid');
+  grid.innerHTML = '<p class="form-msg">Cargando…</p>';
+  const r = await api('/api/site?t=apps');
+  if (!r.ok) { grid.innerHTML = `<p class="form-msg err">${escA(r.data.error || 'No se pudo cargar.')}</p>`; return; }
+  apps = r.data.apps;
+  const left = Math.max(0, r.data.million - r.data.downloads);
+  $('apps-total').innerHTML = `<b>${nfApps.format(r.data.downloads)}</b> descargas en total · faltan <b>${nfApps.format(left)}</b> para el millón`;
+  grid.innerHTML = '';
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'app-card app-card--new';
+  add.innerHTML = '<span class="app-card-img">+</span><span class="app-card-name">Nueva app</span>';
+  add.addEventListener('click', () => openApp(null));
+  grid.append(add);
+  for (const a of apps) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'app-card';
+    b.innerHTML = `<span class="app-card-img">${a.image ? `<img src="${a.image}" alt="">` : escA(a.name.slice(0, 2).toUpperCase())}</span>
+      <span class="app-card-name">${escA(a.name)}</span>
+      <small>${nfApps.format(a.downloads || 0)} descargas</small>
+      <span class="app-card-links">${(a.links || []).map((l) => platformIcon(l.platform)).join('')}</span>`;
+    b.addEventListener('click', () => openApp(a));
+    grid.append(b);
+  }
+}
+
+function paintAppImage() {
+  $('app-img-box').innerHTML = appImage ? `<img src="${appImage}" alt="">` : '<span>4:3</span>';
+  $('app-img-note').textContent = appImage ? 'Cambiar imagen' : 'Subir imagen';
+}
+
+function linkRow(l = { platform: 'apple', url: '' }) {
+  const row = document.createElement('div');
+  row.className = 'app-link';
+  row.innerHTML = `
+    <select aria-label="Plataforma">${PLATFORMS.map((p) => `<option value="${p.key}"${p.key === l.platform ? ' selected' : ''}>${p.label}</option>`).join('')}</select>
+    <input type="url" placeholder="https://…" aria-label="Link" value="${escA(l.url)}">
+    <button class="icon-btn" type="button" aria-label="Quitar link" title="Quitar link">×</button>`;
+  row.querySelector('button').addEventListener('click', () => row.remove());
+  $('app-links').append(row);
+  return row;
+}
+
+function openApp(a) {
+  editing = a;
+  appImage = a?.image || '';
+  $('app-form').className = 'modal app-modal';
+  $('app-name').value = a?.name || '';
+  $('app-year').value = a?.year || '';
+  $('app-type').value = a?.type || '';
+  $('app-downloads').value = a ? String(a.downloads || 0) : '';
+  $('app-links').innerHTML = '';
+  (a?.links?.length ? a.links : [{ platform: 'apple', url: '' }]).forEach((l) => linkRow(l));
+  $('app-err').textContent = '';
+  $('app-file').value = '';
+  $('app-del').hidden = !a;
+  paintAppImage();
+  $('app-layer').hidden = false;
+  setTimeout(() => $('app-name').focus(), 50);
+}
+const closeApp = () => { $('app-layer').hidden = true; };
+
+$('app-cancel').addEventListener('click', closeApp);
+$('app-layer').addEventListener('pointerdown', (e) => { if (e.target === $('app-layer')) closeApp(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('app-layer').hidden) closeApp(); });
+$('app-add-link').addEventListener('click', () => linkRow({ platform: 'android', url: '' }).querySelector('input').focus());
+
+/** Recorta al centro en 4:3 y la baja a 640×480 para guardarla chica. */
+function toCover(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const W = 640, H = 480, c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const scale = Math.max(W / iw, H / ih);
+      const sw = W / scale, sh = H / scale;
+      c.getContext('2d').drawImage(img, (iw - sw) / 2, (ih - sh) / 2, sw, sh, 0, 0, W, H);
+      URL.revokeObjectURL(url);
+      let out = c.toDataURL('image/webp', 0.82);
+      if (!out.startsWith('data:image/webp')) out = c.toDataURL('image/jpeg', 0.82); // Safari viejo
+      if (out.length > 200_000) out = c.toDataURL('image/jpeg', 0.6);
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
+    img.src = url;
+  });
+}
+
+$('app-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try { appImage = await toCover(file); $('app-err').textContent = ''; } catch (err) { $('app-err').textContent = err.message; }
+  paintAppImage();
+});
+
+function appFail(msg) {
+  $('app-err').textContent = msg;
+  const f = $('app-form');
+  f.classList.remove('is-shaking'); void f.offsetWidth; f.classList.add('is-shaking');
+}
+
+$('app-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = {
+    name: $('app-name').value.trim(),
+    image: appImage,
+    year: $('app-year').value.trim(),
+    type: $('app-type').value.trim(),
+    downloads: Number($('app-downloads').value) || 0,
+    links: [...$('app-links').querySelectorAll('.app-link')].map((row) => ({
+      platform: row.querySelector('select').value, url: row.querySelector('input').value.trim(),
+    })).filter((l) => l.url),
+  };
+  if (!body.name) return appFail('Ponle un nombre.');
+  if (body.year && !/^\d{4}$/.test(body.year)) return appFail('El año va con 4 números.');
+  $('app-save').disabled = true;
+  const r = editing
+    ? await api(`/api/site?t=apps&id=${encodeURIComponent(editing.id)}`, { method: 'PUT', body: JSON.stringify(body) })
+    : await api('/api/site?t=apps', { method: 'POST', body: JSON.stringify(body) });
+  $('app-save').disabled = false;
+  if (!r.ok) return appFail(r.data.error || 'No se pudo guardar.');
+  closeApp();
+  loadApps();
+});
+
+$('app-del').addEventListener('click', async () => {
+  if (!editing || !confirm(`¿Borrar «${editing.name}»? Deja de verse en la página Apps.`)) return;
+  const r = await api(`/api/site?t=apps&id=${encodeURIComponent(editing.id)}`, { method: 'DELETE' });
+  if (!r.ok) return appFail(r.data.error || 'No se pudo borrar.');
+  closeApp();
+  loadApps();
+});
+
+/* ============================================================
+   YO (amo supremo): datos personales de la página Yo
+   ============================================================ */
+
+const ME_DEFAULTS = CONFIG.me;
+const ME_INPUTS = { name: 'me-name', role: 'me-role', description: 'me-desc', location: 'me-loc', email: 'me-mail' };
+
+async function loadMe() {
+  $('me-msg').textContent = '';
+  const r = await api('/api/site?t=me');
+  const me = { ...ME_DEFAULTS, ...(r.ok && r.data.me ? r.data.me : {}) };
+  for (const [k, idEl] of Object.entries(ME_INPUTS)) $(idEl).value = me[k] || '';
+}
+
+$('me-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = Object.fromEntries(Object.entries(ME_INPUTS).map(([k, idEl]) => [k, $(idEl).value.trim()]));
+  $('me-save').disabled = true;
+  const r = await api('/api/site?t=me', { method: 'PUT', body: JSON.stringify(body) });
+  $('me-save').disabled = false;
+  $('me-msg').className = `form-msg${r.ok ? '' : ' err'}`;
+  $('me-msg').textContent = r.ok ? 'Guardado. Ya se ve en la página Yo.' : (r.data.error || 'No se pudo guardar.');
+});
 
 /* ============================================================
    Nuevo dashboard: título + ícono opcional (modal encima)

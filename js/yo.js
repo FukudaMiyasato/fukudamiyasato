@@ -8,16 +8,23 @@
 
 import { CONFIG } from './config.js';
 
-const me = CONFIG.me;
-
-document.getElementById('me-name').textContent = me.name;
-document.getElementById('me-role').textContent = me.role;
-document.getElementById('me-desc').textContent = me.description;
-document.getElementById('me-loc').textContent = me.location;
-
-const mail = document.getElementById('me-mail');
-mail.textContent = me.email;
-mail.href = `mailto:${me.email}`;
+/* Datos personales: los que edita el amo supremo (panel → YO); si nunca
+   se editaron, los de js/config.js. Se pintan primero los de config para
+   que la página no salga vacía mientras responde la API. */
+function fillMe(me) {
+  document.getElementById('me-name').textContent = me.name;
+  document.getElementById('me-role').textContent = me.role;
+  document.getElementById('me-desc').textContent = me.description;
+  document.getElementById('me-loc').textContent = me.location;
+  const mail = document.getElementById('me-mail');
+  mail.textContent = me.email;
+  mail.href = me.email ? `mailto:${me.email}` : '#';
+}
+fillMe(CONFIG.me);
+fetch('/api/site?t=me', { cache: 'no-store' })
+  .then((r) => (r.ok ? r.json() : null))
+  .then((d) => { if (d?.me) fillMe({ ...CONFIG.me, ...d.me }); })
+  .catch(() => { /* sin API: se quedan los de config */ });
 
 /* Imagen por defecto cuando el registro no trae `img`. */
 const FALLBACK_IMG = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`

@@ -85,7 +85,15 @@
         Permisos
       </button>
       <!-- solo el amo supremo -->
-      <button type="button" data-tab="config" id="tab-config" hidden>
+      <button type="button" data-tab="apps" data-supremo hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2.6"/><path d="M10.8 18h2.4"/><path d="M9.5 7.5h1.5M13 7.5h1.5M9.5 11h1.5M13 11h1.5"/></svg>
+        Aplicaciones
+      </button>
+      <button type="button" data-tab="me" data-supremo hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c0-3.6 3.2-6 7.2-6s7.2 2.4 7.2 6"/></svg>
+        YO
+      </button>
+      <button type="button" data-tab="config" id="tab-config" data-supremo hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
         Configuración
       </button>
@@ -135,6 +143,36 @@
         <div id="perm-list"></div>
       </div>
     </section>
+    <section data-panel="apps" hidden>
+      <header class="admin-head">
+        <h1>Aplicaciones</h1>
+        <p>Lo que se ve en la página Apps. Cada app puede tener links a varias plataformas; con sus descargas se calcula cuánto falta para el millón.</p>
+      </header>
+      <p class="apps-total" id="apps-total"></p>
+      <div class="app-grid" id="app-grid"></div>
+    </section>
+
+    <section data-panel="me" hidden>
+      <header class="admin-head">
+        <h1>YO</h1>
+        <p>Tu información personal en la página Yo.</p>
+      </header>
+      <form class="cfg-card me-form" id="me-form" autocomplete="off">
+        <label>Nombre <input id="me-name" maxlength="60" required></label>
+        <label>Rol <input id="me-role" maxlength="80"></label>
+        <label>Descripción <textarea id="me-desc" maxlength="1200" rows="5"></textarea></label>
+        <div class="me-form-row">
+          <label>Ubicación <input id="me-loc" maxlength="80"></label>
+          <label>Correo de contacto <input id="me-mail" type="email" maxlength="120"></label>
+        </div>
+        <div class="me-form-foot">
+          <a class="link-btn" href="/yo.html" target="_blank" rel="noopener">Ver la página</a>
+          <button class="btn" type="submit" id="me-save">Guardar</button>
+        </div>
+        <p class="form-msg" id="me-msg" role="status"></p>
+      </form>
+    </section>
+
     <section data-panel="config" hidden>
       <header class="admin-head">
         <h1>Configuración</h1>
@@ -198,6 +236,32 @@
     <div class="m-actions">
       <button class="link-btn" type="button" id="nd-cancel">Cancelar</button>
       <button class="btn" type="submit" id="nd-save">Crear</button>
+    </div>
+  </form>
+</div>
+
+<!-- app: nueva o editar (imagen, nombre, año, tipo, descargas, links) -->
+<div class="modal-layer" id="app-layer" hidden>
+  <form class="modal app-modal" id="app-form" autocomplete="off" novalidate>
+    <label class="app-img" for="app-file" title="Imagen">
+      <span class="app-img-box" id="app-img-box"></span>
+      <small id="app-img-note">Subir imagen</small>
+    </label>
+    <input type="file" id="app-file" accept="image/png,image/jpeg,image/webp" hidden>
+    <input class="nd-title" id="app-name" maxlength="60" placeholder="Nombre de la app" aria-label="Nombre">
+    <div class="app-row">
+      <label>Año <input id="app-year" inputmode="numeric" maxlength="4" placeholder="2026"></label>
+      <label>Tipo <input id="app-type" maxlength="40" placeholder="Juego, utilidad…"></label>
+      <label>Descargas <input id="app-downloads" type="number" min="0" step="1" placeholder="0"></label>
+    </div>
+    <p class="app-links-title">Links</p>
+    <div class="app-links" id="app-links"></div>
+    <button class="link-btn app-add-link" type="button" id="app-add-link">+ Agregar link</button>
+    <p class="m-err" id="app-err" role="alert"></p>
+    <div class="m-actions">
+      <button class="link-btn app-del" type="button" id="app-del" hidden>Borrar app</button>
+      <button class="link-btn" type="button" id="app-cancel">Cancelar</button>
+      <button class="btn" type="submit" id="app-save">Guardar</button>
     </div>
   </form>
 </div>

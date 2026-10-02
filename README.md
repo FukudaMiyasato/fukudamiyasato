@@ -5,16 +5,18 @@ Sitio personal estático — sin build, sin dependencias. Se sirve tal cual
 
 ```
 index.html      portada: wordmark + accesos (solo íconos)
-works.html      grilla de aplicativos con filtros de año y tipo
+works.html      Apps (antes Works): barra «descargas antes del millón» + grilla
+                con links por plataforma; se editan en el panel → Aplicaciones
 ia.html         consola de transcripciones que llegan por webhook
 todo.html       lista de pendientes por día — SIN acceso desde la portada
-yo.html         perfil + links
+yo.html         perfil (editable en el panel → YO) + links
 mic/            grabar con el dedo en vez de hablarle al webhook externo —
                 SIN acceso desde la portada
 support/        página de soporte para App Store / Google Play (FAQ + contacto)
 marketing/      landing de las apps
 privacy/        políticas de privacidad (una por app: privacy/kofres/)
-admin/          login con Google + panel (Dashboards · Permisos)
+admin/          login con Google + panel (Dashboards · Permisos; el amo supremo
+                además Aplicaciones · YO · Configuración)
 dashboards/     una sola página para todos: /dashboards/?d=<id>
 ```
 
@@ -43,7 +45,28 @@ ES y `fetch`, así que abrir el `index.html` con doble clic no funciona.
 
 ---
 
-## WORKS · datos desde Airtable
+## APPS (antes Works)
+
+Las apps se cargan desde el panel (`/admin` → **Aplicaciones**, solo amo
+supremo): imagen (se recorta a 4:3), nombre, año, tipo, descargas y links a
+varias plataformas (App Store, Google Play, itch.io, Steam, Web u otro). Se
+guardan en Redis (`fm:apps`) y la página las lee de `GET /api/site?t=apps`
+(público). Cada link sale como un ícono en la tarjeta, que sigue visible y
+tocable en el hover.
+
+Arriba va la barra **«N descargas antes de volverme millonario»**:
+N = 1.000.000 − la suma de las descargas de todas las apps (las escribes tú
+en cada app). Al llegar al millón dice «¡Ya soy millonario!».
+
+Mientras no haya ninguna app cargada en el panel, la grilla usa la fuente
+vieja de abajo (Airtable / `data/works.json`).
+
+**YO:** en el panel → **YO** (solo amo supremo) se editan nombre, rol,
+descripción, ubicación y correo de la página Yo (`fm:me`, `PUT /api/site?t=me`).
+Si nunca se guardaron, se usan los de `js/config.js`. Los links de redes
+siguen saliendo de la tabla `yo` de Airtable.
+
+## WORKS · datos desde Airtable (fuente vieja)
 
 La data se jala **una sola vez, al abrir o refrescar la página**. Solo se
 muestran los registros marcados como *visible*; lo que venga incompleto cae

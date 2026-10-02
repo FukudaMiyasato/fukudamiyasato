@@ -1,10 +1,17 @@
 /* ============================================================
-   works.js — render the grid, filters and the hover note
+   works.js — página Apps (antes Works): grilla, filtros y nota al hover
+   ------------------------------------------------------------
+   Las apps salen de /api/site?t=apps (las edita el amo supremo en
+   el panel → Aplicaciones). Cada una puede tener links a varias
+   plataformas, que se ven como íconos en su tarjeta. Si todavía no
+   hay ninguna cargada ahí, se usa la lista vieja (Airtable / snapshot).
+   Arriba, la barra: cuántas descargas faltan para el millón.
    ============================================================ */
 
 import { CONFIG } from './config.js';
 import { loadWorks } from './works-data.js';
 import { NOTE_NAMES, playNote } from './audio.js';
+import { platformOf, platformIcon } from './app-platforms.js';
 
 const grid      = document.getElementById('grid');
 const yearSel   = document.getElementById('f-year');
@@ -51,13 +58,23 @@ const noteFor = (() => {
   };
 })();
 
+const escHTML = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/** Links de la app: un ícono por plataforma (siguen visibles y se pueden tocar en el hover). */
+function linksHTML(links) {
+  return `<div class="work-links">${links.map((l) => {
+    const p = platformOf(l.platform);
+    return `<a href="${escHTML(l.url)}" target="_blank" rel="noopener noreferrer" title="${escHTML(p.label)}" aria-label="${escHTML(p.label)}">${platformIcon(p.key)}</a>`;
+  }).join('')}</div>`;
+}
+
 function card(item, i) {
-  const el = document.createElement(item.url ? 'a' : 'article');
+  const el = document.createElement(item.url && !item.links ? 'a' : 'article');
   el.className = 'work';
   el.style.animationDelay = `${Math.min(i, 12) * 35}ms`;
   el.dataset.note = noteFor(item.id);
   el.tabIndex = 0;
-  if (item.url) {
+  if (item.url && !item.links) {
     el.href = item.url;
     el.target = '_blank';
     el.rel = 'noopener noreferrer';
@@ -69,17 +86,18 @@ function card(item, i) {
 
   el.innerHTML = `
     <div class="work-media">
-      <img src="${item.image || placeholder(item.title)}" alt="${item.title}" loading="lazy"
+      <img src="${item.image || placeholder(item.title)}" alt="${escHTML(item.title)}" loading="lazy"
            onerror="this.onerror=null;this.src='${placeholder(item.title)}'">
     </div>
     <div class="work-veil"></div>
     <div class="work-body">
       <div>
-        <p class="work-meta">${item.year} &middot; ${item.type}</p>
-        <h3 class="work-title">${item.title}</h3>
+        <p class="work-meta">${[item.year, item.type].filter(Boolean).map(escHTML).join(' &middot; ')}</p>
+        <h3 class="work-title">${escHTML(item.title)}</h3>
       </div>
-      <div class="work-icons">${icons}</div>
+      ${item.links ? '' : `<div class="work-icons">${icons}</div>`}
     </div>
+    ${item.links?.length ? linksHTML(item.links) : ''}
     <span class="work-edge"></span>`;
 
   // giro al azar en cada hover: dirección aleatoria, hasta 20 grados
@@ -96,7 +114,7 @@ function card(item, i) {
 function fillSelect(sel, values, label) {
   sel.innerHTML =
     `<option value="">${label}</option>` +
-    values.map((v) => `<option value="${v}">${v}</option>`).join('');
+    values.map((v) => `<option value="${escHTML(v)}">${escHTML(v)}</option>`).join('');
 }
 
 function render() {
@@ -115,25 +133,59 @@ function render() {
   }
 }
 
+/* ---------- barra del millón ---------- */
+const nf = new Intl.NumberFormat('es-PE');
+function renderMillion(downloads, million) {
+  const left = Math.max(0, million - downloads);
+  document.getElementById('million').hidden = false;
+  document.getElementById('million-left').textContent = nf.format(left);
+  if (!left) document.querySelector('.million-text').innerHTML = '<b>¡Ya soy millonario!</b> Llegamos al millón de descargas';
+  const pct = Math.min(100, (downloads / million) * 100);
+  document.getElementById('million-fill').style.width = `${Math.max(pct, downloads ? 0.6 : 0)}%`;
+  const bar = document.getElementById('million-bar');
+  bar.setAttribute('aria-valuenow', String(Math.min(downloads, million)));
+  bar.setAttribute('aria-valuetext', `${nf.format(downloads)} descargas`);
+}
+
+/** Apps del panel; null si no hay ninguna (o la API no responde). */
+async function loadApps() {
+  try {
+    const r = await fetch('/api/site?t=apps', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`api ${r.status}`);
+    const { apps, downloads, million } = await r.json();
+    renderMillion(downloads, million);
+    if (!apps.length) return null;
+    return apps.map((a) => ({
+      id: a.id, title: a.name, year: a.year, type: a.type, image: a.image, platforms: [], links: a.links || [],
+    }));
+  } catch (err) {
+    console.info(`[apps] /api/site no disponible (${err.message})`);
+    renderMillion(0, 1_000_000);
+    return null;
+  }
+}
+
 async function init() {
   grid.innerHTML = Array.from({ length: 6 }, () => '<div class="skeleton"></div>').join('');
 
-  const { items, source, error } = await loadWorks();
+  const apps = await loadApps();
+  const { items, source, error } = apps ? { items: apps, source: 'apps' } : await loadWorks();
   ITEMS = items;
 
   if (!items.length) {
     grid.innerHTML = `<div class="state" style="grid-column:1/-1">
-      <b>Sin proyectos visibles.</b><br>
+      <b>Sin apps visibles.</b><br>
       ${error ? 'No se pudo leer la data.' : 'Marca registros como “visible” en Airtable.'}</div>`;
   } else {
-    const years = [...new Set(items.map((i) => i.year))].sort().reverse();
-    const types = [...new Set(items.map((i) => i.type))].sort();
+    const years = [...new Set(items.map((i) => i.year).filter(Boolean))].sort().reverse();
+    const types = [...new Set(items.map((i) => i.type).filter(Boolean))].sort();
     fillSelect(yearSel, years, 'Todos los años');
     fillSelect(typeSel, types, 'Todos los tipos');
     render();
   }
 
   sourceEl.textContent = {
+    apps:     '',
     api:      'Data en vivo desde Airtable',
     airtable: 'Data en vivo desde Airtable · token expuesto en el cliente',
     snapshot: 'Snapshot local · configura AIRTABLE_TOKEN en Vercel para data en vivo',

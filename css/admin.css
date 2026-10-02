@@ -432,3 +432,100 @@
 .seg button[aria-checked="true"] { background: var(--red); color: #fff; }
 .seg button[aria-checked="true"] small { color: rgba(255, 255, 255, .8); }
 .seg button:not([aria-checked="true"]):hover { background: var(--panel-2); color: #fff; }
+
+/* ---------- aplicaciones (amo supremo) ---------- */
+.apps-total { margin: 22px 0 0; font-size: 14px; color: var(--text-dim); }
+.apps-total b { color: #fff; font-variant-numeric: tabular-nums; }
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+.app-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px 10px 12px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-align: left;
+  transition: border-color .2s, transform .2s var(--ease);
+}
+.app-card:hover { border-color: var(--red-hot); transform: translateY(-2px); }
+.app-card-img {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(160deg, #3a0a12, #121216);
+  color: rgba(255, 255, 255, .3);
+  font-size: 26px;
+  font-weight: 800;
+}
+.app-card-img img { width: 100%; height: 100%; object-fit: cover; }
+.app-card-name { font-size: 14px; font-weight: 700; }
+.app-card small { font-size: 12px; color: var(--text-faint); }
+.app-card-links { display: flex; gap: 6px; min-height: 16px; margin-top: 4px; color: var(--text-dim); }
+.app-card-links svg { width: 15px; height: 15px; }
+.app-card--new .app-card-img { background: rgba(255, 255, 255, .04); border: 1px dashed var(--line); font-weight: 300; font-size: 32px; color: var(--text-dim); }
+.app-card--new:hover .app-card-img { color: var(--red-hot); }
+
+.app-modal { width: min(500px, 100%); gap: 12px; max-height: calc(100dvh - 40px); overflow: auto; }
+.app-img { display: grid; justify-items: center; gap: 6px; cursor: pointer; }
+.app-img-box {
+  display: grid;
+  place-items: center;
+  width: 200px;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px dashed var(--line);
+  background: rgba(255, 255, 255, .03);
+  color: var(--text-faint);
+  font-size: 12px;
+  transition: border-color .2s;
+}
+.app-img-box img { width: 100%; height: 100%; object-fit: cover; }
+.app-img:hover .app-img-box { border-color: var(--red-hot); }
+.app-img small { font-size: 11.5px; color: var(--text-faint); }
+.app-row { display: grid; grid-template-columns: 1fr 1.6fr 1.2fr; gap: 8px; }
+.app-row label, .me-form label { display: grid; gap: 5px; font-size: 11.5px; color: var(--text-faint); letter-spacing: .02em; }
+.app-row input, .app-link select, .app-link input, .me-form input, .me-form textarea {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s;
+}
+.app-row input:focus, .app-link select:focus, .app-link input:focus, .me-form input:focus, .me-form textarea:focus { border-color: var(--red-hot); }
+.app-links-title { margin: 4px 0 0; font-size: 11.5px; color: var(--text-faint); }
+.app-links { display: grid; gap: 8px; }
+.app-link { display: grid; grid-template-columns: 128px 1fr 32px; gap: 8px; align-items: center; }
+.app-link .icon-btn { width: 32px; height: 32px; font-size: 20px; color: var(--text-faint); }
+.app-link .icon-btn:hover { color: var(--red-hot); }
+.app-add-link { justify-self: start; }
+.app-modal .m-actions { flex-wrap: wrap; }
+.app-del { margin-right: auto; color: var(--red-hot); }
+@media (max-width: 520px) {
+  .app-row { grid-template-columns: 1fr 1fr; }
+  .app-row label:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
+  .app-link { grid-template-columns: 1fr 32px; }
+  .app-link input { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* ---------- YO (amo supremo) ---------- */
+.me-form { display: grid; gap: 14px; }
+.me-form textarea { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertical; font-family: inherit; font-size: 14px; }
+.me-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.me-form-foot { display: flex; justify-content: flex-end; align-items: center; gap: 18px; }
+.me-form .form-msg { margin: 0; }
+@media (max-width: 520px) { .me-form-row { grid-template-columns: 1fr; } }

@@ -72,6 +72,9 @@
 html {
   height: 100%;
   overflow-x: hidden;
+  /* que se sienta como app: sin el rebote elástico de Safari al tope/fondo.
+     Va en <html> (el que hace scroll), no en <body>: ver abajo */
+  overscroll-behavior-y: none;
 }
 
 html, body {
@@ -87,9 +90,10 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
-  overflow-x: hidden;
-  /* que se sienta como app: sin el rebote elástico de Safari al tope/fondo */
-  overscroll-behavior-y: none;
+  /* clip y no hidden: con hidden el <body> pasa a ser su propio contenedor de
+     scroll (sin nada que desplazar) y, con overscroll-behavior: none, la rueda
+     y el dedo nunca llegaban a la página → las páginas internas no bajaban */
+  overflow-x: clip;
 }
 
 /* subtle red vignette on every page */
