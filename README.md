@@ -54,9 +54,9 @@ guardan en Redis (`fm:apps`) y la página las lee de `GET /api/site?t=apps`
 (público). Cada link sale como un ícono en la tarjeta, que sigue visible y
 tocable en el hover.
 
-Arriba va la barra **«N descargas antes de volverme millonario»**:
+Arriba va la barra con el número **N** (solo el número, sin texto):
 N = 1.000.000 − la suma de las descargas de todas las apps (las escribes tú
-en cada app). Al llegar al millón dice «¡Ya soy millonario!».
+en cada app). Al llegar al millón queda en 0 y la barra llena.
 
 Mientras no haya ninguna app cargada en el panel, la grilla usa la fuente
 vieja de abajo (Airtable / `data/works.json`).

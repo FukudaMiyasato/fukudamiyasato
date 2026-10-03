@@ -139,7 +139,6 @@ function renderMillion(downloads, million) {
   const left = Math.max(0, million - downloads);
   document.getElementById('million').hidden = false;
   document.getElementById('million-left').textContent = nf.format(left);
-  if (!left) document.querySelector('.million-text').innerHTML = '<b>¡Ya soy millonario!</b> Llegamos al millón de descargas';
   const pct = Math.min(100, (downloads / million) * 100);
   document.getElementById('million-fill').style.width = `${Math.max(pct, downloads ? 0.6 : 0)}%`;
   const bar = document.getElementById('million-bar');
