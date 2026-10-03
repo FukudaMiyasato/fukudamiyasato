@@ -5,8 +5,7 @@ Sitio personal estático — sin build, sin dependencias. Se sirve tal cual
 
 ```
 index.html      portada: wordmark + accesos (solo íconos)
-works.html      Apps (antes Works): barra «descargas antes del millón» + grilla
-                con links por plataforma; se editan en el panel → Aplicaciones
+works.html      Apps (antes Works): grilla con links por plataforma; se editan en el panel → Aplicaciones
 ia.html         consola de transcripciones que llegan por webhook
 todo.html       lista de pendientes por día — SIN acceso desde la portada
 yo.html         perfil (editable en el panel → YO) + links
@@ -53,10 +52,6 @@ varias plataformas (App Store, Google Play, itch.io, Steam, Web u otro). Se
 guardan en Redis (`fm:apps`) y la página las lee de `GET /api/site?t=apps`
 (público). Cada link sale como un ícono en la tarjeta, que sigue visible y
 tocable en el hover.
-
-Arriba va la barra con el número **N** (solo el número, sin texto):
-N = 1.000.000 − la suma de las descargas de todas las apps (las escribes tú
-en cada app). Al llegar al millón queda en 0 y la barra llena.
 
 Mientras no haya ninguna app cargada en el panel, la grilla usa la fuente
 vieja de abajo (Airtable / `data/works.json`).

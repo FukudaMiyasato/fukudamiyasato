@@ -5,7 +5,6 @@
    el panel → Aplicaciones). Cada una puede tener links a varias
    plataformas, que se ven como íconos en su tarjeta. Si todavía no
    hay ninguna cargada ahí, se usa la lista vieja (Airtable / snapshot).
-   Arriba, la barra: cuántas descargas faltan para el millón.
    ============================================================ */
 
 import { CONFIG } from './config.js';
@@ -133,33 +132,18 @@ function render() {
   }
 }
 
-/* ---------- barra del millón ---------- */
-const nf = new Intl.NumberFormat('es-PE');
-function renderMillion(downloads, million) {
-  const left = Math.max(0, million - downloads);
-  document.getElementById('million').hidden = false;
-  document.getElementById('million-left').textContent = nf.format(left);
-  const pct = Math.min(100, (downloads / million) * 100);
-  document.getElementById('million-fill').style.width = `${Math.max(pct, downloads ? 0.6 : 0)}%`;
-  const bar = document.getElementById('million-bar');
-  bar.setAttribute('aria-valuenow', String(Math.min(downloads, million)));
-  bar.setAttribute('aria-valuetext', `${nf.format(downloads)} descargas`);
-}
-
 /** Apps del panel; null si no hay ninguna (o la API no responde). */
 async function loadApps() {
   try {
     const r = await fetch('/api/site?t=apps', { cache: 'no-store' });
     if (!r.ok) throw new Error(`api ${r.status}`);
-    const { apps, downloads, million } = await r.json();
-    renderMillion(downloads, million);
+    const { apps } = await r.json();
     if (!apps.length) return null;
     return apps.map((a) => ({
       id: a.id, title: a.name, year: a.year, type: a.type, image: a.image, platforms: [], links: a.links || [],
     }));
   } catch (err) {
     console.info(`[apps] /api/site no disponible (${err.message})`);
-    renderMillion(0, 1_000_000);
     return null;
   }
 }
