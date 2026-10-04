@@ -1,83 +1,101 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>fukudamiyasato</title>
-  <meta name="description" content="fukudamiyasato — trabajos, IA, pendientes y perfil.">
-  <meta name="theme-color" content="#08080a">
-  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/app-icon.png">
-  <link rel="manifest" href="manifest.json">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/home.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FUKU — Fullstack designer</title>
+<meta name="description" content="Portafolio de Jean Carlo Fukuda Miyasato, fullstack designer.">
+<meta name="theme-color" content="#050505">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/app-icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;800&family=Inter+Tight:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/base.css">
+<link rel="stylesheet" href="/css/site.css">
 </head>
+<body class="site site--home">
 
-<body>
+<!-- fondo: el video/imagen del proyecto con tramado (js/dither.js) -->
+<canvas class="stage" id="stage" aria-hidden="true"></canvas>
+<div class="stage-media" id="stage-media" hidden aria-hidden="true"></div>
+<div class="stage-shade" aria-hidden="true"></div>
 
-  <a class="login-btn" href="admin/">login</a>
+<a class="brand" href="/" aria-label="FUKU — inicio">
+  <b>FUKU</b>
+  <small>Fullstack designer</small>
+</a>
 
-  <main class="home">
+<div class="top-actions">
+  <button class="sound-btn" id="sound" type="button" aria-pressed="false" aria-label="Activar sonido" title="Sonido" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>
+      <path class="s-off" d="M16 9.5l5 5M21 9.5l-5 5"/>
+      <path class="s-on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/>
+    </svg>
+  </button>
+  <a class="login-btn" href="/admin/">login</a>
+</div>
 
-    <header>
-      <h1 class="wordmark">fukuda<span class="dot">miyasato</span></h1>
-      <p class="tagline">Design &middot; Code &middot; Product</p>
-      <div class="rule"></div>
-    </header>
-
-    <nav class="gates" aria-label="Secciones">
-
-      <a class="gate" href="works.html" aria-label="Apps">
-        <!-- aplicaciones: cuadrícula de 4 íconos de app -->
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3.5" y="3.5" width="7" height="7" rx="2" />
-          <rect x="13.5" y="3.5" width="7" height="7" rx="2" />
-          <rect x="3.5" y="13.5" width="7" height="7" rx="2" />
-          <rect x="13.5" y="13.5" width="7" height="7" rx="2" />
-        </svg>
+<!-- el proyecto que se ve; cambia solo cada N segundos (se ajusta en el panel) -->
+<main class="folio" aria-live="polite">
+  <article class="pcard" id="pcard" aria-roledescription="proyecto">
+    <p class="pcard-kicker fx">
+      <span id="pc-index">01 / 01</span>
+      <span class="pcard-line" aria-hidden="true"><i id="pc-progress"></i></span>
+      <span id="pc-cat">Proyecto</span>
+    </p>
+    <h1 class="pcard-title fx" id="pc-title">&nbsp;</h1>
+    <p class="pcard-date fx" id="pc-date"></p>
+    <p class="pcard-text fx" id="pc-text"></p>
+    <ul class="pcard-tags fx" id="pc-tags"></ul>
+    <div class="pcard-foot fx">
+      <a class="pcard-btn" id="pc-link" href="#" target="_blank" rel="noopener noreferrer" hidden>
+        Ver proyecto
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg>
       </a>
+      <div class="pcard-nav" id="pc-nav" hidden>
+        <button type="button" id="pc-prev" aria-label="Proyecto anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button type="button" id="pc-next" aria-label="Proyecto siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </div>
+    </div>
+  </article>
+</main>
 
-      <a class="gate" href="ia.html" aria-label="IA">
-        <!-- chispitas de IA -->
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M12 3.2l1.75 4.55a3 3 0 0 0 1.75 1.75L20.05 11.25l-4.55 1.75a3 3 0 0 0-1.75 1.75L12 19.3l-1.75-4.55a3 3 0 0 0-1.75-1.75L3.95 11.25l4.55-1.75a3 3 0 0 0 1.75-1.75z" />
-          <path
-            d="M18.4 3.1l.62 1.62c.1.26.3.46.56.56l1.62.62-1.62.62c-.26.1-.46.3-.56.56l-.62 1.62-.62-1.62a1 1 0 0 0-.56-.56l-1.62-.62 1.62-.62c.26-.1.46-.3.56-.56z" />
-          <path
-            d="M6.1 16.6l.44 1.15c.07.18.21.32.39.39l1.15.44-1.15.44a.7.7 0 0 0-.39.39l-.44 1.15-.44-1.15a.7.7 0 0 0-.39-.39l-1.15-.44 1.15-.44a.7.7 0 0 0 .39-.39z" />
-        </svg>
-      </a>
+<!-- dock: portafolio · yo (abajo al centro) -->
+<nav class="site-dock" aria-label="Secciones">
+  <a href="/" aria-label="Portafolio" title="Portafolio" aria-current="page">
+    <!-- maleta naranja -->
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="bc-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8a3d"/><stop offset="1" stop-color="#e2420f"/></linearGradient>
+        <linearGradient id="bc-lid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb070"/><stop offset="1" stop-color="#ff7a2a"/></linearGradient>
+      </defs>
+      <path d="M11.5 9V7.6A2.6 2.6 0 0 1 14.1 5h3.8a2.6 2.6 0 0 1 2.6 2.6V9" fill="none" stroke="#b8360c" stroke-width="2.2"/>
+      <rect x="4" y="9" width="24" height="18" rx="4.5" fill="url(#bc-body)"/>
+      <path d="M4 13.5A4.5 4.5 0 0 1 8.5 9h15a4.5 4.5 0 0 1 4.5 4.5V17c-3.5 1.6-7.6 2.4-12 2.4S7.5 18.6 4 17z" fill="url(#bc-lid)"/>
+      <rect x="13.5" y="16.6" width="5" height="4.2" rx="1.3" fill="#7a2408" opacity=".75"/>
+      <path d="M7 11.4h18" stroke="#fff" stroke-opacity=".35" stroke-width="1.2" stroke-linecap="round"/>
+    </svg>
+  </a>
+  <span class="sep" aria-hidden="true"></span>
+  <a href="/yo.html" aria-label="Yo" title="Yo">
+    <!-- personita -->
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="yo-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb070"/><stop offset="1" stop-color="#e2420f"/></linearGradient>
+      </defs>
+      <circle cx="16" cy="11" r="5.6" fill="url(#yo-g)"/>
+      <path d="M5.5 27.5c.6-5.6 4.9-9 10.5-9s9.9 3.4 10.5 9z" fill="url(#yo-g)"/>
+      <circle cx="14" cy="9.2" r="1.6" fill="#fff" opacity=".35"/>
+    </svg>
+  </a>
+</nav>
 
-      <!-- To-do oculto por ahora: la página sigue en todo.html -->
-
-      <a class="gate" href="yo.html" aria-label="Yo">
-        <!-- personita -->
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.6" />
-          <path d="M4.8 20c0-3.6 3.2-6 7.2-6s7.2 2.4 7.2 6" />
-        </svg>
-      </a>
-
-    </nav>
-
-    <footer class="home-foot">
-      <span>&copy; <span id="year">2026</span> fukudamiyasato</span>
-      <a href="support/">support</a>
-      <a href="marketing/">marketing</a>
-      <a href="privacy/">privacy</a>
-    </footer>
-
-  </main>
-
-  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+<script type="module" src="/js/home.js"></script>
 </body>
-
 </html>

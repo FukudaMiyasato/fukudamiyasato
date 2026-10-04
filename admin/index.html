@@ -85,6 +85,10 @@
         Permisos
       </button>
       <!-- solo el amo supremo -->
+      <button type="button" data-tab="folio" data-supremo hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M2.5 12.5h19"/></svg>
+        Portafolio
+      </button>
       <button type="button" data-tab="apps" data-supremo hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2.6"/><path d="M10.8 18h2.4"/><path d="M9.5 7.5h1.5M13 7.5h1.5M9.5 11h1.5M13 11h1.5"/></svg>
         Aplicaciones
@@ -143,6 +147,28 @@
         <div id="perm-list"></div>
       </div>
     </section>
+    <section data-panel="folio" hidden>
+      <header class="admin-head">
+        <h1>Portafolio</h1>
+        <p>Los proyectos de la portada, en este orden. Todo es opcional: lo que no pongas se completa solo.</p>
+      </header>
+
+      <div class="cfg-card">
+        <div class="cfg-row">
+          <div>
+            <h2>Tiempo por proyecto</h2>
+            <p>Cuántos segundos se queda cada proyecto antes de pasar al siguiente. Un proyecto puede tener su propio tiempo.</p>
+          </div>
+          <output class="cfg-value" id="folio-dur-value" for="folio-dur">8 s</output>
+        </div>
+        <input class="range" type="range" id="folio-dur" min="3" max="60" step="1" value="8" aria-label="Segundos por proyecto">
+        <div class="range-marks"><span>3 s</span><span>30 s</span><span>60 s</span></div>
+        <p class="form-msg" id="folio-msg" role="status"></p>
+      </div>
+
+      <div class="folio-list" id="folio-list"></div>
+    </section>
+
     <section data-panel="apps" hidden>
       <header class="admin-head">
         <h1>Aplicaciones</h1>
@@ -158,13 +184,12 @@
         <p>Tu información personal en la página Yo.</p>
       </header>
       <form class="cfg-card me-form" id="me-form" autocomplete="off">
-        <label>Nombre <input id="me-name" maxlength="60" required></label>
-        <label>Rol <input id="me-role" maxlength="80"></label>
-        <label>Descripción <textarea id="me-desc" maxlength="1200" rows="5"></textarea></label>
-        <div class="me-form-row">
-          <label>Ubicación <input id="me-loc" maxlength="80"></label>
-          <label>Correo de contacto <input id="me-mail" type="email" maxlength="120"></label>
-        </div>
+        <label>Título <input id="me-title" maxlength="140" required placeholder="Nombre — rol"></label>
+        <p class="me-hint">Si lo escribes como «Nombre — rol», en la página el rol sale abajo, más chico.</p>
+        <label>Texto <textarea id="me-text" maxlength="2000" rows="5"></textarea></label>
+        <p class="app-links-title">Redes (en la página solo se ven los íconos)</p>
+        <div class="app-links" id="me-links"></div>
+        <button class="link-btn app-add-link" type="button" id="me-add-link">+ Agregar red</button>
         <div class="me-form-foot">
           <a class="link-btn" href="/yo.html" target="_blank" rel="noopener">Ver la página</a>
           <button class="btn" type="submit" id="me-save">Guardar</button>
@@ -262,6 +287,37 @@
       <button class="link-btn app-del" type="button" id="app-del" hidden>Borrar app</button>
       <button class="link-btn" type="button" id="app-cancel">Cancelar</button>
       <button class="btn" type="submit" id="app-save">Guardar</button>
+    </div>
+  </form>
+</div>
+
+<!-- proyecto del portafolio: nuevo o editar -->
+<div class="modal-layer" id="pj-layer" hidden>
+  <form class="modal app-modal" id="pj-form" autocomplete="off" novalidate>
+    <div class="pj-media">
+      <div class="pj-preview" id="pj-preview"></div>
+      <div class="pj-media-actions">
+        <label class="ghost-btn pj-upload" for="pj-file">Subir video o imagen</label>
+        <input type="file" id="pj-file" accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp,image/gif" hidden>
+        <input class="pj-url" id="pj-url" type="url" placeholder="…o pega un link (https://…)" aria-label="Link del video o imagen">
+        <div class="pj-bar" id="pj-bar" hidden><i></i></div>
+        <button class="link-btn" type="button" id="pj-media-clear">Quitar</button>
+      </div>
+    </div>
+    <input class="nd-title" id="pj-title" maxlength="80" placeholder="Sin título" aria-label="Título">
+    <div class="app-row">
+      <label>Fecha <input id="pj-date" type="date"></label>
+      <label>Categoría <input id="pj-cat" maxlength="40" placeholder="Proyecto"></label>
+      <label>Tiempo (s) <input id="pj-dur" type="number" min="3" max="60" step="1" placeholder="general"></label>
+    </div>
+    <label class="pj-field">Texto <textarea id="pj-text" maxlength="600" rows="3" placeholder="Opcional"></textarea></label>
+    <label class="pj-field">Etiquetas <input id="pj-tags" maxlength="160" placeholder="Diseño, Prototipado, Creative tech"></label>
+    <label class="pj-field">Link «Ver proyecto» <input id="pj-link" type="url" maxlength="500" placeholder="https://… (sin link no sale el botón)"></label>
+    <p class="m-err" id="pj-err" role="alert"></p>
+    <div class="m-actions">
+      <button class="link-btn app-del" type="button" id="pj-del" hidden>Borrar proyecto</button>
+      <button class="link-btn" type="button" id="pj-cancel">Cancelar</button>
+      <button class="btn" type="submit" id="pj-save">Guardar</button>
     </div>
   </form>
 </div>

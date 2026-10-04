@@ -1,21 +1,21 @@
 # fukudamiyasato
 
-Sitio personal estático — sin build, sin dependencias. Se sirve tal cual
-(GitHub Pages, Netlify, o cualquier servidor de archivos).
+Sitio personal estático — sin build. Se sirve en Vercel (las funciones de
+`api/` y la única dependencia, `@vercel/blob`, para subir videos).
 
 ```
-index.html      portada: wordmark + accesos (solo íconos)
-works.html      Apps (antes Works): grilla con links por plataforma; se editan en el panel → Aplicaciones
-ia.html         consola de transcripciones que llegan por webhook
+index.html      portada = portafolio: video de fondo con tramado + tarjeta del proyecto
+works.html      Apps (antes Works) — SIN acceso desde la portada
+ia.html         consola de transcripciones que llegan por webhook — SIN acceso desde la portada
 todo.html       lista de pendientes por día — SIN acceso desde la portada
-yo.html         perfil (editable en el panel → YO) + links
+yo.html         título, texto y redes (íconos); se editan en el panel → YO
 mic/            grabar con el dedo en vez de hablarle al webhook externo —
                 SIN acceso desde la portada
 support/        página de soporte para App Store / Google Play (FAQ + contacto)
 marketing/      landing de las apps
 privacy/        políticas de privacidad (una por app: privacy/kofres/)
 admin/          login con Google + panel (Dashboards · Permisos; el amo supremo
-                además Aplicaciones · YO · Configuración)
+                además Portafolio · Aplicaciones · YO · Configuración)
 dashboards/     una sola página para todos: /dashboards/?d=<id>
 ```
 
@@ -44,6 +44,41 @@ ES y `fetch`, así que abrir el `index.html` con doble clic no funciona.
 
 ---
 
+## Portada (portafolio) y Yo
+
+La web pública tiene solo dos botones, pegados abajo al centro: **portafolio**
+(la portada) y **yo**. Arriba a la izquierda la marca FUKU; arriba a la derecha
+el sonido (solo si el proyecto es un video) y el login, como siempre.
+
+**Portada** (`index.html`, `js/home.js`): de fondo, el video o imagen del
+proyecto a pantalla completa con tramado (`js/dither.js`, WebGL: mosaico,
+trama ordenada, damero, grano y viñeta; entre proyectos, disolución
+pixelada). Encima, al centro-izquierda, la tarjeta: `01 / 06`, categoría,
+título, fecha, texto, etiquetas y «Ver proyecto». La línea entre el número y
+la categoría es la barra de tiempo. Pasa sola al siguiente; se pausa con el
+mouse encima, con la barra espaciadora o con la pestaña oculta. Flechas ← → o
+deslizar para cambiar.
+
+Los proyectos se cargan en **Panel → Portafolio** (solo amo supremo): video o
+imagen, fecha, categoría, título, texto, etiquetas y link — **todo
+opcional** (sin título → «Sin título», sin categoría → «Proyecto», sin link no
+sale el botón, sin video → nube de color con el mismo tramado). Ahí mismo va
+el **tiempo por proyecto** (3–60 s) y cada proyecto puede tener el suyo; con
+↑ ↓ se cambia el orden. Se guarda en Redis (`fm:portfolio`); la portada lo
+lee de `GET /api/site?t=portfolio`. Sin proyectos se ve el de ejemplo
+(`assets/portfolio/abc.mp4`, comprimido a 960 px).
+
+**Subir videos e imágenes — Vercel Blob:** Vercel → Storage → Create →
+**Blob** → conéctalo al proyecto (agrega `BLOB_READ_WRITE_TOKEN`) y redeploy.
+El archivo va directo del navegador a Blob (`api/upload.js` solo firma el
+permiso, y solo para el amo supremo), hasta 200 MB. Mientras no exista,
+el editor deja pegar un link a un video/imagen.
+
+**Yo** (`yo.html`, `js/yo.js`): título, texto y redes (solo íconos), al
+centro. Se editan en **Panel → YO** (`fm:me`). Si el título va como
+«Nombre — rol», el rol sale abajo, más chico. Sin nada guardado, usa los de
+`js/site-defaults.js`.
+
 ## APPS (antes Works)
 
 Las apps se cargan desde el panel (`/admin` → **Aplicaciones**, solo amo
@@ -55,11 +90,6 @@ tocable en el hover.
 
 Mientras no haya ninguna app cargada en el panel, la grilla usa la fuente
 vieja de abajo (Airtable / `data/works.json`).
-
-**YO:** en el panel → **YO** (solo amo supremo) se editan nombre, rol,
-descripción, ubicación y correo de la página Yo (`fm:me`, `PUT /api/site?t=me`).
-Si nunca se guardaron, se usan los de `js/config.js`. Los links de redes
-siguen saliendo de la tabla `yo` de Airtable.
 
 ## WORKS · datos desde Airtable (fuente vieja)
 

@@ -4,7 +4,7 @@
    Quién entra y qué ve lo decide el servidor (/api/auth). Esta
    página solo elige la vista:
      amo supremo / amo  → panel (Dashboards · Permisos; el supremo además
-                          Aplicaciones · YO · Configuración)
+                          Portafolio · Aplicaciones · YO · Configuración)
      chismoso sin nada  → "No tienes permisos"
      chismoso con uno   → entra directo
      chismoso con más   → lista para elegir
@@ -13,7 +13,8 @@
 import { dashIconHTML } from './dashboard-icons.js';
 import { drawDots, fitCanvas, buildLensFilter } from './fisheye.js';
 import { PLATFORMS, platformIcon } from './app-platforms.js';
-import { CONFIG } from './config.js';
+import { SOCIALS } from './socials.js';
+import { DEFAULT_ME, DEFAULT_DURATION, PROJECT_DEFAULTS, shortDate } from './site-defaults.js';
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = ['loading', 'login', 'denied', 'nodash', 'picker', 'admin'];
@@ -93,6 +94,7 @@ document.querySelectorAll('.admin-nav [data-tab]').forEach((b) => b.addEventList
   if (b.dataset.tab === 'config') loadConfig();
   if (b.dataset.tab === 'apps') loadApps();
   if (b.dataset.tab === 'me') loadMe();
+  if (b.dataset.tab === 'folio') loadFolio();
 }));
 
 /* ============================================================
@@ -243,27 +245,245 @@ $('app-del').addEventListener('click', async () => {
 });
 
 /* ============================================================
-   YO (amo supremo): datos personales de la página Yo
+   YO (amo supremo): título, texto y redes de la página Yo
    ============================================================ */
 
-const ME_DEFAULTS = CONFIG.me;
-const ME_INPUTS = { name: 'me-name', role: 'me-role', description: 'me-desc', location: 'me-loc', email: 'me-mail' };
+function meLinkRow(l = { platform: 'instagram', url: '' }) {
+  const row = document.createElement('div');
+  row.className = 'app-link';
+  row.innerHTML = `
+    <select aria-label="Red">${SOCIALS.map((s) => `<option value="${s.key}"${s.key === l.platform ? ' selected' : ''}>${s.label}</option>`).join('')}</select>
+    <input placeholder="https://… o correo" aria-label="Link" value="${escA(l.platform === 'email' ? l.url.replace(/^mailto:/i, '') : l.url)}">
+    <button class="icon-btn" type="button" aria-label="Quitar red" title="Quitar red">×</button>`;
+  row.querySelector('button').addEventListener('click', () => row.remove());
+  $('me-links').append(row);
+  return row;
+}
 
 async function loadMe() {
   $('me-msg').textContent = '';
   const r = await api('/api/site?t=me');
-  const me = { ...ME_DEFAULTS, ...(r.ok && r.data.me ? r.data.me : {}) };
-  for (const [k, idEl] of Object.entries(ME_INPUTS)) $(idEl).value = me[k] || '';
+  const me = { ...DEFAULT_ME, ...(r.ok && r.data.me ? r.data.me : {}) };
+  $('me-title').value = me.title || '';
+  $('me-text').value = me.text || '';
+  $('me-links').innerHTML = '';
+  (me.links || []).forEach((l) => meLinkRow(l));
 }
+
+$('me-add-link').addEventListener('click', () => meLinkRow().querySelector('input').focus());
 
 $('me-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const body = Object.fromEntries(Object.entries(ME_INPUTS).map(([k, idEl]) => [k, $(idEl).value.trim()]));
+  const body = {
+    title: $('me-title').value.trim(),
+    text: $('me-text').value.trim(),
+    links: [...$('me-links').querySelectorAll('.app-link')].map((row) => ({
+      platform: row.querySelector('select').value, url: row.querySelector('input').value.trim(),
+    })).filter((l) => l.url),
+  };
   $('me-save').disabled = true;
   const r = await api('/api/site?t=me', { method: 'PUT', body: JSON.stringify(body) });
   $('me-save').disabled = false;
   $('me-msg').className = `form-msg${r.ok ? '' : ' err'}`;
   $('me-msg').textContent = r.ok ? 'Guardado. Ya se ve en la página Yo.' : (r.data.error || 'No se pudo guardar.');
+});
+
+/* ============================================================
+   Portafolio (amo supremo): proyectos de la portada y su tiempo
+   ============================================================ */
+
+let folio = { duration: DEFAULT_DURATION, projects: [] };
+let pjEditing = null;     // proyecto que se edita (null = nuevo)
+let pjMedia = null;       // { type, url } o null
+let uploading = false;
+
+const isVideoUrl = (u) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
+
+async function loadFolio() {
+  const r = await api('/api/site?t=portfolio');
+  if (!r.ok) { $('folio-list').innerHTML = `<p class="form-msg err">${escA(r.data.error || 'No se pudo cargar.')}</p>`; return; }
+  folio = r.data;
+  $('folio-dur').value = folio.duration;
+  $('folio-dur-value').textContent = `${folio.duration} s`;
+  renderFolio();
+}
+
+function thumb(m) {
+  if (!m?.url) return '<span class="folio-thumb folio-thumb--none" aria-hidden="true"></span>';
+  return m.type === 'video'
+    ? `<video class="folio-thumb" src="${escA(m.url)}#t=1" muted playsinline preload="metadata" aria-hidden="true"></video>`
+    : `<img class="folio-thumb" src="${escA(m.url)}" alt="" loading="lazy">`;
+}
+
+function renderFolio() {
+  const list = $('folio-list');
+  list.innerHTML = '';
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'folio-row folio-row--new';
+  add.innerHTML = '<span class="folio-thumb folio-thumb--add">+</span><span class="folio-info"><b>Nuevo proyecto</b><small>Video o imagen, fecha, categoría, título, texto, etiquetas y link</small></span>';
+  add.addEventListener('click', () => openProject(null));
+  list.append(add);
+  if (!folio.projects.length) {
+    const p = document.createElement('p');
+    p.className = 'form-msg';
+    p.textContent = 'Todavía no hay proyectos: la portada muestra el de ejemplo (ABC).';
+    list.append(p);
+  }
+  folio.projects.forEach((pj, i) => {
+    const row = document.createElement('div');
+    row.className = 'folio-row';
+    row.innerHTML = `
+      <span class="folio-n">${String(i + 1).padStart(2, '0')}</span>
+      ${thumb(pj.media)}
+      <button class="folio-info" type="button">
+        <b>${escA(pj.title || PROJECT_DEFAULTS.title)}</b>
+        <small>${escA([pj.category || PROJECT_DEFAULTS.category, shortDate(pj.date), `${pj.duration || folio.duration} s`].filter(Boolean).join(' · '))}</small>
+      </button>
+      <span class="folio-move">
+        <button class="icon-btn" type="button" data-move="-1" aria-label="Subir" title="Subir"${i === 0 ? ' disabled' : ''}>↑</button>
+        <button class="icon-btn" type="button" data-move="1" aria-label="Bajar" title="Bajar"${i === folio.projects.length - 1 ? ' disabled' : ''}>↓</button>
+      </span>`;
+    row.querySelector('.folio-info').addEventListener('click', () => openProject(pj));
+    row.querySelectorAll('[data-move]').forEach((b) => b.addEventListener('click', () => moveProject(i, Number(b.dataset.move))));
+    list.append(row);
+  });
+}
+
+async function moveProject(i, dir) {
+  const order = folio.projects.map((p) => p.id);
+  const j = i + dir;
+  if (j < 0 || j >= order.length) return;
+  [order[i], order[j]] = [order[j], order[i]];
+  const r = await api('/api/site?t=portfolio', { method: 'PUT', body: JSON.stringify({ order }) });
+  if (!r.ok) { $('folio-msg').className = 'form-msg err'; $('folio-msg').textContent = r.data.error || 'No se pudo mover.'; return; }
+  folio = r.data;
+  renderFolio();
+}
+
+let durTimer = 0;
+$('folio-dur').addEventListener('input', () => {
+  $('folio-dur-value').textContent = `${$('folio-dur').value} s`;
+  clearTimeout(durTimer);
+  durTimer = setTimeout(async () => {
+    const r = await api('/api/site?t=portfolio', { method: 'PUT', body: JSON.stringify({ duration: Number($('folio-dur').value) }) });
+    $('folio-msg').className = `form-msg${r.ok ? '' : ' err'}`;
+    $('folio-msg').textContent = r.ok ? 'Guardado.' : (r.data.error || 'No se pudo guardar.');
+    if (r.ok) { folio = r.data; renderFolio(); }
+  }, 400);
+});
+
+function paintPjMedia() {
+  const box = $('pj-preview');
+  box.innerHTML = pjMedia?.url
+    ? (pjMedia.type === 'video'
+      ? `<video src="${escA(pjMedia.url)}" muted loop playsinline autoplay></video>`
+      : `<img src="${escA(pjMedia.url)}" alt="">`)
+    : '<span>Sin video ni imagen<br><small>se verá una nube de color con el tramado</small></span>';
+  $('pj-url').value = pjMedia?.url && !pjMedia.url.startsWith('blob:') ? pjMedia.url : '';
+  $('pj-media-clear').hidden = !pjMedia;
+}
+
+function openProject(pj) {
+  pjEditing = pj;
+  pjMedia = pj?.media ? { ...pj.media } : null;
+  $('pj-form').className = 'modal app-modal';
+  $('pj-title').value = pj?.title || '';
+  $('pj-date').value = /^\d{4}-\d{2}-\d{2}$/.test(pj?.date || '') ? pj.date : (pj?.date ? `${pj.date}-01` : '');
+  $('pj-cat').value = pj?.category || '';
+  $('pj-dur').value = pj?.duration || '';
+  $('pj-dur').placeholder = `general: ${folio.duration}`;
+  $('pj-text').value = pj?.text || '';
+  $('pj-tags').value = (pj?.tags || []).join(', ');
+  $('pj-link').value = pj?.link || '';
+  $('pj-err').textContent = '';
+  $('pj-file').value = '';
+  $('pj-bar').hidden = true;
+  $('pj-del').hidden = !pj;
+  paintPjMedia();
+  $('pj-layer').hidden = false;
+  setTimeout(() => $('pj-title').focus(), 50);
+}
+const closeProject = () => { if (!uploading) $('pj-layer').hidden = true; };
+
+$('pj-cancel').addEventListener('click', closeProject);
+$('pj-layer').addEventListener('pointerdown', (e) => { if (e.target === $('pj-layer')) closeProject(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('pj-layer').hidden) closeProject(); });
+$('pj-media-clear').addEventListener('click', () => { pjMedia = null; paintPjMedia(); });
+$('pj-url').addEventListener('change', () => {
+  const url = $('pj-url').value.trim();
+  pjMedia = url ? { type: isVideoUrl(url) ? 'video' : 'image', url } : null;
+  paintPjMedia();
+});
+
+function pjFail(msg) {
+  $('pj-err').textContent = msg;
+  const f = $('pj-form');
+  f.classList.remove('is-shaking'); void f.offsetWidth; f.classList.add('is-shaking');
+}
+
+/* el archivo va directo del navegador a Vercel Blob; /api/upload solo firma el permiso */
+$('pj-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const type = file.type.startsWith('video/') ? 'video' : 'image';
+  const bar = $('pj-bar');
+  uploading = true;
+  $('pj-save').disabled = true;
+  bar.hidden = false;
+  bar.firstElementChild.style.width = '0%';
+  $('pj-err').textContent = '';
+  try {
+    const { upload } = await import('https://esm.sh/@vercel/blob@2.8.0/client');
+    const name = file.name.normalize('NFD').replace(/[^\w.-]+/g, '-').toLowerCase();
+    const blob = await upload(`portafolio/${name}`, file, {
+      access: 'public',
+      handleUploadUrl: '/api/upload',
+      contentType: file.type,
+      multipart: file.size > 20 * 1024 * 1024,
+      onUploadProgress: ({ percentage }) => { bar.firstElementChild.style.width = `${percentage}%`; },
+    });
+    pjMedia = { type, url: blob.url };
+    paintPjMedia();
+  } catch (err) {
+    pjFail(/Blob|BLOB|503/.test(err.message) ? 'Falta Vercel Blob en Vercel (Storage → Blob). Mientras, pega un link.' : `No se pudo subir: ${err.message}`);
+  } finally {
+    uploading = false;
+    $('pj-save').disabled = false;
+    bar.hidden = true;
+    e.target.value = '';
+  }
+});
+
+$('pj-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (uploading) return;
+  const body = {
+    media: pjMedia,
+    title: $('pj-title').value.trim(),
+    date: $('pj-date').value,
+    category: $('pj-cat').value.trim(),
+    duration: $('pj-dur').value === '' ? null : Number($('pj-dur').value),
+    text: $('pj-text').value.trim(),
+    tags: $('pj-tags').value.split(',').map((t) => t.trim()).filter(Boolean),
+    link: $('pj-link').value.trim(),
+  };
+  $('pj-save').disabled = true;
+  const r = pjEditing
+    ? await api(`/api/site?t=project&id=${encodeURIComponent(pjEditing.id)}`, { method: 'PUT', body: JSON.stringify(body) })
+    : await api('/api/site?t=project', { method: 'POST', body: JSON.stringify(body) });
+  $('pj-save').disabled = false;
+  if (!r.ok) return pjFail(r.data.error || 'No se pudo guardar.');
+  closeProject();
+  loadFolio();
+});
+
+$('pj-del').addEventListener('click', async () => {
+  if (!pjEditing || !confirm(`¿Borrar «${pjEditing.title || PROJECT_DEFAULTS.title}»? Deja de verse en la portada.`)) return;
+  const r = await api(`/api/site?t=project&id=${encodeURIComponent(pjEditing.id)}`, { method: 'DELETE' });
+  if (!r.ok) return pjFail(r.data.error || 'No se pudo borrar.');
+  closeProject();
+  loadFolio();
 });
 
 /* ============================================================
