@@ -60,7 +60,9 @@ mouse encima, con la barra espaciadora o con la pestaña oculta. Flechas ← →
 deslizar para cambiar.
 
 Los proyectos se cargan en **Panel → Portafolio** (solo amo supremo): video o
-imagen, fecha, categoría, título, texto, etiquetas y link — **todo
+imagen, fecha (año, mes y día por separado: el año viene con el actual y, si
+se deja vacío, queda el actual; mes y día son opcionales y sin mes no hay
+día — en la tarjeta sale «2026», «mar 2026» o «14 mar 2026»), categoría, título, texto, etiquetas y link — **todo
 opcional** (sin título → «Sin título», sin categoría → «Proyecto», sin link no
 sale el botón, sin video → nube de color con el mismo tramado). Ahí mismo va
 el **tiempo por proyecto** (3–60 s) y cada proyecto puede tener el suyo; con
@@ -74,8 +76,10 @@ El archivo va directo del navegador a Blob (`api/upload.js` solo firma el
 permiso, y solo para el amo supremo), hasta 200 MB. Mientras no exista,
 el editor deja pegar un link a un video/imagen.
 
-**Yo** (`yo.html`, `js/yo.js`): título, texto y redes (solo íconos), al
-centro. Se editan en **Panel → YO** (`fm:me`). Si el título va como
+**Yo** (`yo.html`, `js/yo.js`): título, texto y redes (solo íconos), en una
+tarjeta al centro. Las tarjetas de la portada y de Yo son pixel art: borde de
+4 px con esquinas mordidas, sombra dura en escalera, Pixelify Sans en títulos
+y Silkscreen en etiquetas y botones. Se editan en **Panel → YO** (`fm:me`). Si el título va como
 «Nombre — rol», el rol sale abajo, más chico. Sin nada guardado, usa los de
 `js/site-defaults.js`.
 

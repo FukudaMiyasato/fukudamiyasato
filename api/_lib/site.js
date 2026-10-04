@@ -65,11 +65,22 @@ export async function getPortfolio() {
 }
 const savePortfolio = (p) => setJSON(PORTFOLIO_KEY, p);
 
+/** "2026" · "2026-03" · "2026-03-14" (mes y día opcionales). Sin año válido, el actual. */
+function cleanDate(v) {
+  const m = String(v ?? '').trim().match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
+  const year = String(new Date().getFullYear());
+  if (!m) return year;
+  const [, y, mo, d] = m;
+  if (!mo || +mo < 1 || +mo > 12) return y;
+  if (!d || +d < 1 || +d > new Date(Date.UTC(+y, +mo, 0)).getUTCDate()) return `${y}-${mo}`;
+  return `${y}-${mo}-${d}`;
+}
+
 /** Proyecto válido, o { error }. Todo es opcional: lo que falte lo completa la portada. */
 export function cleanProject(b) {
   const out = {
     media: null,
-    date: /^\d{4}-\d{2}(-\d{2})?$/.test(str(b?.date, 10)) ? str(b.date, 10) : '',
+    date: cleanDate(b?.date),
     category: str(b?.category, 40),
     title: str(b?.title, 80),
     text: str(b?.text, 600),

@@ -310,8 +310,18 @@
       </div>
     </div>
     <input class="nd-title" id="pj-title" maxlength="80" placeholder="Sin título" aria-label="Título">
-    <div class="app-row">
-      <label>Fecha <input id="pj-date" type="date"></label>
+    <div class="app-row pj-date">
+      <label>Año <input id="pj-year" type="number" min="1900" max="2100" step="1" inputmode="numeric"></label>
+      <label>Mes <select id="pj-month">
+        <option value="">—</option>
+        <option value="01">enero</option><option value="02">febrero</option><option value="03">marzo</option>
+        <option value="04">abril</option><option value="05">mayo</option><option value="06">junio</option>
+        <option value="07">julio</option><option value="08">agosto</option><option value="09">septiembre</option>
+        <option value="10">octubre</option><option value="11">noviembre</option><option value="12">diciembre</option>
+      </select></label>
+      <label>Día <input id="pj-day" type="number" min="1" max="31" step="1" inputmode="numeric" placeholder="—"></label>
+    </div>
+    <div class="app-row pj-meta">
       <label>Categoría <input id="pj-cat" maxlength="40" placeholder="Proyecto"></label>
       <label>Tiempo (s) <input id="pj-dur" type="number" min="3" max="60" step="1" placeholder="general"></label>
     </div>

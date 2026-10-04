@@ -45,8 +45,10 @@ export function splitTitle(title) {
 }
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-/** "2026-03-14" → "mar 2026" */
+/** "2026" → "2026" · "2026-03" → "mar 2026" · "2026-03-14" → "14 mar 2026" */
 export function shortDate(iso) {
-  const m = String(iso || '').match(/^(\d{4})-(\d{2})/);
-  return m ? `${MONTHS[+m[2] - 1] || ''} ${m[1]}`.trim() : '';
+  const m = String(iso || '').match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/);
+  if (!m) return '';
+  const [, y, mo, d] = m;
+  return [d ? Number(d) : '', mo ? MONTHS[+mo - 1] : '', y].filter(Boolean).join(' ');
 }

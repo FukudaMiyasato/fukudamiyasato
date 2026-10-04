@@ -242,7 +242,12 @@ function openProject(pj) {
   pjMedia = pj?.media ? { ...pj.media } : null;
   $('pj-form').className = 'modal app-modal';
   $('pj-title').value = pj?.title || '';
-  $('pj-date').value = /^\d{4}-\d{2}-\d{2}$/.test(pj?.date || '') ? pj.date : (pj?.date ? `${pj.date}-01` : '');
+  const [y = '', mo = '', d = ''] = (pj?.date || '').split('-');
+  $('pj-year').value = y || new Date().getFullYear(); // por defecto, el año actual
+  $('pj-year').placeholder = String(new Date().getFullYear());
+  $('pj-month').value = mo;
+  $('pj-day').value = d ? String(Number(d)) : '';
+  paintDay();
   $('pj-cat').value = pj?.category || '';
   $('pj-dur').value = pj?.duration || '';
   $('pj-dur').placeholder = `general: ${folio.duration}`;
@@ -268,6 +273,22 @@ $('pj-url').addEventListener('change', () => {
   pjMedia = url ? { type: isVideoUrl(url) ? 'video' : 'image', url } : null;
   paintPjMedia();
 });
+
+/* fecha: año (si queda vacío, el actual) · mes y día opcionales; sin mes no hay día */
+function paintDay() {
+  const noMonth = !$('pj-month').value;
+  $('pj-day').disabled = noMonth;
+  if (noMonth) $('pj-day').value = '';
+}
+$('pj-month').addEventListener('change', paintDay);
+
+function dateFromFields() {
+  const y = String(Number($('pj-year').value) || new Date().getFullYear());
+  const mo = $('pj-month').value;
+  const d = Number($('pj-day').value);
+  if (!mo) return y;
+  return d ? `${y}-${mo}-${String(d).padStart(2, '0')}` : `${y}-${mo}`;
+}
 
 function pjFail(msg) {
   $('pj-err').textContent = msg;
@@ -311,10 +332,15 @@ $('pj-file').addEventListener('change', async (e) => {
 $('pj-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (uploading) return;
+  const day = Number($('pj-day').value);
+  if (day) {
+    const max = new Date(Number($('pj-year').value) || new Date().getFullYear(), Number($('pj-month').value), 0).getDate();
+    if (day < 1 || day > max) return pjFail(`Ese mes tiene ${max} días.`);
+  }
   const body = {
     media: pjMedia,
     title: $('pj-title').value.trim(),
-    date: $('pj-date').value,
+    date: dateFromFields(),
     category: $('pj-cat').value.trim(),
     duration: $('pj-dur').value === '' ? null : Number($('pj-dur').value),
     text: $('pj-text').value.trim(),
