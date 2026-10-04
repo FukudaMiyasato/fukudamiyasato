@@ -28,6 +28,9 @@
      uno que termina (con 2 s entre uno y otro si terminan juntos).
    · Zoom (control arriba a la derecha, o Ctrl/pellizco + rueda): de 0,5× a
      2×; la esfera al centro es 1×. Escala el mundo alrededor del centro.
+   · Tokens (amos): las herramientas de IA cuestan tokens (precio con
+     sobrecargo, lo fija el amo supremo). El saldo se ve arriba; si no
+     alcanza, la herramienta se apaga. El amo supremo no tiene límite.
    · Seleccionar un widget (tocarlo): brillo rojo + bloque de información
      al centro-derecha (pregunta, archivo, lo conectado), sin lente.
    · Los widgets en creación son temporales: tocar otra zona los borra
@@ -68,6 +71,10 @@ const lensEl = $('lens');
 const ctx = dots.getContext('2d');
 
 let canEdit = false;
+let tokens = null;    // saldo de tokens; null = sin límite (amo supremo)
+let prices = {};      // { table, ask, follow }: lo que cuesta cada herramienta de IA
+const nfTok = new Intl.NumberFormat('es-PE');
+const AI_TOOLS = { table: 'table', ask: 'ask' }; // herramienta del dock → precio
 let widgets = [];   // { id, type, x, y, w, h, data, inputs, state, mode?, el, file?, fileText? }
 const pan = { x: 0, y: 0 };
 let zoom = 1;                      // 0,5× … 2×; lo cambia el control de zoom
@@ -271,7 +278,7 @@ function draftHTML(wd) {
       <p class="m-err" role="alert"></p>
       <div class="m-actions">
         <button class="link-btn m-cancel" type="button">me arrepentí</button>
-        <button class="btn m-ok" type="submit">${esc(m.submit)}</button>
+        <button class="btn m-ok" type="submit">${esc(m.submit)}${tokens != null && prices[m.endpoint] ? `<small>${nfTok.format(prices[m.endpoint])} tk</small>` : ''}</button>
       </div>
     </form>
     <div class="wthinking" aria-live="polite">
@@ -613,6 +620,7 @@ function createDraft(mode, { near, inputs = [], about = [] } = {}) {
 /** Clic en el + de un widget: pregunta nueva en el primer lugar libre a su
     costado, SIN conectar (usa ese widget y su cadena como contexto). */
 function createFollow(src) {
+  if (!canAfford('follow')) return flashBroke('follow');
   const { h } = MODES.follow.size;
   createDraft('follow', { near: { x: src.x + src.w + 2, y: src.y + Math.round((src.h - h) / 2) }, about: [src.id] });
 }
@@ -694,6 +702,8 @@ async function submit(wd) {
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=${m.endpoint}`, { method: 'POST', body: JSON.stringify(body) });
 
   if (!widgets.includes(wd)) return; // lo borraron mientras pensaba
+  if (r.data.tokens !== undefined) setTokens(r.data.tokens);
+  if (r.status === 402) return reject(wd, r.data.error || 'No te quedan tokens.');
   if (r.status === 422) return reject(wd, r.data.error || `${m.fail}.`);
   if (!r.ok) {
     wd.state = 'draft';
@@ -1201,6 +1211,42 @@ function renderUserInfo(box) {
 }
 
 /* ============================================================
+   Tokens: saldo arriba, precio en cada herramienta de IA
+   ============================================================ */
+
+const canAfford = (tool) => tokens == null || tokens >= (prices[tool] || 0);
+
+function setTokens(n) {
+  tokens = n;
+  refreshTokens();
+}
+
+function refreshTokens() {
+  const el = $('dash-tokens');
+  el.hidden = tokens == null;
+  if (tokens != null) {
+    el.textContent = `${nfTok.format(tokens)} tokens`;
+    el.classList.toggle('is-low', Object.values(prices).some((p) => tokens < p));
+  }
+  for (const b of document.querySelectorAll('.tool[data-ai]')) {
+    const tool = b.dataset.ai, ok = canAfford(tool), label = b.getAttribute('aria-label');
+    b.classList.toggle('is-broke', !ok);
+    b.title = tokens == null ? label : `${label} · ${nfTok.format(prices[tool] || 0)} tokens${ok ? '' : ' — no te alcanzan'}`;
+    let tag = b.querySelector('.tool-price');
+    if (tokens == null) { tag?.remove(); continue; }
+    if (!tag) { tag = document.createElement('span'); tag.className = 'tool-price'; b.append(tag); }
+    tag.textContent = nfTok.format(prices[tool] || 0);
+  }
+}
+
+/** Aviso corto cuando no alcanzan los tokens. */
+function flashBroke(tool) {
+  const el = $('dash-tokens');
+  el.classList.remove('is-shaking'); void el.offsetWidth; el.classList.add('is-shaking');
+  alert(`No te alcanzan los tokens: esto cuesta ${nfTok.format(prices[tool] || 0)} y te quedan ${nfTok.format(tokens || 0)}. Pídele más al amo supremo.`);
+}
+
+/* ============================================================
    Dock
    ============================================================ */
 
@@ -1230,10 +1276,18 @@ function renderDock() {
     b.title = t.label;
     b.setAttribute('aria-label', t.label);
     b.innerHTML = TOOL_ICONS[t.key];
-    b.addEventListener('click', t.open);
+    if (canEdit && AI_TOOLS[t.key]) {
+      b.dataset.ai = AI_TOOLS[t.key];
+      b.addEventListener('click', (e) => {
+        if (canAfford(b.dataset.ai)) return t.open();
+        e.stopImmediatePropagation();
+        flashBroke(b.dataset.ai);
+      });
+    } else b.addEventListener('click', t.open);
     dock.append(b);
   }
   if (!canEdit) return;
+  refreshTokens();
 
   // separación + maleta (se ve distinta: abre más herramientas)
   const sep = document.createElement('span');
@@ -1725,6 +1779,8 @@ $('dash-delete').addEventListener('click', async () => {
   }
 
   canEdit = data.canEdit;
+  tokens = data.tokens ?? null;
+  prices = data.prices || {};
   fisheye = (data.config?.fisheye ?? 7) / 100;
   document.body.classList.toggle('can-edit', canEdit);
   document.title = `${data.dashboard.name} — fukudamiyasato`;

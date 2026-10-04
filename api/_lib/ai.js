@@ -17,17 +17,15 @@
    `context` es el contenido de los widgets conectados (por su conector
    izquierdo): la IA lo usa como fuente principal.
 
-   API keys: se usa primero la que el amo supremo eligió en Configuración
-   (YO = OPENAI_API_KEY, LVL = OPENAI_API_KEY2). Si falla por saldo, key
-   inválida o límite de uso, se reintenta solo con la otra.
+   Usa siempre OPENAI_API_KEY. Cada función acepta `meter` ({}): al
+   terminar trae en meter.tokens los tokens que gastó la llamada (así se
+   mide el costo real de cada herramienta en Panel → Configuración).
 
    Las dos usan salida estructurada (json_schema). Si la pregunta está
    vacía, no tiene sentido o no se puede responder, el modelo devuelve
    ok=false con el motivo — no hay que adivinarlo del texto.
-   Variables: OPENAI_API_KEY y/o OPENAI_API_KEY2, OPENAI_MODEL (default gpt-4o).
+   Variables: OPENAI_API_KEY, OPENAI_MODEL (default gpt-4o).
    ============================================================ */
-
-import { getConfig, AI_KEYS } from './config.js';
 
 const MAX_CSV_CHARS = 120_000; // ~30k tokens: deja espacio a la respuesta
 const MAX_CONTEXT_CHARS = 60_000;
@@ -39,48 +37,31 @@ export class AIError extends Error {}
 
 const str = (v, max = MAX_CELL) => String(v ?? '').trim().slice(0, max);
 
-/* Errores por los que vale la pena probar con la otra key:
-   401 key inválida · 402/403 facturación · 429 sin saldo o límite de uso. */
-const RETRY_WITH_OTHER_KEY = new Set([401, 402, 403, 429]);
+async function callOpenAI(system, user, schema, { temperature = 0, meter = null } = {}) {
+  const key = String(process.env.OPENAI_API_KEY || '').trim();
+  if (!key) throw new Error('No hay API key de OpenAI: carga OPENAI_API_KEY en Vercel.');
 
-/** Las keys cargadas, la elegida en Configuración primero. */
-async function keysInOrder() {
-  const { aiKey } = await getConfig();
-  const order = [aiKey, ...Object.keys(AI_KEYS).filter((k) => k !== aiKey)];
-  return order
-    .map((k) => ({ name: AI_KEYS[k].label, key: String(process.env[AI_KEYS[k].env] || '').trim() }))
-    .filter((k) => k.key);
-}
-
-async function callOpenAI(system, user, schema, { temperature = 0 } = {}) {
-  const keys = await keysInOrder();
-  if (!keys.length) throw new Error('No hay API key de OpenAI: carga OPENAI_API_KEY u OPENAI_API_KEY2 en Vercel.');
-
-  let res, lastErr = '';
-  for (const { name, key } of keys) {
-    res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-        temperature,
-        response_format: { type: 'json_schema', json_schema: schema },
-        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      }),
-    });
-    if (res.ok) break;
-    lastErr = (await res.text()).slice(0, 500);
-    console.error(`[ai] OpenAI con la key ${name}:`, res.status, lastErr);
-    if (!RETRY_WITH_OTHER_KEY.has(res.status)) break;
-  }
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || 'gpt-4o',
+      temperature,
+      response_format: { type: 'json_schema', json_schema: schema },
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    }),
+  });
   if (!res.ok) {
-    const noMoney = /insufficient_quota|billing/i.test(lastErr);
-    throw new Error(noMoney
-      ? 'Las API keys de OpenAI no tienen saldo.'
+    const err = (await res.text()).slice(0, 500);
+    console.error('[ai] OpenAI:', res.status, err);
+    throw new Error(/insufficient_quota|billing/i.test(err)
+      ? 'La API key de OpenAI no tiene saldo.'
       : `OpenAI respondió ${res.status}.`);
   }
 
-  const msg = (await res.json()).choices?.[0]?.message;
+  const json = await res.json();
+  if (meter) meter.tokens = (meter.tokens || 0) + (json.usage?.total_tokens || 0);
+  const msg = json.choices?.[0]?.message;
   if (msg?.refusal) throw new AIError(msg.refusal);
   try { return JSON.parse(msg?.content || ''); } catch { throw new Error('OpenAI devolvió una respuesta ilegible.'); }
 }
@@ -166,7 +147,7 @@ const VISUAL_SCHEMA = {
 };
 
 /** Devuelve { kind, title, … , truncated, fromFile } o lanza AIError (pregunta que no sirve) / Error (falla técnica). */
-export async function askVisual({ prompt, csv = '', filename = '', context = '' }) {
+export async function askVisual({ prompt, csv = '', filename = '', context = '', meter = null }) {
   let body = String(csv || '').replace(/^﻿/, '');
   const fromFile = Boolean(body.trim());
   let truncated = false;
@@ -185,7 +166,7 @@ export async function askVisual({ prompt, csv = '', filename = '', context = '' 
     : `Pedido: ${prompt}`);
 
   const system = fromFile ? SYSTEM_CSV : context ? SYSTEM_CONTEXT : SYSTEM_FREE;
-  const out = await callOpenAI(system, user, VISUAL_SCHEMA);
+  const out = await callOpenAI(system, user, VISUAL_SCHEMA, { meter });
   if (!out.ok) throw new AIError(out.error || 'La pregunta no se puede responder.');
   const title = str(out.title || 'Respuesta', 80);
   const base = { title, truncated, fromFile };
@@ -241,8 +222,8 @@ const SHORT_SCHEMA = {
 };
 
 /** Devuelve { kind: 'text', title, value, detail } o lanza AIError / Error. */
-export async function askShort({ prompt, context = '' }) {
-  const out = await callOpenAI(SYSTEM_SHORT, contextBlock(context) + prompt, SHORT_SCHEMA);
+export async function askShort({ prompt, context = '', meter = null }) {
+  const out = await callOpenAI(SYSTEM_SHORT, contextBlock(context) + prompt, SHORT_SCHEMA, { meter });
   if (!out.ok) throw new AIError(out.error || 'No se puede responder eso.');
   const value = str(out.answer, 700);
   if (!value) throw new AIError('No salió ninguna respuesta.');
@@ -266,8 +247,8 @@ conocimiento general (dilo en "detail").
 Responde ok=false (con un motivo breve en español en "error") SOLO si el pedido está vacío o no se entiende.`;
 
 /** Devuelve { kind: 'text', title, value, detail } o lanza AIError / Error. */
-export async function askFollow({ prompt, context = '' }) {
-  const out = await callOpenAI(SYSTEM_FOLLOW, contextBlock(context) + `Pedido: ${prompt}`, SHORT_SCHEMA, { temperature: 0.5 });
+export async function askFollow({ prompt, context = '', meter = null }) {
+  const out = await callOpenAI(SYSTEM_FOLLOW, contextBlock(context) + `Pedido: ${prompt}`, SHORT_SCHEMA, { temperature: 0.5, meter });
   if (!out.ok) throw new AIError(out.error || 'No entendí la pregunta.');
   const value = str(out.answer, 800);
   if (!value) throw new AIError('No salió ninguna respuesta.');

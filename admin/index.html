@@ -10,13 +10,14 @@
 <link rel="apple-touch-icon" href="/assets/app-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&family=Archivo+Black&family=Pixelify+Sans:wght@500;700&family=Silkscreen&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/base.css">
 <link rel="stylesheet" href="/css/admin.css">
 <link rel="stylesheet" href="/css/modal.css">
+<link rel="stylesheet" href="/css/pixel.css">
 <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
-<body>
+<body class="px">
 
 <a class="back-btn" href="/" aria-label="Volver al inicio">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -74,7 +75,7 @@
 <!-- panel de administrador -->
 <div class="admin" id="v-admin" hidden>
   <aside class="admin-side">
-    <p class="admin-brand">fukuda<span>miyasato</span></p>
+    <p class="admin-brand">FUKU</p>
     <nav class="admin-nav" aria-label="Panel">
       <button type="button" class="is-active" data-tab="dash">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
@@ -88,10 +89,6 @@
       <button type="button" data-tab="folio" data-supremo hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M2.5 12.5h19"/></svg>
         Portafolio
-      </button>
-      <button type="button" data-tab="apps" data-supremo hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.8" width="11" height="18.4" rx="2.6"/><path d="M10.8 18h2.4"/><path d="M9.5 7.5h1.5M13 7.5h1.5M9.5 11h1.5M13 11h1.5"/></svg>
-        Aplicaciones
       </button>
       <button type="button" data-tab="me" data-supremo hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c0-3.6 3.2-6 7.2-6s7.2 2.4 7.2 6"/></svg>
@@ -137,11 +134,12 @@
       </form>
       <p class="form-msg" id="perm-msg" role="status"></p>
 
-      <div class="perm-table" role="table" aria-label="Correos con acceso">
+      <div class="perm-table" id="perm-table" role="table" aria-label="Correos con acceso">
         <div class="perm-row perm-row--head" role="row">
           <span role="columnheader">Correo</span>
           <span role="columnheader">Rol</span>
           <span role="columnheader">Dashboards</span>
+          <span role="columnheader" class="perm-credits-col" hidden>Créditos</span>
           <span role="columnheader"></span>
         </div>
         <div id="perm-list"></div>
@@ -167,15 +165,6 @@
       </div>
 
       <div class="folio-list" id="folio-list"></div>
-    </section>
-
-    <section data-panel="apps" hidden>
-      <header class="admin-head">
-        <h1>Aplicaciones</h1>
-        <p>Lo que se ve en la página Apps. Cada app puede tener links a varias plataformas; con sus descargas se calcula cuánto falta para el millón.</p>
-      </header>
-      <p class="apps-total" id="apps-total"></p>
-      <div class="app-grid" id="app-grid"></div>
     </section>
 
     <section data-panel="me" hidden>
@@ -234,15 +223,37 @@
       <div class="cfg-card">
         <div class="cfg-row">
           <div>
-            <h2>API de OpenAI</h2>
-            <p>Cuál usa primero la IA de los dashboards. Si esa se queda sin saldo (o falla), se prueba sola con la otra.</p>
+            <h2>Tokens</h2>
+            <p>Lo que cuesta cada herramienta de IA del lienzo. Al usuario se le cobra el costo + el sobrecargo; si no le alcanzan sus tokens, la herramienta se bloquea. Tú no tienes límite. <span id="ai-key-status"></span></p>
           </div>
         </div>
-        <div class="seg" id="ai-key" role="radiogroup" aria-label="API key que va primero">
-          <button type="button" role="radio" data-key="yo"><b>YO</b><small data-key-status="yo"></small></button>
-          <button type="button" role="radio" data-key="lvl"><b>LVL</b><small data-key-status="lvl"></small></button>
+
+        <div class="tk-top">
+          <label class="tk-surcharge">
+            <span class="px-label">Sobrecargo</span>
+            <span class="tk-field"><input id="tk-surcharge" type="number" min="0" max="500" step="1" value="10"><i>%</i></span>
+          </label>
+          <label>
+            <span class="px-label">S/ por US$</span>
+            <span class="tk-field"><input id="tk-usdpen" type="number" min="0.5" max="20" step="0.01" value="3.75"></span>
+          </label>
+          <label>
+            <span class="px-label">US$ por millón de tokens</span>
+            <span class="tk-field"><input id="tk-usdperm" type="number" min="0.01" max="200" step="0.01" value="5"></span>
+          </label>
         </div>
-        <p class="form-msg" id="ai-key-msg" role="status"></p>
+        <p class="tk-rate" id="tk-rate"></p>
+
+        <div class="tk-table" role="table" aria-label="Herramientas que gastan tokens">
+          <div class="tk-row tk-row--head" role="row">
+            <span role="columnheader">Herramienta</span>
+            <span role="columnheader">Costo</span>
+            <span role="columnheader">Con sobrecargo</span>
+            <span role="columnheader"></span>
+          </div>
+          <div id="tk-list"></div>
+        </div>
+        <p class="form-msg" id="tk-msg" role="status"></p>
       </div>
     </section>
   </main>
@@ -265,28 +276,22 @@
   </form>
 </div>
 
-<!-- app: nueva o editar (imagen, nombre, año, tipo, descargas, links) -->
-<div class="modal-layer" id="app-layer" hidden>
-  <form class="modal app-modal" id="app-form" autocomplete="off" novalidate>
-    <label class="app-img" for="app-file" title="Imagen">
-      <span class="app-img-box" id="app-img-box"></span>
-      <small id="app-img-note">Subir imagen</small>
+<!-- asignar soles (→ tokens) a una persona -->
+<div class="modal-layer" id="tk-layer" hidden>
+  <form class="modal tk-modal" id="tk-form" autocomplete="off" novalidate>
+    <p class="px-label">Créditos</p>
+    <h2 class="tk-who" id="tk-who"></h2>
+    <p class="tk-now" id="tk-now"></p>
+    <label class="tk-soles">
+      <span>S/</span>
+      <input id="tk-soles" type="number" step="0.01" placeholder="10.00" aria-label="Soles a asignar">
     </label>
-    <input type="file" id="app-file" accept="image/png,image/jpeg,image/webp" hidden>
-    <input class="nd-title" id="app-name" maxlength="60" placeholder="Nombre de la app" aria-label="Nombre">
-    <div class="app-row">
-      <label>Año <input id="app-year" inputmode="numeric" maxlength="4" placeholder="2026"></label>
-      <label>Tipo <input id="app-type" maxlength="40" placeholder="Juego, utilidad…"></label>
-      <label>Descargas <input id="app-downloads" type="number" min="0" step="1" placeholder="0"></label>
-    </div>
-    <p class="app-links-title">Links</p>
-    <div class="app-links" id="app-links"></div>
-    <button class="link-btn app-add-link" type="button" id="app-add-link">+ Agregar link</button>
-    <p class="m-err" id="app-err" role="alert"></p>
+    <p class="tk-conv" id="tk-conv">= 0 tokens</p>
+    <p class="tk-hint">Se suman a lo que ya tiene. En negativo, se los quitas.</p>
+    <p class="m-err" id="tk-err" role="alert"></p>
     <div class="m-actions">
-      <button class="link-btn app-del" type="button" id="app-del" hidden>Borrar app</button>
-      <button class="link-btn" type="button" id="app-cancel">Cancelar</button>
-      <button class="btn" type="submit" id="app-save">Guardar</button>
+      <button class="link-btn" type="button" id="tk-cancel">Cancelar</button>
+      <button class="btn" type="submit" id="tk-save">Asignar</button>
     </div>
   </form>
 </div>

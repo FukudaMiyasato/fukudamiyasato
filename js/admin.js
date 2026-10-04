@@ -4,7 +4,7 @@
    Quién entra y qué ve lo decide el servidor (/api/auth). Esta
    página solo elige la vista:
      amo supremo / amo  → panel (Dashboards · Permisos; el supremo además
-                          Portafolio · Aplicaciones · YO · Configuración)
+                          Portafolio · YO · Configuración)
      chismoso sin nada  → "No tienes permisos"
      chismoso con uno   → entra directo
      chismoso con más   → lista para elegir
@@ -12,7 +12,6 @@
 
 import { dashIconHTML } from './dashboard-icons.js';
 import { drawDots, fitCanvas, buildLensFilter } from './fisheye.js';
-import { PLATFORMS, platformIcon } from './app-platforms.js';
 import { SOCIALS } from './socials.js';
 import { DEFAULT_ME, DEFAULT_DURATION, PROJECT_DEFAULTS, shortDate } from './site-defaults.js';
 
@@ -92,157 +91,11 @@ document.querySelectorAll('.admin-nav [data-tab]').forEach((b) => b.addEventList
   document.querySelectorAll('[data-panel]').forEach((p) => { p.hidden = p.dataset.panel !== b.dataset.tab; });
   if (b.dataset.tab === 'perms') loadPerms();
   if (b.dataset.tab === 'config') loadConfig();
-  if (b.dataset.tab === 'apps') loadApps();
   if (b.dataset.tab === 'me') loadMe();
   if (b.dataset.tab === 'folio') loadFolio();
 }));
 
-/* ============================================================
-   Aplicaciones (amo supremo): lo que muestra la página Apps
-   ============================================================ */
-
 const escA = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const nfApps = new Intl.NumberFormat('es-PE');
-let apps = [];
-let editing = null;   // app que se edita (null = nueva)
-let appImage = '';
-
-async function loadApps() {
-  const grid = $('app-grid');
-  grid.innerHTML = '<p class="form-msg">Cargando…</p>';
-  const r = await api('/api/site?t=apps');
-  if (!r.ok) { grid.innerHTML = `<p class="form-msg err">${escA(r.data.error || 'No se pudo cargar.')}</p>`; return; }
-  apps = r.data.apps;
-  const left = Math.max(0, r.data.million - r.data.downloads);
-  $('apps-total').innerHTML = `<b>${nfApps.format(r.data.downloads)}</b> descargas en total · faltan <b>${nfApps.format(left)}</b> para el millón`;
-  grid.innerHTML = '';
-  const add = document.createElement('button');
-  add.type = 'button';
-  add.className = 'app-card app-card--new';
-  add.innerHTML = '<span class="app-card-img">+</span><span class="app-card-name">Nueva app</span>';
-  add.addEventListener('click', () => openApp(null));
-  grid.append(add);
-  for (const a of apps) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'app-card';
-    b.innerHTML = `<span class="app-card-img">${a.image ? `<img src="${a.image}" alt="">` : escA(a.name.slice(0, 2).toUpperCase())}</span>
-      <span class="app-card-name">${escA(a.name)}</span>
-      <small>${nfApps.format(a.downloads || 0)} descargas</small>
-      <span class="app-card-links">${(a.links || []).map((l) => platformIcon(l.platform)).join('')}</span>`;
-    b.addEventListener('click', () => openApp(a));
-    grid.append(b);
-  }
-}
-
-function paintAppImage() {
-  $('app-img-box').innerHTML = appImage ? `<img src="${appImage}" alt="">` : '<span>4:3</span>';
-  $('app-img-note').textContent = appImage ? 'Cambiar imagen' : 'Subir imagen';
-}
-
-function linkRow(l = { platform: 'apple', url: '' }) {
-  const row = document.createElement('div');
-  row.className = 'app-link';
-  row.innerHTML = `
-    <select aria-label="Plataforma">${PLATFORMS.map((p) => `<option value="${p.key}"${p.key === l.platform ? ' selected' : ''}>${p.label}</option>`).join('')}</select>
-    <input type="url" placeholder="https://…" aria-label="Link" value="${escA(l.url)}">
-    <button class="icon-btn" type="button" aria-label="Quitar link" title="Quitar link">×</button>`;
-  row.querySelector('button').addEventListener('click', () => row.remove());
-  $('app-links').append(row);
-  return row;
-}
-
-function openApp(a) {
-  editing = a;
-  appImage = a?.image || '';
-  $('app-form').className = 'modal app-modal';
-  $('app-name').value = a?.name || '';
-  $('app-year').value = a?.year || '';
-  $('app-type').value = a?.type || '';
-  $('app-downloads').value = a ? String(a.downloads || 0) : '';
-  $('app-links').innerHTML = '';
-  (a?.links?.length ? a.links : [{ platform: 'apple', url: '' }]).forEach((l) => linkRow(l));
-  $('app-err').textContent = '';
-  $('app-file').value = '';
-  $('app-del').hidden = !a;
-  paintAppImage();
-  $('app-layer').hidden = false;
-  setTimeout(() => $('app-name').focus(), 50);
-}
-const closeApp = () => { $('app-layer').hidden = true; };
-
-$('app-cancel').addEventListener('click', closeApp);
-$('app-layer').addEventListener('pointerdown', (e) => { if (e.target === $('app-layer')) closeApp(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('app-layer').hidden) closeApp(); });
-$('app-add-link').addEventListener('click', () => linkRow({ platform: 'android', url: '' }).querySelector('input').focus());
-
-/** Recorta al centro en 4:3 y la baja a 640×480 para guardarla chica. */
-function toCover(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const W = 640, H = 480, c = document.createElement('canvas');
-      c.width = W; c.height = H;
-      const iw = img.naturalWidth, ih = img.naturalHeight;
-      const scale = Math.max(W / iw, H / ih);
-      const sw = W / scale, sh = H / scale;
-      c.getContext('2d').drawImage(img, (iw - sw) / 2, (ih - sh) / 2, sw, sh, 0, 0, W, H);
-      URL.revokeObjectURL(url);
-      let out = c.toDataURL('image/webp', 0.82);
-      if (!out.startsWith('data:image/webp')) out = c.toDataURL('image/jpeg', 0.82); // Safari viejo
-      if (out.length > 200_000) out = c.toDataURL('image/jpeg', 0.6);
-      resolve(out);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
-    img.src = url;
-  });
-}
-
-$('app-file').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  try { appImage = await toCover(file); $('app-err').textContent = ''; } catch (err) { $('app-err').textContent = err.message; }
-  paintAppImage();
-});
-
-function appFail(msg) {
-  $('app-err').textContent = msg;
-  const f = $('app-form');
-  f.classList.remove('is-shaking'); void f.offsetWidth; f.classList.add('is-shaking');
-}
-
-$('app-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const body = {
-    name: $('app-name').value.trim(),
-    image: appImage,
-    year: $('app-year').value.trim(),
-    type: $('app-type').value.trim(),
-    downloads: Number($('app-downloads').value) || 0,
-    links: [...$('app-links').querySelectorAll('.app-link')].map((row) => ({
-      platform: row.querySelector('select').value, url: row.querySelector('input').value.trim(),
-    })).filter((l) => l.url),
-  };
-  if (!body.name) return appFail('Ponle un nombre.');
-  if (body.year && !/^\d{4}$/.test(body.year)) return appFail('El año va con 4 números.');
-  $('app-save').disabled = true;
-  const r = editing
-    ? await api(`/api/site?t=apps&id=${encodeURIComponent(editing.id)}`, { method: 'PUT', body: JSON.stringify(body) })
-    : await api('/api/site?t=apps', { method: 'POST', body: JSON.stringify(body) });
-  $('app-save').disabled = false;
-  if (!r.ok) return appFail(r.data.error || 'No se pudo guardar.');
-  closeApp();
-  loadApps();
-});
-
-$('app-del').addEventListener('click', async () => {
-  if (!editing || !confirm(`¿Borrar «${editing.name}»? Deja de verse en la página Apps.`)) return;
-  const r = await api(`/api/site?t=apps&id=${encodeURIComponent(editing.id)}`, { method: 'DELETE' });
-  if (!r.ok) return appFail(r.data.error || 'No se pudo borrar.');
-  closeApp();
-  loadApps();
-});
 
 /* ============================================================
    YO (amo supremo): título, texto y redes de la página Yo
@@ -633,7 +486,7 @@ function badge(text, cls = '') {
   return b;
 }
 
-function row(email, roleCell, dashCell, action) {
+function row(email, roleCell, dashCell, action, creditCell) {
   const el = document.createElement('div');
   el.className = 'perm-row';
   el.setAttribute('role', 'row');
@@ -648,9 +501,81 @@ function row(email, roleCell, dashCell, action) {
   const act = document.createElement('span');
   act.className = 'perm-act';
   if (action) act.append(action);
-  el.append(mail, role, dash, act);
+  el.append(mail, role, dash);
+  if (creditCell !== undefined) {
+    const cr = document.createElement('span');
+    cr.className = 'perm-credits';
+    if (creditCell) cr.append(creditCell);
+    el.append(cr);
+  }
+  el.append(act);
   return el;
 }
+
+/* ---------- créditos (amo supremo): S/ asignados → tokens ---------- */
+
+const nfTk = new Intl.NumberFormat('es-PE');
+const nfSol = new Intl.NumberFormat('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+let rate = null;       // { usdPen, usdPerM, tokensPerSol }
+let tkTarget = null;   // persona a la que se le asignan
+
+/** Celda: S/ asignados, tokens que le quedan y el botón para asignar. null = el amo supremo (sin límite). */
+function creditCell(p) {
+  const box = document.createElement('span');
+  box.className = 'credit';
+  if (!p) { box.innerHTML = '<b class="credit-tk">∞ tokens</b><small>sin límite</small>'; return box; }
+  box.innerHTML = `<b class="credit-tk">${nfTk.format(p.tokens || 0)} tk</b><small>S/ ${nfSol.format(p.soles || 0)} asignados</small>`;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'px-btn';
+  btn.textContent = '+ S/';
+  btn.title = `Asignar soles a ${p.email}`;
+  btn.addEventListener('click', () => openCredit(p));
+  box.append(btn);
+  return box;
+}
+
+const tokensFor = (soles) => (rate ? Math.floor((soles / rate.usdPen / rate.usdPerM) * 1e6) : 0);
+
+function paintConv() {
+  const soles = Number($('tk-soles').value) || 0;
+  $('tk-conv').textContent = `= ${soles < 0 ? '−' : ''}${nfTk.format(Math.abs(tokensFor(soles)))} tokens`;
+  $('tk-conv').classList.toggle('is-neg', soles < 0);
+}
+
+function openCredit(p) {
+  tkTarget = p;
+  $('tk-form').className = 'modal tk-modal';
+  $('tk-who').textContent = p.email;
+  $('tk-now').textContent = `Le quedan ${nfTk.format(p.tokens || 0)} tokens · S/ ${nfSol.format(p.soles || 0)} asignados en total`;
+  $('tk-soles').value = '';
+  $('tk-err').textContent = '';
+  paintConv();
+  $('tk-layer').hidden = false;
+  setTimeout(() => $('tk-soles').focus(), 50);
+}
+const closeCredit = () => { $('tk-layer').hidden = true; };
+$('tk-cancel').addEventListener('click', closeCredit);
+$('tk-layer').addEventListener('pointerdown', (e) => { if (e.target === $('tk-layer')) closeCredit(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('tk-layer').hidden) closeCredit(); });
+$('tk-soles').addEventListener('input', paintConv);
+
+$('tk-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const soles = Number($('tk-soles').value);
+  if (!soles) {
+    $('tk-err').textContent = 'Pon un monto en soles.';
+    const f = $('tk-form'); f.classList.remove('is-shaking'); void f.offsetWidth; f.classList.add('is-shaking');
+    return;
+  }
+  $('tk-save').disabled = true;
+  const r = await api('/api/perms', { method: 'PATCH', body: JSON.stringify({ id: tkTarget.id, soles }) });
+  $('tk-save').disabled = false;
+  if (!r.ok) { $('tk-err').textContent = r.data.error || 'No se pudo asignar.'; return; }
+  closeCredit();
+  msg(`${tkTarget.email}: ahora tiene ${nfTk.format(r.data.tokens)} tokens (S/ ${nfSol.format(r.data.soles)} asignados).`);
+  loadPerms();
+});
 
 async function loadPerms() {
   list.innerHTML = '<p class="perm-empty">Cargando…</p>';
@@ -660,6 +585,9 @@ async function loadPerms() {
     return msg(data.error || 'No se pudieron cargar los permisos.', true);
   }
   const supremo = data.me === 'supremo';
+  rate = data.rate || null;
+  $('perm-table').classList.toggle('has-credits', supremo);
+  document.querySelector('.perm-credits-col').hidden = !supremo;
   const names = Object.fromEntries((me?.dashboards || []).map((d) => [d.id, d.name]));
 
   $('perm-help').textContent = supremo
@@ -670,7 +598,7 @@ async function loadPerms() {
   for (const r of data.roles) $('perm-role').add(new Option(ROLE_LABEL[r], r));
 
   list.innerHTML = '';
-  list.append(row(data.owner, badge(ROLE_LABEL.supremo, 'badge--admin'), badge('Todos'), null));
+  list.append(row(data.owner, badge(ROLE_LABEL.supremo, 'badge--admin'), badge('Todos'), null, supremo ? creditCell(null) : undefined));
 
   // amos primero, luego chismosos
   const sorted = [...data.perms].sort((a, b) => (a.role === b.role ? a.email.localeCompare(b.email) : a.role === 'amo' ? -1 : 1));
@@ -709,7 +637,7 @@ async function loadPerms() {
       });
     }
 
-    list.append(row(p.email, roleCell, dashCell, del));
+    list.append(row(p.email, roleCell, dashCell, del, supremo ? creditCell(p) : undefined));
   }
 
   if (!data.perms.length) {
@@ -736,7 +664,7 @@ $('perm-form').addEventListener('submit', async (e) => {
 });
 
 /* ============================================================
-   Configuración (amo supremo): intensidad del ojo de pez
+   Configuración (amo supremo): ojo de pez y tokens
    ============================================================ */
 
 const feRange = $('fe-range');
@@ -757,34 +685,95 @@ async function loadConfig() {
   if (!ok) { $('fe-msg').textContent = data.error || 'No se pudo cargar.'; return; }
   feRange.value = data.config.fisheye;
   paintPreview();
-  paintAiKey(data.config.aiKey, data.keys);
+  paintTokens(data);
 }
 
-/* ---------- qué API key de OpenAI va primero ---------- */
+/* ---------- tokens: sobrecargo, conversión y costo de cada herramienta ---------- */
 
-const KEY_ENV = { yo: 'OPENAI_API_KEY', lvl: 'OPENAI_API_KEY2' };
+let cfgTools = {};
+let cfg = null;
 
-function paintAiKey(active, keys) {
-  document.querySelectorAll('#ai-key [data-key]').forEach((b) => {
-    b.setAttribute('aria-checked', String(b.dataset.key === active));
-  });
-  if (keys) {
-    for (const [k, loaded] of Object.entries(keys)) {
-      document.querySelector(`[data-key-status="${k}"]`).textContent = loaded ? KEY_ENV[k] : `falta ${KEY_ENV[k]}`;
-    }
+function paintTokens(data) {
+  cfg = data.config;
+  cfgTools = data.tools;
+  $('tk-surcharge').value = cfg.surcharge;
+  $('tk-usdpen').value = cfg.usdPen;
+  $('tk-usdperm').value = cfg.usdPerM;
+  $('ai-key-status').textContent = data.aiKey ? 'Usa tu OPENAI_API_KEY.' : '⚠ Falta OPENAI_API_KEY en Vercel.';
+  paintRate();
+  const list = $('tk-list');
+  list.innerHTML = '';
+  for (const [key, t] of Object.entries(cfgTools)) {
+    const row = document.createElement('div');
+    row.className = 'tk-row';
+    row.dataset.tool = key;
+    row.innerHTML = `
+      <span class="tk-name"><b></b><small></small></span>
+      <span class="tk-field"><input type="number" min="0" step="1" aria-label="Costo en tokens"><i>tk</i></span>
+      <span class="tk-price"></span>
+      <button class="px-btn tk-measure" type="button" title="Llama a la herramienta de verdad y guarda los tokens que gastó">Medir</button>`;
+    row.querySelector('b').textContent = t.label;
+    row.querySelector('small').textContent = t.note;
+    const input = row.querySelector('input');
+    input.value = cfg.costs[key];
+    input.addEventListener('input', () => paintPrice(row));
+    input.addEventListener('change', () => saveTokens({ costs: { [key]: Number(input.value) || 0 } }));
+    row.querySelector('.tk-measure').addEventListener('click', () => measure(row));
+    paintPrice(row);
+    list.append(row);
   }
 }
 
-document.querySelectorAll('#ai-key [data-key]').forEach((b) => b.addEventListener('click', async () => {
-  const prev = document.querySelector('#ai-key [aria-checked="true"]')?.dataset.key;
-  paintAiKey(b.dataset.key);
-  $('ai-key-msg').classList.remove('err');
-  $('ai-key-msg').textContent = 'Guardando…';
-  const r = await api('/api/config', { method: 'PUT', body: JSON.stringify({ aiKey: b.dataset.key }) });
-  if (!r.ok) paintAiKey(prev);
-  $('ai-key-msg').textContent = r.ok ? `Listo: primero ${b.querySelector('b').textContent}, y si falla, la otra.` : (r.data.error || 'No se pudo guardar.');
-  $('ai-key-msg').classList.toggle('err', !r.ok);
-}));
+const surchargeNow = () => Number($('tk-surcharge').value) || 0;
+const withSurcharge = (cost) => Math.ceil(cost * (1 + surchargeNow() / 100));
+
+function paintPrice(row) {
+  const cost = Number(row.querySelector('input').value) || 0;
+  row.querySelector('.tk-price').innerHTML = `<b>${nfTk.format(withSurcharge(cost))}</b> <small>tk · ${nfTk.format(cost)} + ${surchargeNow()}%</small>`;
+}
+
+function paintRate() {
+  const usdPen = Number($('tk-usdpen').value) || 0, usdPerM = Number($('tk-usdperm').value) || 0;
+  const perSol = usdPen && usdPerM ? Math.floor((1 / usdPen / usdPerM) * 1e6) : 0;
+  $('tk-rate').innerHTML = `S/ 1 = <b>${nfTk.format(perSol)}</b> tokens · S/ 10 = <b>${nfTk.format(perSol * 10)}</b> tokens`;
+}
+
+async function saveTokens(patch) {
+  $('tk-msg').className = 'form-msg';
+  $('tk-msg').textContent = 'Guardando…';
+  const r = await api('/api/config', { method: 'PUT', body: JSON.stringify(patch) });
+  $('tk-msg').classList.toggle('err', !r.ok);
+  $('tk-msg').textContent = r.ok ? 'Guardado. Se aplica en la próxima vez que usen la herramienta.' : (r.data.error || 'No se pudo guardar.');
+  if (r.ok) cfg = r.data.config;
+}
+
+async function measure(row) {
+  const btn = row.querySelector('.tk-measure');
+  const name = cfgTools[row.dataset.tool].label;
+  btn.disabled = true;
+  btn.textContent = '···';
+  row.classList.add('is-measuring');
+  $('tk-msg').className = 'form-msg';
+  $('tk-msg').textContent = `Llamando a «${name}» para contar sus tokens…`;
+  const r = await api(`/api/config?measure=${encodeURIComponent(row.dataset.tool)}`, { method: 'POST' });
+  btn.disabled = false;
+  btn.textContent = 'Medir';
+  row.classList.remove('is-measuring');
+  if (!r.ok) { $('tk-msg').className = 'form-msg err'; $('tk-msg').textContent = r.data.error || 'No se pudo medir.'; return; }
+  cfg = r.data.config;
+  row.querySelector('input').value = r.data.tokens;
+  paintPrice(row);
+  row.classList.add('is-updated');
+  setTimeout(() => row.classList.remove('is-updated'), 1200);
+  $('tk-msg').textContent = `«${name}» gastó ${nfTk.format(r.data.tokens)} tokens: ese es su costo ahora (al usuario: ${nfTk.format(r.data.prices[row.dataset.tool])}).`;
+}
+
+$('tk-surcharge').addEventListener('input', () => document.querySelectorAll('#tk-list .tk-row').forEach(paintPrice));
+$('tk-surcharge').addEventListener('change', () => saveTokens({ surcharge: surchargeNow() }));
+for (const idIn of ['tk-usdpen', 'tk-usdperm']) {
+  $(idIn).addEventListener('input', paintRate);
+  $(idIn).addEventListener('change', () => saveTokens({ usdPen: Number($('tk-usdpen').value), usdPerM: Number($('tk-usdperm').value) }));
+}
 
 feRange.addEventListener('input', paintPreview);
 feRange.addEventListener('change', async () => {

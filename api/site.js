@@ -1,23 +1,21 @@
 /* ============================================================
-   /api/site — portada (portafolio), perfil (Yo) y apps
+   /api/site — portada (portafolio) y perfil (Yo)
    ------------------------------------------------------------
    Público (sin login):
      GET    ?t=portfolio       → { duration, projects }
      GET    ?t=me              → { me }   (null si nunca se editó)
-     GET    ?t=apps            → { apps, downloads, million }
    Solo amo supremo:
      PUT    ?t=portfolio { duration?, order? }                          → { duration, projects }
      POST   ?t=project  { media?, date?, category?, title?, text?, tags?, link?, duration? } → { project }
      PUT    ?t=project&id=<id> { …igual }                               → { project }
      DELETE ?t=project&id=<id>                                          → { ok }
      PUT    ?t=me    { title, text?, links? }                           → { me }
-     POST/PUT/DELETE ?t=apps…  (ver api/_lib/site.js)
    Los videos e imágenes se suben aparte, a Vercel Blob (api/upload.js).
    ============================================================ */
 
 import { currentUser } from './_lib/auth.js';
 import {
-  listApps, createApp, updateApp, deleteApp, cleanApp, getMe, setMe, cleanMe, MILLION,
+  getMe, setMe, cleanMe,
   getPortfolio, setPortfolio, cleanProject, createProject, updateProject, deleteProject,
 } from './_lib/site.js';
 
@@ -30,12 +28,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       if (t === 'portfolio') return res.status(200).json(await getPortfolio());
       if (t === 'me') return res.status(200).json({ me: await getMe() });
-      if (t === 'apps') {
-        const apps = await listApps();
-        const downloads = apps.reduce((s, a) => s + (a.downloads || 0), 0);
-        return res.status(200).json({ apps, downloads, million: MILLION });
-      }
-      return res.status(400).json({ error: 'Falta ?t=portfolio, ?t=me o ?t=apps' });
+      return res.status(400).json({ error: 'Falta ?t=portfolio o ?t=me' });
     }
 
     const user = await currentUser(req);
@@ -66,21 +59,6 @@ export default async function handler(req, res) {
       if (error) return res.status(400).json({ error });
       await setMe(me);
       return res.status(200).json({ me });
-    }
-
-    if (t === 'apps') {
-      if (req.method === 'DELETE') {
-        if (!(await deleteApp(id))) return res.status(404).json({ error: 'App no encontrada.' });
-        return res.status(200).json({ ok: true });
-      }
-      if (req.method === 'POST' || req.method === 'PUT') {
-        const { app, error } = cleanApp(req.body);
-        if (error) return res.status(400).json({ error });
-        if (req.method === 'POST') return res.status(201).json({ app: await createApp(app) });
-        const saved = await updateApp(id, app);
-        if (!saved) return res.status(404).json({ error: 'App no encontrada.' });
-        return res.status(200).json({ app: saved });
-      }
     }
 
     res.setHeader('Allow', 'GET, POST, PUT, DELETE');

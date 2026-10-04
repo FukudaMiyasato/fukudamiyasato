@@ -1,12 +1,15 @@
 /* ============================================================
    /api/perms — personas y roles (amos y amo supremo)
    ------------------------------------------------------------
-   GET                     → { me, owner, roles, perms: [{ id, email, role, dashboards }] }
+   GET                     → { me, owner, roles, perms: [{ id, email, role, dashboards, tokens?, soles? }], rate? }
+                             (tokens, soles y rate solo para el amo supremo)
    POST   { email, role }  → agrega a alguien
    PATCH  { id, role }     → cambia el rol            (solo amo supremo)
    PATCH  { id, dashboard, active }
                            → activa / quita un dashboard a un chismoso
-   DELETE ?id=<id>         → quita el acceso
+   PATCH  { id, soles }    → suma S/ (negativo = quita) y su equivalente en tokens
+                             al saldo de esa persona   (solo amo supremo) · { tokens, soles }
+   DELETE ?id=<id>         → quita el acceso (y su saldo)
 
    Reglas:
      amo supremo → agrega, cambia y elimina amos y chismosos.
@@ -18,6 +21,8 @@ import {
   listPerms, addPerm, updatePerm, deletePerm, setDashboardAccess,
 } from './_lib/auth.js';
 import { listDashboards } from './_lib/dashboards.js';
+import { getConfig, solesToTokens } from './_lib/config.js';
+import { balanceOf, solesOf, assignSoles, forgetTokens } from './_lib/tokens.js';
 
 const validId = (id) => /^[\w-]{6,40}$/.test(id);
 
@@ -33,7 +38,14 @@ export default async function handler(req, res) {
     const canAssign = rolesAssignableBy(user.role);
 
     if (req.method === 'GET') {
-      return res.status(200).json({ me: user.role, owner: ADMIN_EMAIL, roles: canAssign, perms: await listPerms() });
+      let perms = await listPerms();
+      let rate;
+      if (supremo) {
+        perms = await Promise.all(perms.map(async (p) => ({ ...p, tokens: await balanceOf(p.email), soles: await solesOf(p.email) })));
+        const cfg = await getConfig();
+        rate = { usdPen: cfg.usdPen, usdPerM: cfg.usdPerM, tokensPerSol: solesToTokens(cfg, 1) };
+      }
+      return res.status(200).json({ me: user.role, owner: ADMIN_EMAIL, roles: canAssign, perms, rate });
     }
 
     if (req.method === 'POST') {
@@ -66,6 +78,17 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
 
+      // asignar soles (→ tokens) — solo el amo supremo
+      if (req.body?.soles != null) {
+        if (!supremo) return res.status(403).json({ error: 'Solo el amo supremo asigna tokens.' });
+        const soles = Math.round(Number(req.body.soles) * 100) / 100;
+        if (!Number.isFinite(soles) || soles === 0 || Math.abs(soles) > 100_000) {
+          return res.status(400).json({ error: 'Pon un monto en soles (puede ser negativo para quitar).' });
+        }
+        const tokens = await assignSoles(target.email, soles, solesToTokens(await getConfig(), soles));
+        return res.status(200).json({ tokens, soles: await solesOf(target.email) });
+      }
+
       // cambiar el rol — solo el amo supremo
       const role = String(req.body?.role || '');
       if (!supremo) return res.status(403).json({ error: 'Solo el amo supremo cambia roles.' });
@@ -80,6 +103,7 @@ export default async function handler(req, res) {
       if (!target) return res.status(404).json({ error: 'No encontrado.' });
       if (target.role === 'amo' && !supremo) return res.status(403).json({ error: 'Solo el amo supremo elimina amos.' });
       await deletePerm(id);
+      await forgetTokens(target.email);
       return res.status(200).json({ ok: true });
     }
 

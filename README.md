@@ -15,7 +15,7 @@ support/        página de soporte para App Store / Google Play (FAQ + contacto)
 marketing/      landing de las apps
 privacy/        políticas de privacidad (una por app: privacy/kofres/)
 admin/          login con Google + panel (Dashboards · Permisos; el amo supremo
-                además Portafolio · Aplicaciones · YO · Configuración)
+                además Portafolio · YO · Configuración)
 dashboards/     una sola página para todos: /dashboards/?d=<id>
 ```
 
@@ -81,15 +81,8 @@ centro. Se editan en **Panel → YO** (`fm:me`). Si el título va como
 
 ## APPS (antes Works)
 
-Las apps se cargan desde el panel (`/admin` → **Aplicaciones**, solo amo
-supremo): imagen (se recorta a 4:3), nombre, año, tipo, descargas y links a
-varias plataformas (App Store, Google Play, itch.io, Steam, Web u otro). Se
-guardan en Redis (`fm:apps`) y la página las lee de `GET /api/site?t=apps`
-(público). Cada link sale como un ícono en la tarjeta, que sigue visible y
-tocable en el hover.
-
-Mientras no haya ninguna app cargada en el panel, la grilla usa la fuente
-vieja de abajo (Airtable / `data/works.json`).
+`works.html` ya no tiene acceso desde la portada; sigue leyendo Airtable
+(o `data/works.json`).
 
 ## WORKS · datos desde Airtable (fuente vieja)
 
@@ -579,9 +572,24 @@ mouse encima) igual que el dock:
   hacia atrás (se envía como `about`, no se guarda como conexión). Mientras
   piensa, las líneas y esos widgets brillan y quedan bloqueados. Clic sobre una línea la quita.
   Las conexiones se guardan en `inputs` de cada widget.
-- **API keys de OpenAI:** `OPENAI_API_KEY` ("YO") y `OPENAI_API_KEY2` ("LVL").
-  En *Panel → Configuración* el amo supremo elige cuál va primero; si esa falla
-  por saldo, key inválida o límite, se reintenta sola con la otra.
+- **OpenAI:** la IA usa siempre `OPENAI_API_KEY` (la del amo supremo).
+- **Tokens** (`api/_lib/tokens.js`): cada herramienta de IA del lienzo (tabla
+  con IA, la estrella y el + de un conector) cuesta tokens. Su **costo** se
+  fija en *Panel → Configuración → Tokens*, a mano o con **Medir** (llama de
+  verdad a la herramienta con un pedido de prueba y guarda los tokens que
+  gastó). Encima va el **sobrecargo** (10 % por defecto): el usuario ve y paga
+  costo + sobrecargo; la lista muestra los dos. Ahí mismo, el tipo de cambio
+  (S/ por US$) y el precio de OpenAI (US$ por millón de tokens) con los que
+  los soles se pasan a tokens.
+  En *Panel → Permisos* el amo supremo asigna **soles** a cada persona (**+ S/**):
+  se ve el monto en soles y su equivalente en tokens, que se suma a su saldo
+  (en negativo, se lo quita). El usuario solo ve sus tokens, arriba en el
+  dashboard, y el precio bajo cada herramienta de IA. Se reserva antes de
+  llamar a OpenAI y se devuelve si la IA no respondió o rechazó el pedido;
+  sin saldo, la herramienta se apaga y el servidor responde 402. El amo
+  supremo no tiene límite. Saldo en Redis: `fm:tokens:<correo>` (y
+  `fm:soles:<correo>`, en céntimos), con INCRBY para que dos usos a la vez no
+  se pisen.
 - **Crear dashboards:** en el panel, la tarjeta **+ Nuevo dashboard** abre un
   modal con título e ícono opcional (una imagen; se recorta a 128×128). Sin
   imagen, el ícono son las iniciales del título. Se borran con la papelera de

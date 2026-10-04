@@ -138,31 +138,6 @@
 }
 .work-icons svg.solid { fill: #fff; stroke: none; }
 
-/* links de la app (una por plataforma): arriba a la derecha y siempre tocables */
-.work-links {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 2;
-  display: flex;
-  gap: 6px;
-}
-.work-links a {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(8, 8, 10, .62);
-  border: 1px solid rgba(255, 255, 255, .14);
-  color: #fff;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: background .2s, border-color .2s, transform .2s var(--ease);
-}
-.work-links a:hover, .work-links a:focus-visible { background: var(--red); border-color: var(--red-hot); transform: scale(1.08); outline: none; }
-.work-links svg { width: 16px; height: 16px; }
-
 /* a slim red seam that draws itself on hover */
 .work-edge {
   position: absolute;

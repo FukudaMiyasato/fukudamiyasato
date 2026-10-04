@@ -2,7 +2,9 @@
    /api/dash — dashboards y los widgets de su lienzo
    ------------------------------------------------------------
    Cualquiera con acceso al dashboard:
-     GET    ?d=<id>                → { dashboard, widgets, canEdit, config, members? }
+     GET    ?d=<id>                → { dashboard, widgets, canEdit, config, members?, tokens?, prices? }
+                                     tokens: saldo (null = sin límite, el amo supremo);
+                                     prices: lo que cuesta cada herramienta de IA (con sobrecargo)
    Solo amos:
      GET    ?d=<id>&members=1      → chismosos y si tienen este dashboard activo
      POST   { name, image? }                        → crea un dashboard
@@ -22,6 +24,9 @@
                                                       que NO queda conectado) y de `inputs`.
                                                       Se guarda como "ask".
                                                       422 { error } si el pedido no sirve
+     Las tres de IA descuentan su precio en tokens (api/_lib/tokens.js):
+     sin saldo → 402 { error, tokens, price }; si la llamada falla, se devuelve.
+     Al terminar responden también { tokens } con el saldo que queda.
      POST   ?d=<id>&widget=timeline { data, layout }
                                                     → línea de tiempo (sin IA): hitos + personaje
      POST   ?d=<id>&widget=user { data, layout }
@@ -44,7 +49,8 @@ import {
   getMarks, addFlag, setDivider, deleteMark,
 } from './_lib/dashboards.js';
 import { askVisual, askShort, askFollow, AIError } from './_lib/ai.js';
-import { getConfig } from './_lib/config.js';
+import { getConfig, priceOf, prices } from './_lib/config.js';
+import { unlimited, balanceOf, charge, refund } from './_lib/tokens.js';
 
 export const maxDuration = 60; // OpenAI puede tardar
 
@@ -184,12 +190,15 @@ export default async function handler(req, res) {
       }
 
       const widgets = await listWidgets(dash.id);
+      const config = await getConfig();
       return res.status(200).json({
         dashboard: publicDash(dash),
         widgets: widgets.map(publicWidget),
         marks: await getMarks(dash.id),
         canEdit,
-        config: await getConfig(),
+        config: { fisheye: config.fisheye },
+        tokens: canEdit ? (unlimited(user) ? null : await balanceOf(user.email)) : undefined,
+        prices: canEdit ? prices(config) : undefined,
         members: canEdit ? chismosos.filter((p) => p.dashboards.includes(dash.id)).length : undefined,
       });
     }
@@ -244,6 +253,15 @@ export default async function handler(req, res) {
         ? chainOf([...about, ...inputs], all)
         : all.filter((w) => inputs.includes(w.id)));
 
+      // tokens: se reservan antes de llamar a OpenAI (el amo supremo no paga)
+      const price = unlimited(user) ? 0 : priceOf(await getConfig(), tool);
+      if (price && !(await charge(user.email, price))) {
+        return res.status(402).json({
+          error: `No te quedan tokens: esta herramienta cuesta ${price.toLocaleString('es-PE')}.`,
+          tokens: await balanceOf(user.email), price,
+        });
+      }
+
       let answer, source = '';
       try {
         if (tool === 'follow') {
@@ -253,11 +271,15 @@ export default async function handler(req, res) {
         } else {
           // tabla con IA: el CSV es opcional; sin archivo, GPT responde con lo que sabe
           const csv = String(req.body?.csv || '');
-          if (Buffer.byteLength(csv) > MAX_CSV_BYTES) return res.status(413).json({ error: 'El CSV supera 2 MB.' });
+          if (Buffer.byteLength(csv) > MAX_CSV_BYTES) {
+            if (price) await refund(user.email, price);
+            return res.status(413).json({ error: 'El CSV supera 2 MB.' });
+          }
           source = csv.trim() ? String(req.body?.filename || 'datos.csv').slice(0, 120) : '';
           answer = await askVisual({ prompt, csv, filename: source, context });
         }
       } catch (err) {
+        if (price) await refund(user.email, price); // no hubo respuesta útil: no se cobra
         if (err instanceof AIError) {
           return res.status(422).json({ error: `${tool === 'table' ? 'No sirve tu tabla' : 'No sirve tu pregunta'}: ${err.message}` });
         }
@@ -271,7 +293,7 @@ export default async function handler(req, res) {
       }
       const type = tool === 'follow' ? 'ask' : tool; // se ve igual que un widget de la estrella
       const widget = await createWidget(dash.id, type, cleanLayout(req.body?.layout), data, inputs);
-      return res.status(201).json({ widget: publicWidget(widget) });
+      return res.status(201).json({ widget: publicWidget(widget), tokens: unlimited(user) ? null : await balanceOf(user.email) });
     }
 
     /* ---------- widgets sin IA: línea de tiempo, usuario y nebulosa ---------- */

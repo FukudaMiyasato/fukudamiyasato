@@ -1,16 +1,12 @@
 /* ============================================================
    works.js — página Apps (antes Works): grilla, filtros y nota al hover
    ------------------------------------------------------------
-   Las apps salen de /api/site?t=apps (las edita el amo supremo en
-   el panel → Aplicaciones). Cada una puede tener links a varias
-   plataformas, que se ven como íconos en su tarjeta. Si todavía no
-   hay ninguna cargada ahí, se usa la lista vieja (Airtable / snapshot).
+   Las apps salen de Airtable (o del snapshot data/works.json).
    ============================================================ */
 
 import { CONFIG } from './config.js';
 import { loadWorks } from './works-data.js';
 import { NOTE_NAMES, playNote } from './audio.js';
-import { platformOf, platformIcon } from './app-platforms.js';
 
 const grid      = document.getElementById('grid');
 const yearSel   = document.getElementById('f-year');
@@ -59,21 +55,13 @@ const noteFor = (() => {
 
 const escHTML = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-/** Links de la app: un ícono por plataforma (siguen visibles y se pueden tocar en el hover). */
-function linksHTML(links) {
-  return `<div class="work-links">${links.map((l) => {
-    const p = platformOf(l.platform);
-    return `<a href="${escHTML(l.url)}" target="_blank" rel="noopener noreferrer" title="${escHTML(p.label)}" aria-label="${escHTML(p.label)}">${platformIcon(p.key)}</a>`;
-  }).join('')}</div>`;
-}
-
 function card(item, i) {
-  const el = document.createElement(item.url && !item.links ? 'a' : 'article');
+  const el = document.createElement(item.url ? 'a' : 'article');
   el.className = 'work';
   el.style.animationDelay = `${Math.min(i, 12) * 35}ms`;
   el.dataset.note = noteFor(item.id);
   el.tabIndex = 0;
-  if (item.url && !item.links) {
+  if (item.url) {
     el.href = item.url;
     el.target = '_blank';
     el.rel = 'noopener noreferrer';
@@ -94,9 +82,8 @@ function card(item, i) {
         <p class="work-meta">${[item.year, item.type].filter(Boolean).map(escHTML).join(' &middot; ')}</p>
         <h3 class="work-title">${escHTML(item.title)}</h3>
       </div>
-      ${item.links ? '' : `<div class="work-icons">${icons}</div>`}
+      <div class="work-icons">${icons}</div>
     </div>
-    ${item.links?.length ? linksHTML(item.links) : ''}
     <span class="work-edge"></span>`;
 
   // giro al azar en cada hover: dirección aleatoria, hasta 20 grados
@@ -132,27 +119,10 @@ function render() {
   }
 }
 
-/** Apps del panel; null si no hay ninguna (o la API no responde). */
-async function loadApps() {
-  try {
-    const r = await fetch('/api/site?t=apps', { cache: 'no-store' });
-    if (!r.ok) throw new Error(`api ${r.status}`);
-    const { apps } = await r.json();
-    if (!apps.length) return null;
-    return apps.map((a) => ({
-      id: a.id, title: a.name, year: a.year, type: a.type, image: a.image, platforms: [], links: a.links || [],
-    }));
-  } catch (err) {
-    console.info(`[apps] /api/site no disponible (${err.message})`);
-    return null;
-  }
-}
-
 async function init() {
   grid.innerHTML = Array.from({ length: 6 }, () => '<div class="skeleton"></div>').join('');
 
-  const apps = await loadApps();
-  const { items, source, error } = apps ? { items: apps, source: 'apps' } : await loadWorks();
+  const { items, source, error } = await loadWorks();
   ITEMS = items;
 
   if (!items.length) {
@@ -168,7 +138,6 @@ async function init() {
   }
 
   sourceEl.textContent = {
-    apps:     '',
     api:      'Data en vivo desde Airtable',
     airtable: 'Data en vivo desde Airtable · token expuesto en el cliente',
     snapshot: 'Snapshot local · configura AIRTABLE_TOKEN en Vercel para data en vivo',

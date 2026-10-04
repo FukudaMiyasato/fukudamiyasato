@@ -11,6 +11,7 @@
      fm:perms              [{ id, email, role, dashboards }]
      fm:dashboards         [{ id, name, icon }]
      fm:widgets:<dashId>   [{ id, type, x, y, w, h, data }]
+     fm:tokens:<correo>    saldo de tokens (entero) · fm:soles:<correo> S/ asignados, en céntimos
    ============================================================ */
 
 import crypto from 'node:crypto';
@@ -45,6 +46,16 @@ export async function getJSON(key, fallback) {
 
 export const setJSON = (key, value) => redis('SET', key, JSON.stringify(value));
 export const del = (key) => redis('DEL', key);
+
+/** Suma (o resta, con n negativo) a un contador entero y devuelve el nuevo valor.
+    Es atómico en Redis: dos usos a la vez no pisan el saldo. */
+export const incrBy = async (key, n) => Number(await redis('INCRBY', key, Math.round(n)));
+
+/** Contador entero (0 si no existe o no hay base). */
+export async function getNum(key) {
+  if (!hasStore()) return 0;
+  return Number(await redis('GET', key)) || 0;
+}
 
 /** id corto y aleatorio para permisos y widgets */
 export const newId = () => crypto.randomBytes(8).toString('hex');

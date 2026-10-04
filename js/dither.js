@@ -59,7 +59,8 @@ vec3 cloud(vec2 uv) {
 vec3 sampleSrc(sampler2D tex, vec3 info, vec2 uv) {
   if (info.z < 0.5) return cloud(uv);
   vec2 st = cover(uv, info);
-  return texture2D(tex, vec2(st.x, 1.0 - st.y)).rgb;
+  // uv ya va de arriba hacia abajo, igual que las filas de la textura: no se voltea otra vez
+  return texture2D(tex, st).rgb;
 }
 
 void main() {
