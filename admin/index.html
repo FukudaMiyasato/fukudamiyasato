@@ -173,8 +173,10 @@
         <p>Tu información personal en la página Yo.</p>
       </header>
       <form class="cfg-card me-form" id="me-form" autocomplete="off">
-        <label>Título <input id="me-title" maxlength="140" required placeholder="Nombre — rol"></label>
-        <p class="me-hint">Si lo escribes como «Nombre — rol», en la página el rol sale abajo, más chico.</p>
+        <div class="me-form-row">
+          <label>Nombre <input id="me-name" maxlength="80" required placeholder="Jean Carlo Fukuda Miyasato"></label>
+          <label>Rol <input id="me-role" maxlength="80" placeholder="Fullstack designer centrado en el usuario"></label>
+        </div>
         <label>Texto <textarea id="me-text" maxlength="2000" rows="5"></textarea></label>
         <p class="app-links-title">Redes (en la página solo se ven los íconos)</p>
         <div class="app-links" id="me-links"></div>

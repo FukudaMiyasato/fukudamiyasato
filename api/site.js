@@ -9,7 +9,7 @@
      POST   ?t=project  { media?, date?, category?, title?, text?, tags?, link?, duration? } → { project }
      PUT    ?t=project&id=<id> { …igual }                               → { project }
      DELETE ?t=project&id=<id>                                          → { ok }
-     PUT    ?t=me    { title, text?, links? }                           → { me }
+     PUT    ?t=me    { name, role?, text?, links? }                     → { me }
    Los videos e imágenes se suben aparte, a Vercel Blob (api/upload.js).
    ============================================================ */
 

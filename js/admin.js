@@ -117,7 +117,8 @@ async function loadMe() {
   $('me-msg').textContent = '';
   const r = await api('/api/site?t=me');
   const me = { ...DEFAULT_ME, ...(r.ok && r.data.me ? r.data.me : {}) };
-  $('me-title').value = me.title || '';
+  $('me-name').value = me.name || '';
+  $('me-role').value = me.role || '';
   $('me-text').value = me.text || '';
   $('me-links').innerHTML = '';
   (me.links || []).forEach((l) => meLinkRow(l));
@@ -128,7 +129,8 @@ $('me-add-link').addEventListener('click', () => meLinkRow().querySelector('inpu
 $('me-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = {
-    title: $('me-title').value.trim(),
+    name: $('me-name').value.trim(),
+    role: $('me-role').value.trim(),
     text: $('me-text').value.trim(),
     links: [...$('me-links').querySelectorAll('.app-link')].map((row) => ({
       platform: row.querySelector('select').value, url: row.querySelector('input').value.trim(),

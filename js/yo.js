@@ -1,10 +1,10 @@
 /* ============================================================
    yo.js — página Yo: título, texto y redes (solo íconos)
    ------------------------------------------------------------
-   Todo se edita en el panel → YO (/api/site?t=me). Si nunca se
-   guardó, se usan los de js/site-defaults.js. El título "Nombre —
-   rol" se parte en dos líneas. De fondo, el mismo tramado de la
-   portada sobre una nube de color, más oscuro.
+   Todo se edita en el panel → YO (/api/site?t=me): nombre, rol, texto
+   y redes. Si nunca se guardó, se usan los de js/site-defaults.js. Sin
+   tarjeta: texto blanco con sombra dura sobre el mismo tramado de la
+   portada (más oscuro).
    ============================================================ */
 
 import { createDither } from './dither.js';
@@ -13,11 +13,12 @@ import { socialOf } from './socials.js';
 
 const $ = (id) => document.getElementById(id);
 
-const dither = createDither($('stage'), { cell: 11, strength: 0.9, dim: 0.45 });
+const dither = createDither($('stage'), { cell: 11, strength: 0.9, dim: 0.55 });
 if (!dither) $('stage').hidden = true;
 
 function render(me) {
-  const { name, role } = splitTitle(me.title);
+  // nombre y rol van por separado; los perfiles viejos traían un solo "título"
+  const { name, role } = me.name ? { name: me.name, role: me.role || '' } : splitTitle(me.title);
   const h = $('me-title');
   h.innerHTML = '<span class="name"></span><span class="role"></span>';
   h.querySelector('.name').textContent = name;

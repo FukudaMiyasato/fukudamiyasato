@@ -2,7 +2,7 @@
    api/_lib/site.js — contenido público del sitio que edita el amo supremo
    ------------------------------------------------------------
    Vive en Redis (api/_lib/store.js):
-     fm:me    { title, text, links: [{ platform, url }] } — la página Yo
+     fm:me    { name, role, text, links: [{ platform, url }] } — la página Yo
      fm:portfolio { duration, projects: [{ id, media, date, category, title,
               text, tags, link, duration }] } — la portada (portafolio).
               media: { type: 'video' | 'image', url } (subido a Vercel Blob o un link)
@@ -21,22 +21,28 @@ const str = (v, max) => String(v ?? '').trim().slice(0, max);
 export const SOCIALS = ['instagram', 'linkedin', 'github', 'x', 'behance', 'dribbble', 'youtube', 'tiktok', 'email', 'web'];
 const isUrl = (u) => /^https?:\/\//i.test(u);
 
-/** Perfil guardado, o null si todavía no se editó (la página usa sus valores por defecto).
-    Los perfiles viejos ({ name, role, … }) se leen como título + texto. */
+/** Perfil guardado ({ name, role, text, links }), o null si todavía no se editó
+    (la página usa sus valores por defecto). Los perfiles viejos se adaptan:
+    { title: "Nombre — rol" } y { name, role, description, email }. */
 export async function getMe() {
   const me = await getJSON(ME_KEY, null);
   if (!me) return null;
-  if (me.title != null) return me;
-  return {
-    title: [me.name, me.role].filter(Boolean).join(' — '),
-    text: me.description || '',
-    links: me.email ? [{ platform: 'email', url: `mailto:${me.email}` }] : [],
-  };
+  if (me.title != null && me.name == null) {
+    const m = String(me.title).match(/^(.*?)\s+[—–-]\s+(.*)$/);
+    return { name: m ? m[1].trim() : me.title, role: m ? m[2].trim() : '', text: me.text || '', links: me.links || [] };
+  }
+  if (me.links == null) {
+    return {
+      name: me.name || '', role: me.role || '', text: me.description || '',
+      links: me.email ? [{ platform: 'email', url: `mailto:${me.email}` }] : [],
+    };
+  }
+  return me;
 }
 
 export function cleanMe(b) {
-  const title = str(b?.title, 140);
-  if (!title) return { error: 'Falta el título.' };
+  const name = str(b?.name, 80);
+  if (!name) return { error: 'Falta el nombre.' };
   const links = [];
   for (const l of (Array.isArray(b?.links) ? b.links : []).slice(0, 12)) {
     let url = str(l?.url, 500);
@@ -48,7 +54,7 @@ export function cleanMe(b) {
     }
     links.push({ platform, url });
   }
-  return { me: { title, text: str(b?.text, 2000), links } };
+  return { me: { name, role: str(b?.role, 80), text: str(b?.text, 2000), links } };
 }
 
 export const setMe = (me) => setJSON(ME_KEY, me);

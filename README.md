@@ -76,12 +76,13 @@ El archivo va directo del navegador a Blob (`api/upload.js` solo firma el
 permiso, y solo para el amo supremo), hasta 200 MB. Mientras no exista,
 el editor deja pegar un link a un video/imagen.
 
-**Yo** (`yo.html`, `js/yo.js`): título, texto y redes (solo íconos), en una
-tarjeta al centro. Las tarjetas de la portada y de Yo son pixel art: borde de
-4 px con esquinas mordidas, sombra dura en escalera, Pixelify Sans en títulos
-y Silkscreen en etiquetas y botones. Se editan en **Panel → YO** (`fm:me`). Si el título va como
-«Nombre — rol», el rol sale abajo, más chico. Sin nada guardado, usa los de
-`js/site-defaults.js`.
+**Yo** (`yo.html`, `js/yo.js`): nombre, rol, texto y redes (solo íconos), al
+centro y sin tarjeta: texto blanco con sombra dura para que se lea sobre el
+tramado. Se editan en **Panel → YO** (`fm:me`: `{ name, role, text, links }`;
+los perfiles viejos con un solo «título» se leen igual). Sin nada guardado,
+usa los de `js/site-defaults.js`. La tarjeta de la portada es pixel art: borde
+de 4 px con esquinas mordidas, sombra dura en escalera, Pixelify Sans en
+títulos y Silkscreen en etiquetas y botones.
 
 ## APPS (antes Works)
 

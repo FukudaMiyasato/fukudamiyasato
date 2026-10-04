@@ -157,7 +157,7 @@
 .site-dock .sep { width: 1px; height: 30px; background: rgba(255, 255, 255, .12); }
 
 /* ============================================================
-   Tarjetas pixel art (portada y Yo)
+   Pixel art (tarjeta de la portada y textos de Yo)
    ------------------------------------------------------------
    Borde de 4 px hecho con sombras (las esquinas quedan "mordidas",
    como en un juego de 8 bits), sombra dura en escalera y letras
@@ -179,7 +179,7 @@
     calc(var(--px) * 3) var(--px) 0 0 rgba(0, 0, 0, .55),
     calc(var(--px) * 2) calc(var(--px) * 2) 0 0 rgba(0, 0, 0, .55);
 }
-.pcard, .me-card, .pcard *, .me-card * { font-variant-ligatures: none; }
+.pcard, .me-box, .pcard *, .me-box * { font-variant-ligatures: none; }
 
 /* ---------- portada: tarjeta del proyecto (centro-izquierda) ---------- */
 .folio {
@@ -357,7 +357,7 @@
   .stage-shade { background: linear-gradient(0deg, rgba(0, 0, 0, .55), transparent 60%), linear-gradient(180deg, rgba(0, 0, 0, .35), transparent 18%); }
 }
 
-/* ---------- Yo: una tarjeta pixel al centro ---------- */
+/* ---------- Yo: sin tarjeta, texto blanco con sombra dura (contraste) ---------- */
 .me-page {
   position: fixed;
   inset: 0;
@@ -367,42 +367,23 @@
   padding: 90px 24px 130px;
   overflow: auto;
 }
-.me-card {
-  position: relative;
-  width: min(640px, 100%);
-  padding: 34px 34px 30px;
-  text-align: center;
-  color: var(--ink);
-  background:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .07 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
-    linear-gradient(180deg, #fbf6ef 0 6px, var(--paper) 6px calc(100% - 6px), var(--paper-2) calc(100% - 6px));
-  box-shadow: var(--px-border), var(--px-drop);
-}
-/* barra de título de "ventana" de 8 bits */
-.me-card::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 10px;
-  background: repeating-linear-gradient(90deg, var(--orange) 0 8px, #ff8a3d 8px 16px);
-}
-.me-title { margin: 8px 0 0; font-family: var(--pixel); line-height: .95; }
+.me-box { width: min(720px, 100%); text-align: center; color: #fff; }
+.me-title { margin: 0; font-family: var(--pixel); line-height: .95; }
 .me-title .name {
   display: block;
-  font-size: clamp(34px, 6vw, 62px);
+  font-size: clamp(38px, 7vw, 76px);
   font-weight: 700;
   letter-spacing: 0;
-  color: var(--ink);
+  color: #fff;
   text-wrap: balance;
-  text-shadow: 4px 4px 0 rgba(20, 18, 16, .12);
+  /* sombra en escalera: se lee sobre cualquier parte del video */
+  text-shadow: 3px 3px 0 #000, 6px 6px 0 rgba(0, 0, 0, .55);
 }
 .me-title .role {
   display: inline-block;
-  margin-top: 18px;
-  padding: 6px 10px 5px;
-  background: var(--ink);
+  margin-top: 20px;
+  padding: 7px 10px 6px;
+  background: #000;
   font-family: var(--pixel-label);
   font-size: clamp(10px, 1.2vw, 12px);
   font-weight: 400;
@@ -411,36 +392,34 @@
   box-shadow: 4px 4px 0 0 var(--orange);
 }
 .me-text {
-  margin: 24px auto 0;
-  max-width: 48ch;
-  font-size: clamp(15px, 1.6vw, 16.5px);
+  margin: 26px auto 0;
+  max-width: 50ch;
+  font-size: clamp(15px, 1.6vw, 17px);
+  font-weight: 500;
   line-height: 1.6;
-  color: var(--ink-dim);
+  color: #fff;
   white-space: pre-line;
+  text-shadow: 0 1px 2px #000, 0 2px 12px rgba(0, 0, 0, .85);
 }
 .me-text:empty { display: none; }
-.me-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-top: 30px; }
+.me-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-top: 32px; }
 .me-links a {
   width: 46px;
   height: 46px;
   display: grid;
   place-items: center;
-  background: #fffaf3;
-  color: var(--ink);
-  box-shadow: 0 -3px 0 0 var(--px-ink), 0 3px 0 0 var(--px-ink), -3px 0 0 0 var(--px-ink), 3px 0 0 0 var(--px-ink), 3px 7px 0 0 rgba(0, 0, 0, .3), 7px 3px 0 0 rgba(0, 0, 0, .3);
+  background: #000;
+  color: #fff;
+  box-shadow: 0 -3px 0 0 #fff, 0 3px 0 0 #fff, -3px 0 0 0 #fff, 3px 0 0 0 #fff, 4px 8px 0 0 rgba(0, 0, 0, .6), 8px 4px 0 0 rgba(0, 0, 0, .6);
   transition: transform .08s steps(2), background .1s steps(2), color .1s steps(2);
 }
-.me-links a:hover, .me-links a:focus-visible { transform: translate(-2px, -2px); background: var(--orange); color: #fff; outline: none; }
+.me-links a:hover, .me-links a:focus-visible { transform: translate(-2px, -2px); background: var(--orange); outline: none; }
 .me-links a:active { transform: translate(3px, 3px); }
 .me-links svg { width: 20px; height: 20px; }
 .me-page .fx { animation: rise .5s steps(5) both; }
 .me-page .fx:nth-child(2) { animation-delay: .08s; }
 .me-page .fx:nth-child(3) { animation-delay: .16s; }
 @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
-
-@media (max-width: 720px) {
-  .me-card { padding: 30px 20px 24px; }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .pcard .fx, .me-page .fx { transition: none; animation: none; }

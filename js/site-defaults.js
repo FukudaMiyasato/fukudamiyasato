@@ -33,7 +33,8 @@ export const DEMO_PROJECTS = [
 ];
 
 export const DEFAULT_ME = {
-  title: 'Jean Carlo Fukuda Miyasato — Fullstack designer centrado en el usuario',
+  name: 'Jean Carlo Fukuda Miyasato',
+  role: 'Fullstack designer centrado en el usuario',
   text: 'Diseño y construyo productos digitales de punta a punta: interfaces, apps y experiencias interactivas. Me muevo entre el diseño y el código para que cada producto se sienta claro, rápido y humano.',
   links: [{ platform: 'email', url: 'mailto:fukudamiyasato@gmail.com' }],
 };
