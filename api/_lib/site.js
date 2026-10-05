@@ -6,10 +6,12 @@
      fm:portfolio { duration, projects: [{ id, media, date, category, title,
               text, tags, link, duration }] } — la portada (portafolio).
               media: { type: 'video' | 'image', url } (subido a Vercel Blob o un link)
+                     o { type: 'youtube', url, id } (link de YouTube)
               duration: segundos de ese proyecto (null = el general)
    ============================================================ */
 
 import { getJSON, setJSON, newId } from './store.js';
+import { youtubeId } from '../../js/youtube.js';
 
 const ME_KEY = 'fm:me';
 const PORTFOLIO_KEY = 'fm:portfolio';
@@ -100,6 +102,12 @@ export function cleanProject(b) {
   const url = str(b?.media?.url, 1000);
   if (url) {
     if (!isUrl(url) && !/^\/assets\//.test(url)) return { error: 'El video o imagen debe ser un link https://' };
+    // YouTube: no es un archivo, la portada lo muestra con su reproductor
+    const yt = youtubeId(url);
+    if (yt) { out.media = { type: 'youtube', url, id: yt }; return { project: out }; }
+    if (/(^|\.)(youtube\.com|youtu\.be)$/i.test(new URL(url, 'https://x').hostname)) {
+      return { error: 'Ese link de YouTube no es de un video (usa el de «Compartir» del video).' };
+    }
     const type = b?.media?.type === 'image' || b?.media?.type === 'video'
       ? b.media.type
       : /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url) ? 'video' : 'image';

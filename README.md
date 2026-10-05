@@ -70,6 +70,15 @@ el **tiempo por proyecto** (3–60 s) y cada proyecto puede tener el suyo; con
 lee de `GET /api/site?t=portfolio`. Sin proyectos se ve el de ejemplo
 (`assets/portfolio/abc.mp4`, comprimido a 960 px).
 
+**Videos de YouTube:** en el editor se puede pegar el link de un video
+(`watch?v=`, `youtu.be/`, `shorts/`, `embed/`); se guarda como
+`{ type: 'youtube', id }` y el panel muestra su miniatura. WebGL no puede
+leer un video de YouTube (es un iframe de otro dominio), así que la portada
+lo pone con su reproductor de fondo (en silencio, en bucle, sin controles y
+un poco agrandado para esconder el título) y encima el damero y la grilla en
+CSS (`js/youtube.js`, capa `#stage-yt`); el botón de sonido también funciona.
+Un link de YouTube que no es de un video (un canal, una lista) da error.
+
 **Subir videos e imágenes — Vercel Blob:** Vercel → Storage → Create →
 **Blob** → conéctalo al proyecto (agrega `BLOB_READ_WRITE_TOKEN`) y redeploy.
 El archivo va directo del navegador a Blob (`api/upload.js` solo firma el

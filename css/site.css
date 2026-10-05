@@ -42,6 +42,37 @@
   background: repeating-conic-gradient(rgba(0, 0, 0, .38) 0 25%, transparent 0 50%) 0 0 / 11px 11px;
   mix-blend-mode: multiply;
 }
+/* YouTube: su reproductor a pantalla completa ("cover" 16:9), sin poder tocarlo */
+.stage-yt { position: fixed; inset: 0; overflow: hidden; background: #050505; }
+.stage-yt iframe {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* un poco más grande que la pantalla: esconde el título y el logo de YouTube */
+  width: calc(max(100vw, 177.78vh) * 1.18);
+  height: calc(max(100vh, 56.25vw) * 1.18);
+  border: 0;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  filter: saturate(1.35) contrast(1.15);
+  transition: opacity .6s steps(6);
+}
+.stage-yt iframe.is-on { opacity: 1; }
+/* el mismo damero del tramado + grano, encima del video */
+.stage-yt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-conic-gradient(rgba(0, 0, 0, .42) 0 25%, transparent 0 50%) 0 0 / 22px 22px,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .14) 0 1px, transparent 1px 11px),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .14) 0 1px, transparent 1px 11px),
+    radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, .55));
+  pointer-events: none;
+}
+.stage.is-off { opacity: 0; transition: opacity .4s steps(4); }
+.stage { transition: opacity .4s steps(4); }
 .stage-shade { /* oscurece un poco abajo e izquierda para que se lea lo de encima */
   position: fixed;
   inset: 0;

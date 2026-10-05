@@ -13,6 +13,7 @@
 import { dashIconHTML } from './dashboard-icons.js';
 import { drawDots, fitCanvas, buildLensFilter } from './fisheye.js';
 import { SOCIALS } from './socials.js';
+import { youtubeId, youtubeThumb } from './youtube.js';
 import { DEFAULT_ME, DEFAULT_DURATION, PROJECT_DEFAULTS, shortDate } from './site-defaults.js';
 
 const $ = (id) => document.getElementById(id);
@@ -165,6 +166,8 @@ async function loadFolio() {
 
 function thumb(m) {
   if (!m?.url) return '<span class="folio-thumb folio-thumb--none" aria-hidden="true"></span>';
+  const yt = m.type === 'youtube' ? (m.id || youtubeId(m.url)) : '';
+  if (yt) return `<span class="folio-thumb folio-thumb--yt"><img src="${youtubeThumb(yt)}" alt="" loading="lazy"></span>`;
   return m.type === 'video'
     ? `<video class="folio-thumb" src="${escA(m.url)}#t=1" muted playsinline preload="metadata" aria-hidden="true"></video>`
     : `<img class="folio-thumb" src="${escA(m.url)}" alt="" loading="lazy">`;
@@ -230,7 +233,10 @@ $('folio-dur').addEventListener('input', () => {
 
 function paintPjMedia() {
   const box = $('pj-preview');
-  box.innerHTML = pjMedia?.url
+  const yt = pjMedia?.type === 'youtube' ? (pjMedia.id || youtubeId(pjMedia.url)) : '';
+  box.innerHTML = yt
+    ? `<span class="pj-yt"><img src="${youtubeThumb(yt)}" alt=""><b>YouTube</b></span>`
+    : pjMedia?.url
     ? (pjMedia.type === 'video'
       ? `<video src="${escA(pjMedia.url)}" muted loop playsinline autoplay></video>`
       : `<img src="${escA(pjMedia.url)}" alt="">`)
@@ -272,7 +278,8 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('pj-l
 $('pj-media-clear').addEventListener('click', () => { pjMedia = null; paintPjMedia(); });
 $('pj-url').addEventListener('change', () => {
   const url = $('pj-url').value.trim();
-  pjMedia = url ? { type: isVideoUrl(url) ? 'video' : 'image', url } : null;
+  const yt = youtubeId(url);
+  pjMedia = !url ? null : yt ? { type: 'youtube', url, id: yt } : { type: isVideoUrl(url) ? 'video' : 'image', url };
   paintPjMedia();
 });
 
