@@ -48,11 +48,11 @@ vec2 cover(vec2 uv, vec3 info) {
   return (uv - 0.5) * s + 0.5;
 }
 
-// sin fuente: nube cálida que se mueve lento
+// sin fuente: nube roja que se mueve lento
 vec3 cloud(vec2 uv) {
   float t = time * 0.06;
   float a = sin(uv.x * 3.1 + t * 2.0) + sin(uv.y * 2.3 - t * 1.4) + sin((uv.x + uv.y) * 4.0 + t);
-  vec3 c1 = vec3(1.0, 0.45, 0.16), c2 = vec3(0.42, 0.07, 0.1), c3 = vec3(0.04, 0.03, 0.04);
+  vec3 c1 = vec3(1.0, 0.16, 0.24), c2 = vec3(0.42, 0.03, 0.08), c3 = vec3(0.04, 0.03, 0.04);
   return mix(mix(c3, c2, smoothstep(-0.6, 1.4, a)), c1, smoothstep(1.4, 2.8, a) * 0.85);
 }
 

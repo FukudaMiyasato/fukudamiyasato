@@ -12,8 +12,9 @@
   --ink: #141210;
   --ink-dim: #5d554d;
   --ink-faint: #8f857a;
-  --orange: #ff6a1f;
-  --orange-hot: #ff8a3d;
+  --accent: #e0102b;       /* rojo de la marca */
+  --accent-hot: #ff2a45;
+  --accent-soft: #ff8a98;
   --display: "Archivo Black", "Inter", sans-serif;
   --head: "Inter Tight", "Inter", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -103,7 +104,7 @@
 .sound-btn svg { width: 16px; height: 16px; }
 .sound-btn:hover { color: #fff; border-color: rgba(255, 255, 255, .3); }
 .sound-btn:active { transform: scale(.94); }
-.sound-btn[aria-pressed="true"] { color: var(--orange-hot); border-color: rgba(255, 106, 31, .5); }
+.sound-btn[aria-pressed="true"] { color: var(--accent-hot); border-color: rgba(255, 42, 69, .5); }
 .sound-btn[hidden] { display: none; }
 .sound-btn[aria-pressed="true"] .s-off, .sound-btn:not([aria-pressed="true"]) .s-on { display: none; }
 .login-btn {
@@ -122,39 +123,59 @@
 }
 .login-btn:hover { background: rgba(224, 16, 43, .22); box-shadow: 0 0 0 5px var(--red-glow); }
 
-/* ---------- dock: portafolio · yo (abajo al centro, pegados) ---------- */
+/* ---------- dock: portafolio · yo (abajo al centro, pegados) ----------
+   Pixel art: borde de 4 px con esquinas mordidas (sombras, sin
+   border-radius) y sombra dura en escalera. */
 .site-dock {
+  --dock-line: #3a3a42;
   position: fixed;
   left: 50%;
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px;
-  border-radius: 24px;
-  background: linear-gradient(180deg, rgba(34, 32, 32, .86), rgba(14, 13, 13, .9));
-  border: 1px solid rgba(255, 255, 255, .1);
-  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .06);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  gap: 8px;
+  padding: 6px;
+  background: #0d0d10;
+  box-shadow:
+    0 -4px 0 0 var(--dock-line), 0 4px 0 0 var(--dock-line),
+    -4px 0 0 0 var(--dock-line), 4px 0 0 0 var(--dock-line),
+    4px 12px 0 0 rgba(0, 0, 0, .7), 12px 4px 0 0 rgba(0, 0, 0, .7), 8px 8px 0 0 rgba(0, 0, 0, .7);
   transform: translateX(-50%);
 }
 .site-dock a {
-  width: 64px;
-  height: 54px;
+  position: relative;
+  width: 60px;
+  height: 52px;
   display: grid;
   place-items: center;
-  border-radius: 17px;
-  transition: background .25s var(--ease), transform .25s var(--ease);
+  transition: background .12s steps(2);
 }
-.site-dock a:hover { background: rgba(255, 255, 255, .06); }
-.site-dock a:active { transform: scale(.95); }
-.site-dock a[aria-current="page"] { background: linear-gradient(180deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)); }
-.site-dock svg { width: 34px; height: 34px; transition: filter .25s, transform .25s var(--ease); }
+.site-dock a:hover { background: #18181d; }
+.site-dock a:active svg { transform: translateY(2px); }
+/* la sección activa: hundida, con su propio borde pixel rojo */
+.site-dock a[aria-current="page"] {
+  background: #1d0a0e;
+  box-shadow: inset 0 0 0 2px var(--accent), inset 4px 4px 0 0 rgba(0, 0, 0, .45);
+}
+.site-dock a[aria-current="page"]::after { /* marca de 2×2 "pixeles" bajo el ícono */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  background: var(--accent-hot);
+}
+.site-dock svg { width: 32px; height: 32px; transition: filter .2s steps(2), transform .2s steps(2); } /* 16 px × 2: cada pixel del sprite mide 2 px */
 .site-dock a:not([aria-current="page"]) svg { filter: grayscale(1) brightness(.62); }
-.site-dock a:not([aria-current="page"]):hover svg { filter: grayscale(.4) brightness(.9); transform: translateY(-2px); }
-.site-dock .sep { width: 1px; height: 30px; background: rgba(255, 255, 255, .12); }
+.site-dock a:not([aria-current="page"]):hover svg { filter: grayscale(.3) brightness(.95); transform: translateY(-2px); }
+.site-dock .sep { /* separador punteado de pixeles */
+  width: 2px;
+  height: 32px;
+  background: repeating-linear-gradient(180deg, var(--dock-line) 0 4px, transparent 4px 8px);
+}
 
 /* ============================================================
    Pixel art (tarjeta de la portada y textos de Yo)
@@ -254,7 +275,7 @@
   width: 0;
   background: repeating-linear-gradient(90deg, var(--ink) 0 6px, transparent 6px 8px);
 }
-.pcard.is-paused .pcard-line i { background: repeating-linear-gradient(90deg, var(--orange) 0 6px, transparent 6px 8px); }
+.pcard.is-paused .pcard-line i { background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 8px); }
 
 .pcard-title {
   margin: 0;
@@ -275,7 +296,7 @@
   color: var(--ink-faint);
 }
 .pcard-date:empty { display: none; }
-.pcard-date::before { content: "▸ "; color: var(--orange); }
+.pcard-date::before { content: "▸ "; color: var(--accent); }
 .pcard-text {
   margin: 14px 0 0;
   max-width: 32ch;
@@ -306,7 +327,7 @@
   font-family: var(--pixel-label);
   font-size: 12px;
   text-transform: uppercase;
-  box-shadow: var(--px-border), 4px 8px 0 0 var(--orange), 8px 4px 0 0 var(--orange), 6px 6px 0 0 var(--orange);
+  box-shadow: var(--px-border), 4px 8px 0 0 var(--accent), 8px 4px 0 0 var(--accent), 6px 6px 0 0 var(--accent);
   transition: transform .08s steps(2), box-shadow .08s steps(2);
 }
 .pcard-btn svg { width: 14px; height: 14px; }
@@ -324,7 +345,7 @@
   box-shadow: 0 -3px 0 0 var(--px-ink), 0 3px 0 0 var(--px-ink), -3px 0 0 0 var(--px-ink), 3px 0 0 0 var(--px-ink), 3px 6px 0 0 rgba(0, 0, 0, .3);
   transition: transform .08s steps(2);
 }
-.pcard-nav button:hover { background: var(--orange); color: #fff; }
+.pcard-nav button:hover { background: var(--accent); color: #fff; }
 .pcard-nav button:active { transform: translate(2px, 2px); }
 .pcard-nav svg { width: 14px; height: 14px; }
 .pcard-nav[hidden] { display: none; }
@@ -357,69 +378,93 @@
   .stage-shade { background: linear-gradient(0deg, rgba(0, 0, 0, .55), transparent 60%), linear-gradient(180deg, rgba(0, 0, 0, .35), transparent 18%); }
 }
 
-/* ---------- Yo: sin tarjeta, texto blanco con sombra dura (contraste) ---------- */
+/* ---------- Yo: minimalista ----------
+   Nombre en pixel, el rol como una línea chica, un separador de
+   pixeles, el texto y las redes como íconos sueltos. Sin cajas: el
+   contraste lo dan el fondo más oscuro y una sombra suave. */
 .me-page {
   position: fixed;
   inset: 0;
   z-index: 5;
   display: grid;
   place-items: center;
-  padding: 90px 24px 130px;
+  padding: 90px 28px 130px;
   overflow: auto;
 }
-.me-box { width: min(720px, 100%); text-align: center; color: #fff; }
-.me-title { margin: 0; font-family: var(--pixel); line-height: .95; }
+.me-box { width: min(520px, 100%); text-align: center; color: #fff; }
+.me-title { margin: 0; font-family: var(--pixel); }
 .me-title .name {
   display: block;
-  font-size: clamp(38px, 7vw, 76px);
+  font-size: clamp(30px, 4.4vw, 46px);
   font-weight: 700;
+  line-height: 1;
   letter-spacing: 0;
   color: #fff;
   text-wrap: balance;
-  /* sombra en escalera: se lee sobre cualquier parte del video */
-  text-shadow: 3px 3px 0 #000, 6px 6px 0 rgba(0, 0, 0, .55);
+  text-shadow: 2px 2px 0 #000;
 }
 .me-title .role {
-  display: inline-block;
-  margin-top: 20px;
-  padding: 7px 10px 6px;
-  background: #000;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
   font-family: var(--pixel-label);
-  font-size: clamp(10px, 1.2vw, 12px);
+  font-size: 11px;
   font-weight: 400;
   text-transform: uppercase;
-  color: #ffb070;
-  box-shadow: 4px 4px 0 0 var(--orange);
+  color: var(--accent-soft);
+  text-shadow: 1px 1px 0 #000;
+}
+.me-title .role::before { content: ""; width: 6px; height: 6px; background: var(--accent-hot); box-shadow: 1px 1px 0 #000; }
+/* separador: cinco pixeles rojos */
+.me-title::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 4px;
+  margin: 26px auto 0;
+  background: var(--accent);
+  box-shadow: -16px 0 0 var(--accent), -8px 0 0 var(--accent), 8px 0 0 var(--accent), 16px 0 0 var(--accent);
 }
 .me-text {
-  margin: 26px auto 0;
-  max-width: 50ch;
-  font-size: clamp(15px, 1.6vw, 17px);
-  font-weight: 500;
-  line-height: 1.6;
-  color: #fff;
+  margin: 24px auto 0;
+  max-width: 44ch;
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, .86);
   white-space: pre-line;
-  text-shadow: 0 1px 2px #000, 0 2px 12px rgba(0, 0, 0, .85);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, .9);
 }
 .me-text:empty { display: none; }
-.me-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-top: 32px; }
+.me-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin-top: 26px; }
 .me-links a {
-  width: 46px;
-  height: 46px;
+  position: relative;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
-  background: #000;
-  color: #fff;
-  box-shadow: 0 -3px 0 0 #fff, 0 3px 0 0 #fff, -3px 0 0 0 #fff, 3px 0 0 0 #fff, 4px 8px 0 0 rgba(0, 0, 0, .6), 8px 4px 0 0 rgba(0, 0, 0, .6);
-  transition: transform .08s steps(2), background .1s steps(2), color .1s steps(2);
+  color: rgba(255, 255, 255, .78);
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, .8));
+  transition: color .1s steps(2), transform .1s steps(2);
 }
-.me-links a:hover, .me-links a:focus-visible { transform: translate(-2px, -2px); background: var(--orange); outline: none; }
-.me-links a:active { transform: translate(3px, 3px); }
+.me-links a::after { /* subrayado de un pixel al pasar el mouse */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  background: var(--accent-hot);
+  opacity: 0;
+}
+.me-links a:hover, .me-links a:focus-visible { color: #fff; transform: translateY(-2px); outline: none; }
+.me-links a:hover::after, .me-links a:focus-visible::after { opacity: 1; }
 .me-links svg { width: 20px; height: 20px; }
 .me-page .fx { animation: rise .5s steps(5) both; }
 .me-page .fx:nth-child(2) { animation-delay: .08s; }
 .me-page .fx:nth-child(3) { animation-delay: .16s; }
-@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 
 @media (prefers-reduced-motion: reduce) {
   .pcard .fx, .me-page .fx { transition: none; animation: none; }

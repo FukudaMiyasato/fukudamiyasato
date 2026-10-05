@@ -2,9 +2,9 @@
    yo.js — página Yo: título, texto y redes (solo íconos)
    ------------------------------------------------------------
    Todo se edita en el panel → YO (/api/site?t=me): nombre, rol, texto
-   y redes. Si nunca se guardó, se usan los de js/site-defaults.js. Sin
-   tarjeta: texto blanco con sombra dura sobre el mismo tramado de la
-   portada (más oscuro).
+   y redes. Si nunca se guardó, se usan los de js/site-defaults.js.
+   Minimalista: sin cajas, sobre el mismo tramado de la portada pero
+   bastante más oscuro para que el texto blanco contraste.
    ============================================================ */
 
 import { createDither } from './dither.js';
@@ -13,7 +13,7 @@ import { socialOf } from './socials.js';
 
 const $ = (id) => document.getElementById(id);
 
-const dither = createDither($('stage'), { cell: 11, strength: 0.9, dim: 0.55 });
+const dither = createDither($('stage'), { cell: 11, strength: 0.8, dim: 0.68 });
 if (!dither) $('stage').hidden = true;
 
 function render(me) {

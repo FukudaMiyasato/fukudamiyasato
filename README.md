@@ -76,13 +76,18 @@ El archivo va directo del navegador a Blob (`api/upload.js` solo firma el
 permiso, y solo para el amo supremo), hasta 200 MB. Mientras no exista,
 el editor deja pegar un link a un video/imagen.
 
-**Yo** (`yo.html`, `js/yo.js`): nombre, rol, texto y redes (solo íconos), al
-centro y sin tarjeta: texto blanco con sombra dura para que se lea sobre el
-tramado. Se editan en **Panel → YO** (`fm:me`: `{ name, role, text, links }`;
-los perfiles viejos con un solo «título» se leen igual). Sin nada guardado,
-usa los de `js/site-defaults.js`. La tarjeta de la portada es pixel art: borde
-de 4 px con esquinas mordidas, sombra dura en escalera, Pixelify Sans en
-títulos y Silkscreen en etiquetas y botones.
+**Yo** (`yo.html`, `js/yo.js`): minimalista, al centro y sin cajas: nombre
+en pixel, el rol en una línea chica, un separador de cinco pixeles rojos, el
+texto y las redes como íconos sueltos. El fondo es el mismo tramado, más
+oscuro, para que el blanco contraste. Se editan en **Panel → YO** (`fm:me`:
+`{ name, role, text, links }`; los perfiles viejos con un solo «título» se leen
+igual). Sin nada guardado, usa los de `js/site-defaults.js`.
+
+**Estilo:** pixel art en rojo (los tonos de la marca, `--accent` en
+`css/site.css`). La tarjeta de la portada y el dock tienen borde de 4 px con
+esquinas mordidas (hecho con sombras) y sombra dura en escalera; los íconos
+del dock son sprites de 16×16 dibujados con `<rect>` y `shape-rendering:
+crispEdges`. Títulos en Pixelify Sans, etiquetas y botones en Silkscreen.
 
 ## APPS (antes Works)
 
@@ -589,7 +594,9 @@ mouse encima) igual que el dock:
   En *Panel → Permisos* el amo supremo asigna **soles** a cada persona (**+ S/**):
   se ve el monto en soles y su equivalente en tokens, que se suma a su saldo
   (en negativo, se lo quita). El usuario solo ve sus tokens, arriba en el
-  dashboard, y el precio bajo cada herramienta de IA. Se reserva antes de
+  dashboard, y el precio bajo cada herramienta de IA. Al pasar el mouse sobre
+  una (las del dock o el + de un widget) sale un tooltip con su costo y, en
+  letra chica, cuántos tokens le quedarían (o cuántos le faltan, en rojo). Se reserva antes de
   llamar a OpenAI y se devuelve si la IA no respondió o rechazó el pedido;
   sin saldo, la herramienta se apaga y el servidor responde 402. El amo
   supremo no tiene límite. Saldo en Redis: `fm:tokens:<correo>` (y

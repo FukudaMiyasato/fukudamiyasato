@@ -311,7 +311,7 @@ function render(wd) {
     <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' ? ' wcard--user' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}">${inner}</div>
     ${canEdit ? `
       <button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>
-      ${wd.state === 'done' ? `<button class="wport wport--out" type="button" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
+      ${wd.state === 'done' ? `<button class="wport wport--out" type="button" data-tip-ai="follow" data-tip-label="Preguntar sobre esto (arrastra para conectar)" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>` : ''}
       ${wd.data?.kind === 'timeline' ? '' : '<span class="whandle" aria-hidden="true"></span>'}
       ${wd.state === 'done' ? `<button class="wx" type="button" aria-label="Borrar «${esc(wd.data?.title || 'widget')}»">
@@ -1231,7 +1231,7 @@ function refreshTokens() {
   for (const b of document.querySelectorAll('.tool[data-ai]')) {
     const tool = b.dataset.ai, ok = canAfford(tool), label = b.getAttribute('aria-label');
     b.classList.toggle('is-broke', !ok);
-    b.title = tokens == null ? label : `${label} · ${nfTok.format(prices[tool] || 0)} tokens${ok ? '' : ' — no te alcanzan'}`;
+    b.removeAttribute('title'); // el costo lo muestra el tooltip (data-tip-ai)
     let tag = b.querySelector('.tool-price');
     if (tokens == null) { tag?.remove(); continue; }
     if (!tag) { tag = document.createElement('span'); tag.className = 'tool-price'; b.append(tag); }
@@ -1278,6 +1278,7 @@ function renderDock() {
     b.innerHTML = TOOL_ICONS[t.key];
     if (canEdit && AI_TOOLS[t.key]) {
       b.dataset.ai = AI_TOOLS[t.key];
+      b.dataset.tipAi = AI_TOOLS[t.key];
       b.addEventListener('click', (e) => {
         if (canAfford(b.dataset.ai)) return t.open();
         e.stopImmediatePropagation();
@@ -1529,12 +1530,27 @@ function drawChart(host, d) {
   </svg>`;
 }
 
-/* ---------- tooltip compartido: cualquier elemento con data-tip ---------- */
+/* ---------- tooltip compartido: cualquier elemento con data-tip ----------
+   data-tip-ai="<herramienta>": el tooltip se arma al mostrarse, con el
+   costo en tokens y, en letra chica, cuánto te quedaría después. */
+function aiTip(t) {
+  const tool = t.dataset.tipAi;
+  const price = prices[tool] || 0;
+  const label = t.dataset.tipLabel || t.getAttribute('aria-label') || '';
+  let sub, cls = '';
+  if (tokens == null) sub = 'No tienes límite de tokens';
+  else if (tokens >= price) sub = `Te quedarían ${nfTok.format(tokens - price)} tokens`;
+  else { sub = `Te faltan ${nfTok.format(price - tokens)} tokens · tienes ${nfTok.format(tokens)}`; cls = ' is-broke'; }
+  tipEl.innerHTML = `<span class="tip-ai${cls}"><span class="tip-ai-main"></span><b>${nfTok.format(price)} tokens</b><small></small></span>`;
+  tipEl.querySelector('.tip-ai-main').textContent = label;
+  tipEl.querySelector('small').textContent = sub;
+}
+
 const tipEl = $('tip');
 function showTip(el, cx, cy) {
-  const t = el?.closest?.('[data-tip]');
+  const t = el?.closest?.('[data-tip], [data-tip-ai]');
   if (!t) { tipEl.hidden = true; return; }
-  tipEl.textContent = t.dataset.tip;
+  if (t.dataset.tipAi) aiTip(t); else tipEl.textContent = t.dataset.tip;
   tipEl.classList.toggle('tip--light', t.hasAttribute('data-tip-light'));
   tipEl.hidden = false;
   const pad = 14, w = tipEl.offsetWidth, h = tipEl.offsetHeight;
@@ -1542,7 +1558,8 @@ function showTip(el, cx, cy) {
   const yy = cy - h - pad < 8 ? cy + pad : cy - h - pad;
   tipEl.style.transform = `translate(${x}px, ${yy}px)`;
 }
-document.addEventListener('pointermove', (e) => { if (!routing) showTip(e.target, e.clientX, e.clientY); });
+// fuera del lienzo (dock, cabecera) el navegador sabe qué hay bajo el puntero aunque haya lente
+document.addEventListener('pointermove', (e) => { if (!routing || !board.contains(e.target)) showTip(e.target, e.clientX, e.clientY); });
 document.addEventListener('pointerleave', () => { tipEl.hidden = true; });
 
 /* ============================================================
