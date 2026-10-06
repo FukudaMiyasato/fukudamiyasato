@@ -51,9 +51,10 @@ La web pública tiene solo dos botones, pegados abajo al centro: **portafolio**
 el sonido (solo si el proyecto es un video) y el login, como siempre.
 
 **Portada** (`index.html`, `js/home.js`): de fondo, el video o imagen del
-proyecto a pantalla completa con tramado (`js/dither.js`, WebGL: mosaico,
-trama ordenada, damero, grano y viñeta; entre proyectos, disolución
-pixelada). Encima, al centro-izquierda, la tarjeta: `01 / 06`, categoría,
+proyecto a pantalla completa en **semitono** (`js/dither.js`, WebGL: un
+círculo liso por celda, de su color y con radio según su luz, sobre negro;
+entre proyectos, disolución por celdas — el tramado pixel de antes sigue
+disponible con `style: 'dither'`). Encima, al centro-izquierda, la tarjeta: `01 / 06`, categoría,
 título, fecha, texto, etiquetas y «Ver proyecto». La línea entre el número y
 la categoría es la barra de tiempo. Pasa sola al siguiente; se pausa con el
 mouse encima, con la barra espaciadora o con la pestaña oculta. Flechas ← → o
@@ -64,7 +65,7 @@ imagen, fecha (año, mes y día por separado: el año viene con el actual y, si
 se deja vacío, queda el actual; mes y día son opcionales y sin mes no hay
 día — en la tarjeta sale «2026», «mar 2026» o «14 mar 2026»), categoría, título, texto, etiquetas y link — **todo
 opcional** (sin título → «Sin título», sin categoría → «Proyecto», sin link no
-sale el botón, sin video → nube de color con el mismo tramado). Ahí mismo va
+sale el botón, sin video → nube roja con el mismo semitono). Ahí mismo va
 el **tiempo por proyecto** (3–60 s) y cada proyecto puede tener el suyo; con
 ↑ ↓ se cambia el orden. Se guarda en Redis (`fm:portfolio`); la portada lo
 lee de `GET /api/site?t=portfolio`. Sin proyectos se ve el de ejemplo
@@ -75,7 +76,7 @@ lee de `GET /api/site?t=portfolio`. Sin proyectos se ve el de ejemplo
 `{ type: 'youtube', id }` y el panel muestra su miniatura. WebGL no puede
 leer un video de YouTube (es un iframe de otro dominio), así que la portada
 lo pone con su reproductor de fondo (en silencio, en bucle, sin controles y
-un poco agrandado para esconder el título) y encima el damero y la grilla en
+un poco agrandado para esconder el título) y encima una trama de puntos en
 CSS (`js/youtube.js`, capa `#stage-yt`); el botón de sonido también funciona.
 Un link de YouTube que no es de un video (un canal, una lista) da error.
 
@@ -85,18 +86,19 @@ El archivo va directo del navegador a Blob (`api/upload.js` solo firma el
 permiso, y solo para el amo supremo), hasta 200 MB. Mientras no exista,
 el editor deja pegar un link a un video/imagen.
 
-**Yo** (`yo.html`, `js/yo.js`): minimalista, al centro y sin cajas: nombre
-en pixel, el rol en una línea chica, un separador de cinco pixeles rojos, el
-texto y las redes como íconos sueltos. El fondo es el mismo tramado, más
-oscuro, para que el blanco contraste. Se editan en **Panel → YO** (`fm:me`:
-`{ name, role, text, links }`; los perfiles viejos con un solo «título» se leen
-igual). Sin nada guardado, usa los de `js/site-defaults.js`.
+**Yo** (`yo.html`, `js/yo.js`): solo fondo negro, **FUKU** enorme y debajo
+una frase que cada 5 s se va letra por letra (sube, gira y se desenfoca, en
+cascada) y deja entrar la siguiente: «fullstack user centricity designer» ↔
+«indie game developer». Título y frases (una por línea) se editan en
+**Panel → YO** (`fm:me`: `{ title, phrases }`); sin nada guardado, usa los de
+`js/site-defaults.js`. Para lectores de pantalla hay un texto fijo con todas
+las frases (no se anuncia cada cambio).
 
-**Estilo:** pixel art en rojo (los tonos de la marca, `--accent` en
-`css/site.css`). La tarjeta de la portada y el dock tienen borde de 4 px con
-esquinas mordidas (hecho con sombras) y sombra dura en escalera; los íconos
-del dock son sprites de 16×16 dibujados con `<rect>` y `shape-rendering:
-crispEdges`. Títulos en Pixelify Sans, etiquetas y botones en Silkscreen.
+**Estilo:** vectorial, en rojo (`--accent` en `css/site.css`): formas lisas,
+esquinas redondeadas, colores planos, títulos en Space Grotesk y etiquetas en
+JetBrains Mono; íconos del dock en SVG con degradado. El panel (`/admin`)
+usa el mismo lenguaje (`css/vector.css`, `body.vx`); el lienzo de los
+dashboards no cambia.
 
 ## APPS (antes Works)
 

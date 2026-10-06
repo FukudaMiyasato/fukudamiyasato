@@ -32,12 +32,12 @@ export const DEMO_PROJECTS = [
   },
 ];
 
+/* Yo: un título grande y frases que se alternan cada PHRASE_MS. */
 export const DEFAULT_ME = {
-  name: 'Jean Carlo Fukuda Miyasato',
-  role: 'Fullstack designer centrado en el usuario',
-  text: 'Diseño y construyo productos digitales de punta a punta: interfaces, apps y experiencias interactivas. Me muevo entre el diseño y el código para que cada producto se sienta claro, rápido y humano.',
-  links: [{ platform: 'email', url: 'mailto:fukudamiyasato@gmail.com' }],
+  title: 'FUKU',
+  phrases: ['fullstack user centricity designer', 'indie game developer'],
 };
+export const PHRASE_MS = 5000;
 
 /** "Nombre — rol" → { name, role } (acepta —, – o -). */
 export function splitTitle(title) {

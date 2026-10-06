@@ -12,7 +12,6 @@
 
 import { dashIconHTML } from './dashboard-icons.js';
 import { drawDots, fitCanvas, buildLensFilter } from './fisheye.js';
-import { SOCIALS } from './socials.js';
 import { youtubeId, youtubeThumb } from './youtube.js';
 import { DEFAULT_ME, DEFAULT_DURATION, PROJECT_DEFAULTS, shortDate } from './site-defaults.js';
 
@@ -99,43 +98,22 @@ document.querySelectorAll('.admin-nav [data-tab]').forEach((b) => b.addEventList
 const escA = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ============================================================
-   YO (amo supremo): título, texto y redes de la página Yo
+   YO (amo supremo): título y frases que se alternan en la página Yo
    ============================================================ */
-
-function meLinkRow(l = { platform: 'instagram', url: '' }) {
-  const row = document.createElement('div');
-  row.className = 'app-link';
-  row.innerHTML = `
-    <select aria-label="Red">${SOCIALS.map((s) => `<option value="${s.key}"${s.key === l.platform ? ' selected' : ''}>${s.label}</option>`).join('')}</select>
-    <input placeholder="https://… o correo" aria-label="Link" value="${escA(l.platform === 'email' ? l.url.replace(/^mailto:/i, '') : l.url)}">
-    <button class="icon-btn" type="button" aria-label="Quitar red" title="Quitar red">×</button>`;
-  row.querySelector('button').addEventListener('click', () => row.remove());
-  $('me-links').append(row);
-  return row;
-}
 
 async function loadMe() {
   $('me-msg').textContent = '';
   const r = await api('/api/site?t=me');
-  const me = { ...DEFAULT_ME, ...(r.ok && r.data.me ? r.data.me : {}) };
-  $('me-name').value = me.name || '';
-  $('me-role').value = me.role || '';
-  $('me-text').value = me.text || '';
-  $('me-links').innerHTML = '';
-  (me.links || []).forEach((l) => meLinkRow(l));
+  const me = r.ok && r.data.me ? r.data.me : DEFAULT_ME;
+  $('me-title').value = me.title || DEFAULT_ME.title;
+  $('me-phrases').value = (me.phrases?.length ? me.phrases : DEFAULT_ME.phrases).join('\n');
 }
-
-$('me-add-link').addEventListener('click', () => meLinkRow().querySelector('input').focus());
 
 $('me-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = {
-    name: $('me-name').value.trim(),
-    role: $('me-role').value.trim(),
-    text: $('me-text').value.trim(),
-    links: [...$('me-links').querySelectorAll('.app-link')].map((row) => ({
-      platform: row.querySelector('select').value, url: row.querySelector('input').value.trim(),
-    })).filter((l) => l.url),
+    title: $('me-title').value.trim(),
+    phrases: $('me-phrases').value.split('\n').map((p) => p.trim()).filter(Boolean),
   };
   $('me-save').disabled = true;
   const r = await api('/api/site?t=me', { method: 'PUT', body: JSON.stringify(body) });
@@ -562,7 +540,7 @@ function creditCell(p) {
   box.innerHTML = `<b class="credit-tk">${nfTk.format(p.tokens || 0)} tk</b><small>S/ ${nfSol.format(p.soles || 0)} asignados</small>`;
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'px-btn';
+  btn.className = 'mini-btn';
   btn.textContent = '+ S/';
   btn.title = `Asignar soles a ${p.email}`;
   btn.addEventListener('click', () => openCredit(p));
@@ -746,7 +724,7 @@ function paintTokens(data) {
       <span class="tk-name"><b></b><small></small></span>
       <span class="tk-field"><input type="number" min="0" step="1" aria-label="Costo en tokens"><i>tk</i></span>
       <span class="tk-price"></span>
-      <button class="px-btn tk-measure" type="button" title="Llama a la herramienta de verdad y guarda los tokens que gastó">Medir</button>`;
+      <button class="mini-btn tk-measure" type="button" title="Llama a la herramienta de verdad y guarda los tokens que gastó">Medir</button>`;
     row.querySelector('b').textContent = t.label;
     row.querySelector('small').textContent = t.note;
     const input = row.querySelector('input');

@@ -10,14 +10,14 @@
 <link rel="apple-touch-icon" href="/assets/app-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&family=Archivo+Black&family=Pixelify+Sans:wght@500;700&family=Silkscreen&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&family=Archivo+Black&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/base.css">
 <link rel="stylesheet" href="/css/admin.css">
 <link rel="stylesheet" href="/css/modal.css">
-<link rel="stylesheet" href="/css/pixel.css">
+<link rel="stylesheet" href="/css/vector.css">
 <script src="https://accounts.google.com/gsi/client" async></script>
 </head>
-<body class="px">
+<body class="vx">
 
 <a class="back-btn" href="/" aria-label="Volver al inicio">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -170,17 +170,12 @@
     <section data-panel="me" hidden>
       <header class="admin-head">
         <h1>YO</h1>
-        <p>Tu información personal en la página Yo.</p>
+        <p>La página Yo: fondo negro, un título grande y frases que se alternan cada 5 segundos.</p>
       </header>
       <form class="cfg-card me-form" id="me-form" autocomplete="off">
-        <div class="me-form-row">
-          <label>Nombre <input id="me-name" maxlength="80" required placeholder="Jean Carlo Fukuda Miyasato"></label>
-          <label>Rol <input id="me-role" maxlength="80" placeholder="Fullstack designer centrado en el usuario"></label>
-        </div>
-        <label>Texto <textarea id="me-text" maxlength="2000" rows="5"></textarea></label>
-        <p class="app-links-title">Redes (en la página solo se ven los íconos)</p>
-        <div class="app-links" id="me-links"></div>
-        <button class="link-btn app-add-link" type="button" id="me-add-link">+ Agregar red</button>
+        <label>Título <input id="me-title" maxlength="40" required placeholder="FUKU"></label>
+        <label>Frases <span class="me-hint">una por línea · se alternan cada 5 s</span>
+          <textarea id="me-phrases" rows="4" placeholder="fullstack user centricity designer&#10;indie game developer"></textarea></label>
         <div class="me-form-foot">
           <a class="link-btn" href="/yo.html" target="_blank" rel="noopener">Ver la página</a>
           <button class="btn" type="submit" id="me-save">Guardar</button>
@@ -232,15 +227,15 @@
 
         <div class="tk-top">
           <label class="tk-surcharge">
-            <span class="px-label">Sobrecargo</span>
+            <span class="cap-label">Sobrecargo</span>
             <span class="tk-field"><input id="tk-surcharge" type="number" min="0" max="500" step="1" value="10"><i>%</i></span>
           </label>
           <label>
-            <span class="px-label">S/ por US$</span>
+            <span class="cap-label">S/ por US$</span>
             <span class="tk-field"><input id="tk-usdpen" type="number" min="0.5" max="20" step="0.01" value="3.75"></span>
           </label>
           <label>
-            <span class="px-label">US$ por millón de tokens</span>
+            <span class="cap-label">US$ por millón de tokens</span>
             <span class="tk-field"><input id="tk-usdperm" type="number" min="0.01" max="200" step="0.01" value="5"></span>
           </label>
         </div>
@@ -281,7 +276,7 @@
 <!-- asignar soles (→ tokens) a una persona -->
 <div class="modal-layer" id="tk-layer" hidden>
   <form class="modal tk-modal" id="tk-form" autocomplete="off" novalidate>
-    <p class="px-label">Créditos</p>
+    <p class="cap-label">Créditos</p>
     <h2 class="tk-who" id="tk-who"></h2>
     <p class="tk-now" id="tk-now"></p>
     <label class="tk-soles">

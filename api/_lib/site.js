@@ -2,7 +2,7 @@
    api/_lib/site.js — contenido público del sitio que edita el amo supremo
    ------------------------------------------------------------
    Vive en Redis (api/_lib/store.js):
-     fm:me    { name, role, text, links: [{ platform, url }] } — la página Yo
+     fm:me    { title, phrases: [texto…] } — la página Yo (las frases se alternan)
      fm:portfolio { duration, projects: [{ id, media, date, category, title,
               text, tags, link, duration }] } — la portada (portafolio).
               media: { type: 'video' | 'image', url } (subido a Vercel Blob o un link)
@@ -20,43 +20,24 @@ const str = (v, max) => String(v ?? '').trim().slice(0, max);
 
 /* ---------- Yo ---------- */
 
-export const SOCIALS = ['instagram', 'linkedin', 'github', 'x', 'behance', 'dribbble', 'youtube', 'tiktok', 'email', 'web'];
 const isUrl = (u) => /^https?:\/\//i.test(u);
+const MAX_PHRASES = 8;
 
-/** Perfil guardado ({ name, role, text, links }), o null si todavía no se editó
-    (la página usa sus valores por defecto). Los perfiles viejos se adaptan:
-    { title: "Nombre — rol" } y { name, role, description, email }. */
+/** Perfil guardado ({ title, phrases }), o null si todavía no se editó con este
+    formato (los viejos — nombre, rol, redes — se ignoran: la página usa
+    FUKU y sus frases por defecto). */
 export async function getMe() {
   const me = await getJSON(ME_KEY, null);
-  if (!me) return null;
-  if (me.title != null && me.name == null) {
-    const m = String(me.title).match(/^(.*?)\s+[—–-]\s+(.*)$/);
-    return { name: m ? m[1].trim() : me.title, role: m ? m[2].trim() : '', text: me.text || '', links: me.links || [] };
-  }
-  if (me.links == null) {
-    return {
-      name: me.name || '', role: me.role || '', text: me.description || '',
-      links: me.email ? [{ platform: 'email', url: `mailto:${me.email}` }] : [],
-    };
-  }
-  return me;
+  return Array.isArray(me?.phrases) ? { title: me.title || '', phrases: me.phrases } : null;
 }
 
 export function cleanMe(b) {
-  const name = str(b?.name, 80);
-  if (!name) return { error: 'Falta el nombre.' };
-  const links = [];
-  for (const l of (Array.isArray(b?.links) ? b.links : []).slice(0, 12)) {
-    let url = str(l?.url, 500);
-    if (!url) continue;
-    const platform = SOCIALS.includes(l?.platform) ? l.platform : 'web';
-    if (platform === 'email' && !/^mailto:/i.test(url)) url = `mailto:${url}`;
-    if (platform === 'email' ? !/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(url) : !isUrl(url)) {
-      return { error: `El link «${url.slice(0, 40)}» no es válido${platform === 'email' ? '' : ' (debe empezar con https://)'}.` };
-    }
-    links.push({ platform, url });
-  }
-  return { me: { name, role: str(b?.role, 80), text: str(b?.text, 2000), links } };
+  const title = str(b?.title, 40);
+  if (!title) return { error: 'Falta el título.' };
+  const phrases = (Array.isArray(b?.phrases) ? b.phrases : String(b?.phrases ?? '').split('\n'))
+    .map((p) => str(p, 80)).filter(Boolean).slice(0, MAX_PHRASES);
+  if (!phrases.length) return { error: 'Pon al menos una frase.' };
+  return { me: { title, phrases } };
 }
 
 export const setMe = (me) => setJSON(ME_KEY, me);

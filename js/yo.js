@@ -1,48 +1,64 @@
 /* ============================================================
-   yo.js — página Yo: título, texto y redes (solo íconos)
+   yo.js — página Yo: fondo negro, FUKU y una frase que cambia
    ------------------------------------------------------------
-   Todo se edita en el panel → YO (/api/site?t=me): nombre, rol, texto
-   y redes. Si nunca se guardó, se usan los de js/site-defaults.js.
-   Minimalista: sin cajas, sobre el mismo tramado de la portada pero
-   bastante más oscuro para que el texto blanco contraste.
+   Cada PHRASE_MS (5 s) la frase de abajo se va letra por letra
+   (sube, gira un poco y se desenfoca, en cascada) y entra la
+   siguiente desde abajo. Título y frases se editan en el panel →
+   YO (/api/site?t=me); si nunca se guardaron, se usan los de
+   js/site-defaults.js.
    ============================================================ */
 
-import { createDither } from './dither.js';
-import { DEFAULT_ME, splitTitle } from './site-defaults.js';
-import { socialOf } from './socials.js';
+import { DEFAULT_ME, PHRASE_MS } from './site-defaults.js';
 
 const $ = (id) => document.getElementById(id);
+const phraseEl = $('me-phrase');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const dither = createDither($('stage'), { cell: 11, strength: 0.8, dim: 0.68 });
-if (!dither) $('stage').hidden = true;
-
-function render(me) {
-  // nombre y rol van por separado; los perfiles viejos traían un solo "título"
-  const { name, role } = me.name ? { name: me.name, role: me.role || '' } : splitTitle(me.title);
-  const h = $('me-title');
-  h.innerHTML = '<span class="name"></span><span class="role"></span>';
-  h.querySelector('.name').textContent = name;
-  h.querySelector('.role').textContent = role;
-  if (!role) h.querySelector('.role').remove();
-  $('me-text').textContent = me.text || '';
-  document.title = `${name || 'Yo'} — FUKU`;
-
-  $('me-links').replaceChildren(...(me.links || []).map((l) => {
-    const s = socialOf(l.platform);
-    const a = document.createElement('a');
-    a.href = l.url;
-    a.title = s.label;
-    a.setAttribute('aria-label', s.label);
-    a.innerHTML = s.icon;
-    if (/^https?:/i.test(l.url)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-    return a;
+/** Pone el texto como una letra por <span> (para animarlas en cascada). */
+function setLetters(text) {
+  phraseEl.replaceChildren(...[...text].map((ch, i) => {
+    const s = document.createElement('span');
+    s.className = 'ch';
+    s.style.setProperty('--i', i);
+    s.textContent = ch;
+    return s;
   }));
+}
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function swap(text) {
+  const n = phraseEl.children.length;
+  phraseEl.classList.add('is-out');
+  await wait(reduced ? 300 : 500 + n * 22);           // que termine de irse la última letra
+  setLetters(text);
+  phraseEl.classList.remove('is-out');
+  phraseEl.classList.add('is-in');
+  void phraseEl.offsetWidth;                           // fija el estado inicial antes de animar
+  phraseEl.classList.remove('is-in');
+}
+
+function start(me) {
+  const title = me.title || DEFAULT_ME.title;
+  const phrases = (me.phrases || []).filter(Boolean);
+  const list = phrases.length ? phrases : DEFAULT_ME.phrases;
+  $('me-fuku').textContent = title;
+  $('me-phrases-sr').textContent = list.join(' · ');
+  document.title = `Yo — ${title}`;
+  setLetters(list[0]);
+  if (list.length < 2) return;
+  let i = 0;
+  setInterval(() => {
+    if (document.hidden) return;
+    i = (i + 1) % list.length;
+    swap(list[i]);
+  }, PHRASE_MS);
 }
 
 let me = DEFAULT_ME;
 try {
   const r = await fetch('/api/site?t=me', { cache: 'no-store' });
   const d = r.ok ? await r.json() : null;
-  if (d?.me) me = { ...DEFAULT_ME, ...d.me };
+  if (d?.me) me = d.me;
 } catch { /* sin API: los de por defecto */ }
-render(me);
+start(me);

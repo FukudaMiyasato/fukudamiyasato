@@ -2,13 +2,16 @@
    dither.js — fondo con tramado para videos e imágenes (WebGL)
    ------------------------------------------------------------
    Pinta la fuente (video, imagen o, si no hay, una nube de color
-   generada) en un <canvas> a pantalla completa con:
+   generada) en un <canvas> a pantalla completa. Dos estilos:
+     halftone (por defecto): semitono vectorial — un círculo liso por
+       celda, de su color y con radio según su luz, sobre negro
+     dither: el tramado pixel de antes —
      · mosaico: celdas de `cell` px que toman el color de su centro
      · trama ordenada (Bayer 4×4) que posteriza cada celda
      · damero: la mitad de las celdas más oscuras (el "tramado")
      · costuras suaves cada 12 celdas, grano que se mueve y viñeta
    Cambiar de fuente no corta: las celdas pasan de una a otra en
-   orden de trama (disolución pixelada).
+   orden de trama (disolución por celdas).
    Sin WebGL devuelve null y quien lo use muestra el video tal cual.
    ============================================================ */
 
@@ -24,6 +27,7 @@ uniform float time;
 uniform float mixT;        // 0 = fuente A · 1 = fuente B
 uniform float strength;    // 0…1: cuánto se nota el tramado
 uniform float dim;         // 0…1: oscurecer (p. ej. detrás de texto)
+uniform float halftone;    // 1 = semitono de círculos · 0 = tramado pixel
 uniform sampler2D texA;
 uniform sampler2D texB;
 uniform vec3 infoA;        // (ancho, alto, ¿hay fuente?) de A
@@ -79,6 +83,23 @@ void main() {
   c = mix(vec3(l), c, 1.0 + 0.5 * strength);
   c = (c - 0.5) * (1.0 + 0.2 * strength) + 0.5;
 
+  // semitono vectorial: un círculo liso por celda; más luz → círculo más grande
+  if (halftone > 0.5) {
+    vec2 f = fract(frag / cell) - 0.5;
+    float d = length(f) * cell;
+    float lum = clamp(dot(c, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+    float r = cell * (0.08 + 0.5 * sqrt(lum));
+    float dotA = 1.0 - smoothstep(r - 0.9, r + 0.9, d);   // borde suave de 1 px: se ve vectorial
+    vec3 ink = clamp(c * 1.12, 0.0, 1.0);
+    vec3 hc = mix(vec3(0.025, 0.022, 0.026), ink, dotA);
+    hc = mix(c, hc, strength); // strength < 1: deja asomar la imagen entre los círculos
+    vec2 hv = gl_FragCoord.xy / res - 0.5;
+    hc *= 1.0 - dot(hv, hv) * 0.8;
+    hc *= 1.0 - dim;
+    gl_FragColor = vec4(clamp(hc, 0.0, 1.0), 1.0);
+    return;
+  }
+
   // trama ordenada: posteriza cada celda en 5 niveles
   vec3 q = floor(clamp(c, 0.0, 1.0) * 5.0 + bayer4(cid)) / 5.0;
   c = mix(c, q, 0.55 * strength);
@@ -114,11 +135,11 @@ function compile(gl, type, src) {
 
 /**
  * @param {HTMLCanvasElement} canvas
- * @param {{ cell?: number, strength?: number, dim?: number, onTaint?: (el) => void }} opts
+ * @param {{ cell?: number, strength?: number, dim?: number, onTaint?: (el) => void, style?: 'halftone' | 'dither' }} opts
  *   cell en px CSS · onTaint: la fuente no se puede pintar (otro dominio sin CORS)
  * @returns {null | { setSource(el|null, {instant?}), setDim(n), destroy() }}
  */
-export function createDither(canvas, { cell = 11, strength = 1, dim = 0, onTaint = null } = {}) {
+export function createDither(canvas, { cell = 11, strength = 1, dim = 0, onTaint = null, style = 'halftone' } = {}) {
   const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: false, powerPreference: 'low-power' });
   if (!gl) return null;
 
@@ -144,7 +165,7 @@ export function createDither(canvas, { cell = 11, strength = 1, dim = 0, onTaint
 
   const U = (n) => gl.getUniformLocation(prog, n);
   const u = {
-    res: U('res'), cell: U('cell'), time: U('time'), mixT: U('mixT'), strength: U('strength'), dim: U('dim'),
+    res: U('res'), cell: U('cell'), time: U('time'), mixT: U('mixT'), strength: U('strength'), dim: U('dim'), halftone: U('halftone'),
     texA: U('texA'), texB: U('texB'), infoA: U('infoA'), infoB: U('infoB'),
   };
 
@@ -227,6 +248,7 @@ export function createDither(canvas, { cell = 11, strength = 1, dim = 0, onTaint
     gl.uniform1f(u.mixT, mixing ? mixT : 0);
     gl.uniform1f(u.strength, strength);
     gl.uniform1f(u.dim, dimNow);
+    gl.uniform1f(u.halftone, style === 'halftone' ? 1 : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   raf = requestAnimationFrame(frame);
