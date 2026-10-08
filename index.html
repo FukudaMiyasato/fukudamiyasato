@@ -38,13 +38,25 @@
       <rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3.8 7l8.2 6 8.2-6"/>
     </svg>
   </a>
-  <button class="round-btn sound-btn" id="sound" type="button" aria-pressed="true" aria-label="Apagar el sonido" title="Sonido">
+  <button class="round-btn sound-btn" id="sound" type="button" aria-pressed="true" aria-haspopup="true" aria-expanded="false" aria-controls="vol-pop" aria-label="Volumen" title="Volumen">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>
       <path class="s-off" d="M16 9.5l5 5M21 9.5l-5 5"/>
       <path class="s-on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/>
     </svg>
   </button>
+  <!-- volumen: se abre al tocar el botón -->
+  <div class="vol-pop" id="vol-pop" hidden>
+    <button class="vol-mute" id="vol-mute" type="button" aria-label="Apagar el sonido" title="Apagar el sonido">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>
+        <path class="s-off" d="M16 9.5l5 5M21 9.5l-5 5"/>
+        <path class="s-on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/>
+      </svg>
+    </button>
+    <input class="vol-range" id="vol" type="range" min="0" max="100" step="1" value="80" aria-label="Volumen">
+    <output class="vol-val" id="vol-val" for="vol">80</output>
+  </div>
   <!-- los navegadores no dejan sonar antes de que toques algo: este aviso se va con el primer toque -->
   <p class="sound-hint" id="sound-hint" hidden>Toca en cualquier parte para activar el sonido</p>
 </div>
@@ -58,6 +70,17 @@
     <ul class="pcard-tags fx" id="pc-tags"></ul>
   </article>
 </main>
+
+<!-- pausa: un clic en el video pausa o reanuda -->
+<div class="pause-ind" id="pause-ind" hidden aria-hidden="true">
+  <svg class="pi-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+  <svg class="pi-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></svg>
+</div>
+
+<!-- avance de TODOS los videos del proyecto: se toca o arrastra para adelantar -->
+<div class="seek" id="seek" role="slider" tabindex="0" aria-label="Avance de los videos del proyecto" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <div class="seek-track"><i class="seek-fill" id="seek-fill"></i><span class="seek-marks" id="seek-marks"></span></div>
+</div>
 
 <!-- apagar el sonido: se confirma -->
 <dialog class="sound-dialog" id="sound-dialog" aria-labelledby="sound-dialog-title">

@@ -61,13 +61,20 @@ un brillo rojo tenue en la esquina), siempre del mismo tamaño: año y nombre
 chicos arriba, **Qué se hizo** y las etiquetas «Testimonio real» y/o «Generado
 con IA». Si el texto es largo se corta con «…» (la tarjeta no crece). Un proyecto
 sin videos (o una imagen de los proyectos viejos) dura el **tiempo sin video**
-del panel. Flechas ← → del teclado cambian de proyecto.
+del panel. **Abajo**, una barra roja con el avance de **todos los videos del
+proyecto** (cada uno ocupa su parte según su duración, con una marca entre
+uno y otro); se toca o arrastra para adelantar, también a otro video del mismo
+proyecto (con foco, ← → mueven de a 5 s). Un **clic en el video** (o la barra
+espaciadora) pausa y reanuda; en pausa se ve un ▶ al centro y adelantar no la
+quita. Flechas ← → del teclado cambian de proyecto.
 
 **Sonido:** la experiencia es con audio, así que arranca activado. Los
 navegadores no dejan sonar sin un toque previo (es una regla de Chrome, Safari y
 Firefox; ninguna web puede saltarla): si lo bloquean, el video arranca solo en
 silencio, aparece «Toca en cualquier parte para activar el sonido» y suena con
-el primer toque o tecla. Apagarlo abre un modal («Esta experiencia es con audio
+el primer toque o tecla. El botón de sonido abre el **volumen** (un deslizador; se recuerda en la
+sesión; en iPhone/iPad Safari no deja cambiarlo por código, solo apagar o
+encender). Apagarlo —con su ícono o bajándolo a 0— abre un modal («Esta experiencia es con audio
 — ¿Seguro que quieres apagarlo?» · Apagar / Continuar); la elección dura la
 sesión. Encenderlo de nuevo no pregunta.
 
