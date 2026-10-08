@@ -87,9 +87,14 @@ reproductor oficial (su API avisa cuándo termina cada video) de fondo, un poco
 agrandado para esconder el título, con una trama de puntos en CSS encima.
 
 **Subir videos — Vercel Blob:** Vercel → Storage → Create → **Blob** →
-conéctalo al proyecto (agrega `BLOB_READ_WRITE_TOKEN`) y redeploy. El archivo
-va directo del navegador a Blob (`api/upload.js` solo firma el permiso, y solo
-para el amo supremo), hasta 200 MB. Mientras no exista, se puede pegar un link.
+**Connect Project** a este proyecto, con **Production** marcado, y **redeploy**
+(las variables solo llegan a los despliegues nuevos). Eso agrega
+`BLOB_READ_WRITE_TOKEN`; si al conectarlo le pusiste otro prefijo, igual se
+encuentra (se busca la variable cuyo valor empieza con `vercel_blob_rw_`). El
+editor de proyectos muestra si este despliegue ve Blob (`GET /api/upload`,
+solo amo supremo, nunca devuelve el token). El archivo va directo del
+navegador a Blob (`api/upload.js` solo firma el permiso), hasta 200 MB.
+Mientras no exista, se puede pegar un link.
 
 **Estilo:** vectorial, en rojo (`css/site.css`): formas lisas, colores planos,
 títulos en Space Grotesk y etiquetas en JetBrains Mono. El panel (`/admin`)

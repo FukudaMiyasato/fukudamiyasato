@@ -162,8 +162,12 @@
 }
 .pcard {
   position: relative;
+  /* todas del mismo alto: arriba año y nombre, al medio la info, abajo las etiquetas */
+  display: flex;
+  flex-direction: column;
+  height: 220px;
   padding: 18px 20px 20px;
-  border-radius: 10px;
+  border-radius: 0;
   color: var(--ink);
   background: rgba(255, 255, 255, .84);
   backdrop-filter: blur(12px) saturate(1.2);
@@ -175,6 +179,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex: none;
   margin: 0 0 14px;
   font-family: var(--mono);
   font-size: 9.5px;
@@ -188,17 +193,24 @@
 .pcard-meta span:last-child { color: var(--ink); }
 /* la info, al centro */
 .pcard-info {
+  min-height: 0;
   margin: 0;
   font-family: var(--head);
-  font-size: 17px;
+  font-size: 14.5px;
   font-weight: 500;
-  line-height: 1.35;
-  letter-spacing: -.012em;
+  line-height: 1.45;
+  letter-spacing: -.008em;
   color: var(--ink);
   text-wrap: pretty;
+  /* si es muy larga, se corta en la 5.ª línea con «…» (la tarjeta no crece) */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  overflow: hidden;
 }
 .pcard-info:empty { display: none; }
-.pcard-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 0; padding: 0; list-style: none; }
+.pcard-tags { flex: none; display: flex; flex-wrap: wrap; gap: 6px; margin: auto 0 0; padding: 14px 0 0; list-style: none; }
 .pcard-tags:empty { display: none; }
 .tag {
   display: inline-flex;
@@ -263,7 +275,8 @@
     width: auto;
     transform: none;
   }
-  .pcard-info { font-size: 15.5px; }
+  .pcard { height: 200px; }
+  .pcard-info { font-size: 14px; -webkit-line-clamp: 4; line-clamp: 4; }
   .stage-shade { background: linear-gradient(0deg, rgba(0, 0, 0, .5), transparent 50%), linear-gradient(180deg, rgba(0, 0, 0, .38), transparent 22%); }
 }
 

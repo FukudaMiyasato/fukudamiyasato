@@ -263,6 +263,7 @@ function openProject(pj) {
   $('pj-bar-note').textContent = '';
   $('pj-del').hidden = !pj;
   renderVideos();
+  checkBlob();
   $('pj-layer').hidden = false;
   setTimeout(() => $('pj-name').focus(), 50);
 }
@@ -293,10 +294,26 @@ $('pj-url').addEventListener('keydown', (e) => {
   renderVideos();
 });
 
+/* ¿este despliegue tiene Vercel Blob? (GET /api/upload; no revela el token) */
+let blobStatus = null;
+async function checkBlob(force = false) {
+  const el = $('pj-blob');
+  if (!blobStatus || force) {
+    const r = await api('/api/upload');
+    blobStatus = r.ok ? r.data : { configured: false, error: r.data.error || `No se pudo consultar (${r.status}).` };
+  }
+  el.className = `pj-blob ${blobStatus.configured ? 'is-ok' : 'is-missing'}`;
+  el.textContent = blobStatus.configured
+    ? `Vercel Blob conectado (${blobStatus.env}): puedes subir videos.`
+    : blobStatus.error || 'Este despliegue no ve Vercel Blob: conéctalo al proyecto (Production) y vuelve a desplegar. Mientras, pega links.';
+  return blobStatus.configured;
+}
+
 /* subir videos: van directo del navegador a Vercel Blob, uno tras otro */
 $('pj-file').addEventListener('change', async (e) => {
   const files = [...e.target.files];
   if (!files.length) return;
+  if (!(await checkBlob(true))) { e.target.value = ''; return pjFail('Falta Vercel Blob en este despliegue (mira el aviso de arriba). Mientras, pega un link.'); }
   const bar = $('pj-bar');
   uploading = true;
   $('pj-save').disabled = true;
@@ -320,7 +337,7 @@ $('pj-file').addEventListener('change', async (e) => {
     }
     $('pj-bar-note').textContent = '';
   } catch (err) {
-    pjFail(/Blob|BLOB|503/.test(err.message) ? 'Falta Vercel Blob en Vercel (Storage → Blob). Mientras, pega un link.' : `No se pudo subir: ${err.message}`);
+    pjFail(`No se pudo subir: ${err.message}`); // el error real (Blob sí está: se revisó antes)
   } finally {
     uploading = false;
     $('pj-save').disabled = false;

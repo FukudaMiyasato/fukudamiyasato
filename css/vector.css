@@ -287,6 +287,13 @@ body.vx::before {
 .pj-add { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
 .pj-add .pj-upload { margin: 0; white-space: nowrap; }
 .pj-bar-note { min-height: 1em; font-size: 11.5px; color: var(--text-faint); }
+.pj-blob { margin: 0; font-size: 11.5px; line-height: 1.4; }
+.pj-blob:empty { display: none; }
+.pj-blob::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; vertical-align: 1px; }
+.pj-blob.is-ok { color: var(--text-faint); }
+.pj-blob.is-ok::before { background: #39d98a; }
+.pj-blob.is-missing { color: #ff8a98; }
+.pj-blob.is-missing::before { background: var(--red-hot); }
 @media (max-width: 520px) {
   #pj-form .pj-head { grid-template-columns: 1fr 90px; }
   .pj-add { grid-template-columns: 1fr; }
