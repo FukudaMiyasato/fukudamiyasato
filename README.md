@@ -4,18 +4,18 @@ Sitio personal estático — sin build. Se sirve en Vercel (las funciones de
 `api/` y la única dependencia, `@vercel/blob`, para subir videos).
 
 ```
-index.html      portada = portafolio: video de fondo con tramado + tarjeta del proyecto
+index.html      portada = portafolio: los videos de cada proyecto en secuencia + su tarjeta
 works.html      Apps (antes Works) — SIN acceso desde la portada
 ia.html         consola de transcripciones que llegan por webhook — SIN acceso desde la portada
 todo.html       lista de pendientes por día — SIN acceso desde la portada
-yo.html         título, texto y redes (íconos); se editan en el panel → YO
 mic/            grabar con el dedo en vez de hablarle al webhook externo —
                 SIN acceso desde la portada
 support/        página de soporte para App Store / Google Play (FAQ + contacto)
 marketing/      landing de las apps
 privacy/        políticas de privacidad (una por app: privacy/kofres/)
 admin/          login con Google + panel (Dashboards · Permisos; el amo supremo
-                además Portafolio · YO · Configuración)
+                además Portafolio · Configuración). Sin botón en la portada:
+                se entra escribiendo /admin
 dashboards/     una sola página para todos: /dashboards/?d=<id>
 ```
 
@@ -44,59 +44,55 @@ ES y `fetch`, así que abrir el `index.html` con doble clic no funciona.
 
 ---
 
-## Portada (portafolio) y Yo
+## Portada (portafolio)
 
-La web pública tiene solo dos botones, pegados abajo al centro: **portafolio**
-(la portada) y **yo**. Arriba a la izquierda la marca FUKU; arriba a la derecha
-el sonido (solo si el proyecto es un video) y el login, como siempre.
+La web pública es una sola página: los proyectos, uno tras otro. Arriba a la
+izquierda el logo (FUKU y, debajo, «fullstack user centricity designer» del
+mismo ancho); arriba a la derecha dos botones redondos: **correo**
+(`mailto:fukuda.miyasato@gmail.com`) y **sonido**. No hay menú inferior ni
+botón de login: el panel se abre escribiendo `/admin`.
 
-**Portada** (`index.html`, `js/home.js`): de fondo, el video o imagen del
-proyecto a pantalla completa en **semitono** (`js/dither.js`, WebGL: un
-círculo liso por celda, de su color y con radio según su luz, sobre negro;
-entre proyectos, disolución por celdas — el tramado pixel de antes sigue
-disponible con `style: 'dither'`). Encima, al centro-izquierda, la tarjeta: `01 / 06`, categoría,
-título, fecha, texto, etiquetas y «Ver proyecto». La línea entre el número y
-la categoría es la barra de tiempo. Pasa sola al siguiente; se pausa con el
-mouse encima, con la barra espaciadora o con la pestaña oculta. Flechas ← → o
-deslizar para cambiar.
+**Proyectos** (`index.html`, `js/home.js`): cada proyecto pasa **sus videos en
+secuencia** y, cuando termina el último, sigue el próximo (al final vuelve al
+primero). De fondo, el video en **semitono** (`js/dither.js`, WebGL: un círculo
+liso por celda, de su color y con radio según su luz, sobre negro; entre
+videos, disolución por celdas). Encima, al centro-izquierda, una tarjeta blanca
+semitransparente y simple: año y nombre arriba a la derecha (chicos), la info
+al centro y las etiquetas «Testimonio real» y/o «Generado con IA». Un proyecto
+sin videos (o una imagen de los proyectos viejos) dura el **tiempo sin video**
+del panel. Flechas ← → del teclado cambian de proyecto.
 
-Los proyectos se cargan en **Panel → Portafolio** (solo amo supremo): video o
-imagen, fecha (año, mes y día por separado: el año viene con el actual y, si
-se deja vacío, queda el actual; mes y día son opcionales y sin mes no hay
-día — en la tarjeta sale «2026», «mar 2026» o «14 mar 2026»), categoría, título, texto, etiquetas y link — **todo
-opcional** (sin título → «Sin título», sin categoría → «Proyecto», sin link no
-sale el botón, sin video → nube roja con el mismo semitono). Ahí mismo va
-el **tiempo por proyecto** (3–60 s) y cada proyecto puede tener el suyo; con
-↑ ↓ se cambia el orden. Se guarda en Redis (`fm:portfolio`); la portada lo
-lee de `GET /api/site?t=portfolio`. Sin proyectos se ve el de ejemplo
-(`assets/portfolio/abc.mp4`, comprimido a 960 px).
+**Sonido:** la experiencia es con audio, así que arranca activado. Los
+navegadores no dejan sonar sin un toque previo: si lo bloquean, el video
+arranca en silencio, aparece «Toca la pantalla para escuchar» y suena con el
+primer toque o tecla. Apagarlo abre un modal («Esta experiencia es con audio
+— ¿Seguro que quieres apagarlo?» · Apagar / Continuar); la elección dura la
+sesión. Encenderlo de nuevo no pregunta.
 
-**Videos de YouTube:** en el editor se puede pegar el link de un video
-(`watch?v=`, `youtu.be/`, `shorts/`, `embed/`); se guarda como
-`{ type: 'youtube', id }` y el panel muestra su miniatura. WebGL no puede
-leer un video de YouTube (es un iframe de otro dominio), así que la portada
-lo pone con su reproductor de fondo (en silencio, en bucle, sin controles y
-un poco agrandado para esconder el título) y encima una trama de puntos en
-CSS (`js/youtube.js`, capa `#stage-yt`); el botón de sonido también funciona.
-Un link de YouTube que no es de un video (un canal, una lista) da error.
+**Panel → Portafolio** (solo amo supremo): cada proyecto tiene **nombre**,
+**año** (por defecto el actual), **info** (un párrafo), **etiquetas** que se
+muestran (checkbox: video generado con IA · testimonio real) y una lista de
+**videos** (subirlos — varios a la vez — o pegar un link mp4/YouTube y Enter;
+se ordenan con ↑ ↓). En la lista, ↑ ↓ cambian el orden de los proyectos y el
+**switch** de cada fila los muestra u oculta (el oculto sigue en el panel,
+atenuado; editarlo no lo vuelve visible). Si están todos ocultos, la portada
+queda solo con el fondo; si no hay ninguno, se ve el de ejemplo
+(`assets/portfolio/abc.mp4`). Se guarda en Redis (`fm:portfolio`); los
+proyectos del formato anterior (título, categoría, fecha, una sola media) se
+convierten solos al leerlos.
 
-**Subir videos e imágenes — Vercel Blob:** Vercel → Storage → Create →
-**Blob** → conéctalo al proyecto (agrega `BLOB_READ_WRITE_TOKEN`) y redeploy.
-El archivo va directo del navegador a Blob (`api/upload.js` solo firma el
-permiso, y solo para el amo supremo), hasta 200 MB. Mientras no exista,
-el editor deja pegar un link a un video/imagen.
+**Videos de YouTube:** se guardan como `{ type: 'youtube', id }`. WebGL no
+puede leerlos (iframe de otro dominio), así que la portada los muestra con el
+reproductor oficial (su API avisa cuándo termina cada video) de fondo, un poco
+agrandado para esconder el título, con una trama de puntos en CSS encima.
 
-**Yo** (`yo.html`, `js/yo.js`): solo fondo negro, **FUKU** enorme y debajo
-una frase que cada 5 s se va letra por letra (sube, gira y se desenfoca, en
-cascada) y deja entrar la siguiente: «fullstack user centricity designer» ↔
-«indie game developer». Título y frases (una por línea) se editan en
-**Panel → YO** (`fm:me`: `{ title, phrases }`); sin nada guardado, usa los de
-`js/site-defaults.js`. Para lectores de pantalla hay un texto fijo con todas
-las frases (no se anuncia cada cambio).
+**Subir videos — Vercel Blob:** Vercel → Storage → Create → **Blob** →
+conéctalo al proyecto (agrega `BLOB_READ_WRITE_TOKEN`) y redeploy. El archivo
+va directo del navegador a Blob (`api/upload.js` solo firma el permiso, y solo
+para el amo supremo), hasta 200 MB. Mientras no exista, se puede pegar un link.
 
-**Estilo:** vectorial, en rojo (`--accent` en `css/site.css`): formas lisas,
-esquinas redondeadas, colores planos, títulos en Space Grotesk y etiquetas en
-JetBrains Mono; íconos del dock en SVG con degradado. El panel (`/admin`)
+**Estilo:** vectorial, en rojo (`css/site.css`): formas lisas, colores planos,
+títulos en Space Grotesk y etiquetas en JetBrains Mono. El panel (`/admin`)
 usa el mismo lenguaje (`css/vector.css`, `body.vx`); el lienzo de los
 dashboards no cambia.
 

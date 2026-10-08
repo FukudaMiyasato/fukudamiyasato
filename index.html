@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>FUKU — Fullstack designer</title>
-<meta name="description" content="Portafolio de Jean Carlo Fukuda Miyasato, fullstack designer.">
+<title>FUKU — Fullstack user centricity designer</title>
+<meta name="description" content="FUKU — portafolio de Jean Carlo Fukuda Miyasato, fullstack user centricity designer.">
 <meta name="theme-color" content="#050505">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/assets/app-icon.png">
@@ -20,83 +20,55 @@
 </head>
 <body class="site site--home">
 
-<!-- fondo: el video/imagen del proyecto con tramado (js/dither.js) -->
+<!-- fondo: los videos del proyecto en semitono (js/dither.js) -->
 <canvas class="stage" id="stage" aria-hidden="true"></canvas>
 <div class="stage-media" id="stage-media" hidden aria-hidden="true"></div>
-<!-- videos de YouTube: su reproductor de fondo, con el damero en CSS encima -->
-<div class="stage-yt" id="stage-yt" hidden aria-hidden="true"></div>
+<!-- videos de YouTube: su reproductor de fondo, con la trama de puntos encima -->
+<div class="stage-yt" id="stage-yt" hidden aria-hidden="true"><div id="yt-player"></div></div>
 <div class="stage-shade" aria-hidden="true"></div>
 
-<a class="brand" href="/" aria-label="FUKU — inicio">
+<a class="brand" href="/" aria-label="FUKU — fullstack user centricity designer">
   <b>FUKU</b>
-  <small>Fullstack designer</small>
+  <small>Fullstack user centricity designer</small>
 </a>
 
 <div class="top-actions">
-  <button class="sound-btn" id="sound" type="button" aria-pressed="false" aria-label="Activar sonido" title="Sonido" hidden>
+  <a class="round-btn" id="mail" href="mailto:fukuda.miyasato@gmail.com" aria-label="Escríbeme un correo" title="Correo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3.8 7l8.2 6 8.2-6"/>
+    </svg>
+  </a>
+  <button class="round-btn sound-btn" id="sound" type="button" aria-pressed="true" aria-label="Apagar el sonido" title="Sonido">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>
       <path class="s-off" d="M16 9.5l5 5M21 9.5l-5 5"/>
       <path class="s-on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/>
     </svg>
   </button>
-  <a class="login-btn" href="/admin/">login</a>
+  <!-- los navegadores no dejan sonar antes de que toques algo: este aviso se va con el primer toque -->
+  <p class="sound-hint" id="sound-hint" hidden>Toca la pantalla para escuchar</p>
 </div>
 
-<!-- el proyecto que se ve; cambia solo cada N segundos (se ajusta en el panel) -->
+<!-- el proyecto que se ve: año y nombre, la info y sus etiquetas -->
 <main class="folio" aria-live="polite">
   <article class="pcard" id="pcard" aria-roledescription="proyecto">
-    <!-- adorno vectorial: círculo rojo + arco -->
-    <svg class="pcard-deco" viewBox="0 0 34 34" aria-hidden="true">
-      <circle cx="21" cy="13" r="9" fill="#e0102b"/>
-      <path d="M4 30A14 14 0 0 1 18 16" fill="none" stroke="#141210" stroke-width="2.4" stroke-linecap="round"/>
-    </svg>
-    <p class="pcard-kicker fx">
-      <span id="pc-index">01 / 01</span>
-      <span class="pcard-line" aria-hidden="true"><i id="pc-progress"></i></span>
-      <span id="pc-cat">Proyecto</span>
-    </p>
-    <h1 class="pcard-title fx" id="pc-title">&nbsp;</h1>
-    <p class="pcard-date fx" id="pc-date"></p>
-    <p class="pcard-text fx" id="pc-text"></p>
+    <p class="pcard-meta fx"><span id="pc-year"></span><span id="pc-name"></span></p>
+    <p class="pcard-info fx" id="pc-info"></p>
     <ul class="pcard-tags fx" id="pc-tags"></ul>
-    <div class="pcard-foot fx">
-      <a class="pcard-btn" id="pc-link" href="#" target="_blank" rel="noopener noreferrer" hidden>
-        Ver proyecto
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9"/></svg>
-      </a>
-      <div class="pcard-nav" id="pc-nav" hidden>
-        <button type="button" id="pc-prev" aria-label="Proyecto anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-        <button type="button" id="pc-next" aria-label="Proyecto siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-      </div>
-    </div>
   </article>
 </main>
 
-<!-- dock: portafolio · yo (abajo al centro) -->
-<nav class="site-dock" aria-label="Secciones">
-  <a href="/" aria-label="Portafolio" title="Portafolio" aria-current="page">
-    <!-- maleta, vectorial -->
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <defs><linearGradient id="g-brief" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff3d55"/><stop offset="1" stop-color="#c00a24"/></linearGradient></defs>
-      <path d="M12 9V7.5A2.5 2.5 0 0 1 14.5 5h3A2.5 2.5 0 0 1 20 7.5V9" fill="none" stroke="#8c0518" stroke-width="2.4" stroke-linecap="round"/>
-      <rect x="3.5" y="9" width="25" height="18" rx="5" fill="url(#g-brief)"/>
-      <path d="M3.5 15.5c3.8 1.9 8 2.8 12.5 2.8s8.7-.9 12.5-2.8" fill="none" stroke="#8c0518" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>
-      <rect x="13.5" y="15.6" width="5" height="4.6" rx="1.6" fill="#fff"/>
-      <path d="M8 12.2h7" stroke="#fff" stroke-opacity=".45" stroke-width="1.6" stroke-linecap="round"/>
-    </svg>
-  </a>
-  <span class="sep" aria-hidden="true"></span>
-  <a href="/yo.html" aria-label="Yo" title="Yo">
-    <!-- personita, vectorial -->
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <defs><linearGradient id="g-yo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff3d55"/><stop offset="1" stop-color="#c00a24"/></linearGradient></defs>
-      <circle cx="16" cy="10.5" r="6" fill="url(#g-yo)"/>
-      <path d="M4.5 28c.7-6.2 5.4-10 11.5-10s10.8 3.8 11.5 10z" fill="url(#g-yo)"/>
-      <circle cx="13.6" cy="8.4" r="1.7" fill="#fff" opacity=".45"/>
-    </svg>
-  </a>
-</nav>
+<!-- apagar el sonido: se confirma -->
+<dialog class="sound-dialog" id="sound-dialog" aria-labelledby="sound-dialog-title">
+  <form method="dialog">
+    <p class="sound-dialog-title" id="sound-dialog-title">Esta experiencia es con audio</p>
+    <p>¿Seguro que quieres apagarlo?</p>
+    <div class="sound-dialog-actions">
+      <button value="off" type="submit" class="sd-off">Apagar</button>
+      <button value="keep" type="submit" class="sd-keep" autofocus>Continuar</button>
+    </div>
+  </form>
+</dialog>
 
 <script type="module" src="/js/home.js"></script>
 </body>

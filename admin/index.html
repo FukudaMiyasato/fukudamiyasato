@@ -90,10 +90,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="13" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"/><path d="M2.5 12.5h19"/></svg>
         Portafolio
       </button>
-      <button type="button" data-tab="me" data-supremo hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20c0-3.6 3.2-6 7.2-6s7.2 2.4 7.2 6"/></svg>
-        YO
-      </button>
       <button type="button" data-tab="config" id="tab-config" data-supremo hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
         Configuración
@@ -154,34 +150,17 @@
       <div class="cfg-card">
         <div class="cfg-row">
           <div>
-            <h2>Tiempo por proyecto</h2>
-            <p>Cuántos segundos se queda cada proyecto antes de pasar al siguiente. Un proyecto puede tener su propio tiempo.</p>
+            <h2>Tiempo sin video</h2>
+            <p>Un proyecto pasa sus videos en orden y, cuando termina el último, sigue el próximo. Este es el tiempo de un proyecto sin videos (o de una imagen).</p>
           </div>
           <output class="cfg-value" id="folio-dur-value" for="folio-dur">8 s</output>
         </div>
-        <input class="range" type="range" id="folio-dur" min="3" max="60" step="1" value="8" aria-label="Segundos por proyecto">
+        <input class="range" type="range" id="folio-dur" min="3" max="60" step="1" value="8" aria-label="Segundos de un proyecto sin video">
         <div class="range-marks"><span>3 s</span><span>30 s</span><span>60 s</span></div>
         <p class="form-msg" id="folio-msg" role="status"></p>
       </div>
 
       <div class="folio-list" id="folio-list"></div>
-    </section>
-
-    <section data-panel="me" hidden>
-      <header class="admin-head">
-        <h1>YO</h1>
-        <p>La página Yo: fondo negro, un título grande y frases que se alternan cada 5 segundos.</p>
-      </header>
-      <form class="cfg-card me-form" id="me-form" autocomplete="off">
-        <label>Título <input id="me-title" maxlength="40" required placeholder="FUKU"></label>
-        <label>Frases <span class="me-hint">una por línea · se alternan cada 5 s</span>
-          <textarea id="me-phrases" rows="4" placeholder="fullstack user centricity designer&#10;indie game developer"></textarea></label>
-        <div class="me-form-foot">
-          <a class="link-btn" href="/yo.html" target="_blank" rel="noopener">Ver la página</a>
-          <button class="btn" type="submit" id="me-save">Guardar</button>
-        </div>
-        <p class="form-msg" id="me-msg" role="status"></p>
-      </form>
     </section>
 
     <section data-panel="config" hidden>
@@ -296,35 +275,28 @@
 <!-- proyecto del portafolio: nuevo o editar -->
 <div class="modal-layer" id="pj-layer" hidden>
   <form class="modal app-modal" id="pj-form" autocomplete="off" novalidate>
-    <div class="pj-media">
-      <div class="pj-preview" id="pj-preview"></div>
-      <div class="pj-media-actions">
-        <label class="ghost-btn pj-upload" for="pj-file">Subir video o imagen</label>
-        <input type="file" id="pj-file" accept="video/mp4,video/webm,video/quicktime,image/jpeg,image/png,image/webp,image/gif" hidden>
-        <input class="pj-url" id="pj-url" type="url" placeholder="…o pega un link (video, imagen o YouTube)" aria-label="Link del video o imagen">
-        <div class="pj-bar" id="pj-bar" hidden><i></i></div>
-        <button class="link-btn" type="button" id="pj-media-clear">Quitar</button>
-      </div>
-    </div>
-    <input class="nd-title" id="pj-title" maxlength="80" placeholder="Sin título" aria-label="Título">
-    <div class="app-row pj-date">
+    <p class="cap-label">Proyecto</p>
+    <div class="app-row pj-head">
+      <label>Nombre del proyecto <input id="pj-name" maxlength="60" placeholder="Sale chico, arriba a la derecha"></label>
       <label>Año <input id="pj-year" type="number" min="1900" max="2100" step="1" inputmode="numeric"></label>
-      <label>Mes <select id="pj-month">
-        <option value="">—</option>
-        <option value="01">enero</option><option value="02">febrero</option><option value="03">marzo</option>
-        <option value="04">abril</option><option value="05">mayo</option><option value="06">junio</option>
-        <option value="07">julio</option><option value="08">agosto</option><option value="09">septiembre</option>
-        <option value="10">octubre</option><option value="11">noviembre</option><option value="12">diciembre</option>
-      </select></label>
-      <label>Día <input id="pj-day" type="number" min="1" max="31" step="1" inputmode="numeric" placeholder="—"></label>
     </div>
-    <div class="app-row pj-meta">
-      <label>Categoría <input id="pj-cat" maxlength="40" placeholder="Proyecto"></label>
-      <label>Tiempo (s) <input id="pj-dur" type="number" min="3" max="60" step="1" placeholder="general"></label>
+    <label class="pj-field">Info <textarea id="pj-info" maxlength="700" rows="4" placeholder="Un párrafo: el texto central de la tarjeta"></textarea></label>
+    <fieldset class="pj-tags">
+      <legend>Etiquetas que se muestran</legend>
+      <label class="pj-check"><input type="checkbox" value="ai"> Video generado con IA</label>
+      <label class="pj-check"><input type="checkbox" value="real"> Testimonio real</label>
+    </fieldset>
+    <div class="pj-videos-head">
+      <p>Videos <small>se pasan en este orden; al terminar el último, sigue el próximo proyecto</small></p>
     </div>
-    <label class="pj-field">Texto <textarea id="pj-text" maxlength="600" rows="3" placeholder="Opcional"></textarea></label>
-    <label class="pj-field">Etiquetas <input id="pj-tags" maxlength="160" placeholder="Diseño, Prototipado, Creative tech"></label>
-    <label class="pj-field">Link «Ver proyecto» <input id="pj-link" type="url" maxlength="500" placeholder="https://… (sin link no sale el botón)"></label>
+    <ol class="pj-videos" id="pj-videos"></ol>
+    <div class="pj-add">
+      <label class="ghost-btn pj-upload" for="pj-file">+ Subir videos</label>
+      <input type="file" id="pj-file" accept="video/mp4,video/webm,video/quicktime" multiple hidden>
+      <input class="pj-url" id="pj-url" type="url" placeholder="…o pega un link (mp4 o YouTube) y Enter" aria-label="Link de un video">
+    </div>
+    <div class="pj-bar" id="pj-bar" hidden><i></i></div>
+    <small class="pj-bar-note" id="pj-bar-note"></small>
     <p class="m-err" id="pj-err" role="alert"></p>
     <div class="m-actions">
       <button class="link-btn app-del" type="button" id="pj-del" hidden>Borrar proyecto</button>
