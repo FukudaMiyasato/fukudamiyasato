@@ -11,8 +11,9 @@
      · YouTube: WebGL no puede leerlo (iframe de otro dominio); se ve
        con su reproductor de fondo (API oficial, para saber cuándo
        termina) y una trama de puntos encima
-     · tarjeta: año y nombre arriba a la derecha, la info y las
-       etiquetas (testimonio real · generado con IA)
+     · tarjeta: dos cuadrados — «qué es» (con año y nombre arriba a la
+       derecha) y «qué hice» (con las etiquetas: testimonio real ·
+       generado con IA)
    Sonido: la experiencia es con audio, así que arranca activado. Los
    navegadores no dejan sonar antes del primer toque: si lo bloquean,
    el video arranca en silencio y suena con el primer toque/tecla.
@@ -222,7 +223,12 @@ function nextItem() {
 function fill(p) {
   $('pc-year').textContent = p.year || '';
   $('pc-name').textContent = p.name || '';
-  $('pc-info').textContent = p.info || '';
+  $('pc-what').textContent = p.what ?? p.info ?? '';
+  $('pc-did').textContent = p.did || '';
+  // un cuadrado vacío no se muestra (las etiquetas pasan al que queda)
+  const noWhat = !$('pc-what').textContent, noDid = !$('pc-did').textContent;
+  $('pb-did').hidden = noDid && !noWhat;
+  if ($('pb-did').hidden) $('pb-what').append($('pc-tags')); else $('pb-did').append($('pc-tags'));
   $('pc-tags').replaceChildren(...TAGS.filter((t) => p.tags?.includes(t.key)).map((t) => {
     const li = document.createElement('li');
     li.className = `tag tag--${t.key}`;

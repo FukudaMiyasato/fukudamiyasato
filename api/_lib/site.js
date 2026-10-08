@@ -2,7 +2,8 @@
    api/_lib/site.js — contenido público del sitio que edita el amo supremo
    ------------------------------------------------------------
    Vive en Redis (api/_lib/store.js):
-     fm:portfolio { duration, projects: [{ id, name, year, info, tags, videos, visible }] }
+     fm:portfolio { duration, projects: [{ id, name, year, what, did, tags, videos, visible }] }
+              what: «qué es» · did: «qué hice» (los dos cuadrados de la tarjeta)
               la portada (portafolio). Cada proyecto pasa sus videos en
               secuencia y, al terminar el último, sigue el próximo.
               tags: 'ai' (video generado con IA) · 'real' (testimonio real)
@@ -45,13 +46,18 @@ function cleanVideo(v) {
 
 /** Proyectos guardados con el formato anterior (título, categoría, media…) → el actual. */
 function upgrade(x) {
-  if (Array.isArray(x.videos)) return { ...x, visible: x.visible !== false };
+  if (Array.isArray(x.videos)) {
+    // la "info" de antes pasa a ser «qué es»
+    const { info, ...rest } = x;
+    return { ...rest, what: x.what ?? info ?? '', did: x.did ?? '', visible: x.visible !== false };
+  }
   const media = x.media?.url ? [x.media] : [];
   return {
     id: x.id,
     name: x.title || '',
     year: String(x.date || '').slice(0, 4),
-    info: x.text || '',
+    what: x.text || '',
+    did: '',
     tags: [],
     videos: media.map((m) => (m.type === 'youtube' ? { type: 'youtube', url: m.url, id: m.id } : { type: m.type === 'image' ? 'image' : 'video', url: m.url })),
     visible: x.visible !== false,
@@ -79,7 +85,8 @@ export function cleanProject(b) {
     const out = {
       name: str(b?.name, 60),
       year: /^\d{4}$/.test(year) ? year : String(new Date().getFullYear()),
-      info: str(b?.info, 700),
+      what: str(b?.what, 400),
+      did: str(b?.did, 400),
       tags: [...new Set((Array.isArray(b?.tags) ? b.tags : []).filter((t) => TAGS.includes(t)))],
       videos: (Array.isArray(b?.videos) ? b.videos : []).map(cleanVideo).filter(Boolean).slice(0, MAX_VIDEOS),
       // si no viene, se respeta lo que ya tenía (editar no lo vuelve visible)

@@ -49,12 +49,21 @@
   <p class="sound-hint" id="sound-hint" hidden>Toca la pantalla para escuchar</p>
 </div>
 
-<!-- el proyecto que se ve: año y nombre, la info y sus etiquetas -->
+<!-- el proyecto que se ve: dos cuadrados, «qué es» y «qué hice» -->
 <main class="folio" aria-live="polite">
   <article class="pcard" id="pcard" aria-roledescription="proyecto">
-    <p class="pcard-meta fx"><span id="pc-year"></span><span id="pc-name"></span></p>
-    <p class="pcard-info fx" id="pc-info"></p>
-    <ul class="pcard-tags fx" id="pc-tags"></ul>
+    <section class="pbox fx" id="pb-what">
+      <header class="pbox-head">
+        <h2 class="pbox-label">Qué es</h2>
+        <p class="pcard-meta"><span id="pc-year"></span><span id="pc-name"></span></p>
+      </header>
+      <p class="pbox-text" id="pc-what"></p>
+    </section>
+    <section class="pbox fx" id="pb-did">
+      <header class="pbox-head"><h2 class="pbox-label">Qué hice</h2></header>
+      <p class="pbox-text" id="pc-did"></p>
+      <ul class="pcard-tags" id="pc-tags"></ul>
+    </section>
   </article>
 </main>
 

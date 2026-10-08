@@ -7,7 +7,7 @@
      GET    ?t=portfolio&all=1 → { duration, projects }  todos (solo amo supremo)
    Solo amo supremo:
      PUT    ?t=portfolio { duration?, order? }                          → { duration, projects }
-     POST   ?t=project  { name?, year?, info?, tags?: ['ai'|'real'], videos?: [{ url }] } → { project }
+     POST   ?t=project  { name?, year?, what?, did?, tags?: ['ai'|'real'], videos?: [{ url }] } → { project }
      PUT    ?t=project&id=<id> { …igual }                               → { project }
      PATCH  ?t=project&id=<id> { visible }                              → { project }
      DELETE ?t=project&id=<id>                                          → { ok }

@@ -2,13 +2,13 @@
   "name": "fukudamiyasato",
   "version": "1.0.0",
   "private": true,
-  "description": "Sitio personal de fukudamiyasato — portafolio, Yo, IA y dashboards.",
+  "description": "Sitio personal de fukudamiyasato — portafolio, IA y dashboards.",
   "type": "module",
   "scripts": {
     "dev": "python3 -m http.server 5190",
     "works:pull": "node scripts/fetch-works.mjs"
   },
   "dependencies": {
-    "@vercel/blob": "^2.8.0"
+    "@vercel/blob": "^2.8.1"
   }
 }

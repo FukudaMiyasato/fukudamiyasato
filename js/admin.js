@@ -100,7 +100,8 @@ const escA = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
    Portafolio (amo supremo): proyectos de la portada
    ------------------------------------------------------------
    Cada proyecto: nombre y año (chicos, arriba a la derecha de la
-   tarjeta), info (el párrafo), etiquetas (checkbox) y una lista de
+   tarjeta), «qué es» y «qué hice» (los dos cuadrados), etiquetas
+   (checkbox) y una lista de
    videos que la portada pasa en orden; al terminar el último sigue
    el próximo proyecto. Switch de visibilidad y ↑ ↓ para el orden.
    ============================================================ */
@@ -138,7 +139,7 @@ function renderFolio() {
   const add = document.createElement('button');
   add.type = 'button';
   add.className = 'folio-row folio-row--new';
-  add.innerHTML = '<span class="folio-thumb folio-thumb--add">+</span><span class="folio-info"><b>Nuevo proyecto</b><small>Nombre, año, info, etiquetas y videos</small></span>';
+  add.innerHTML = '<span class="folio-thumb folio-thumb--add">+</span><span class="folio-info"><b>Nuevo proyecto</b><small>Nombre, año, qué es, qué hice, etiquetas y videos</small></span>';
   add.addEventListener('click', () => openProject(null));
   list.append(add);
   if (!folio.projects.length) {
@@ -254,7 +255,8 @@ function openProject(pj) {
   $('pj-form').className = 'modal app-modal';
   $('pj-name').value = pj?.name || '';
   $('pj-year').value = pj?.year || new Date().getFullYear(); // por defecto, el año actual
-  $('pj-info').value = pj?.info || '';
+  $('pj-what').value = pj?.what ?? pj?.info ?? '';
+  $('pj-did').value = pj?.did || '';
   document.querySelectorAll('#pj-form .pj-tags input').forEach((c) => { c.checked = Boolean(pj?.tags?.includes(c.value)); });
   $('pj-url').value = '';
   $('pj-err').textContent = '';
@@ -305,7 +307,7 @@ async function checkBlob(force = false) {
   el.className = `pj-blob ${blobStatus.configured ? 'is-ok' : 'is-missing'}`;
   el.textContent = blobStatus.configured
     ? `Vercel Blob conectado (${blobStatus.env}): puedes subir videos.`
-    : blobStatus.error || 'Este despliegue no ve Vercel Blob: conéctalo al proyecto (Production) y vuelve a desplegar. Mientras, pega links.';
+    : blobStatus.error || `Este despliegue (${blobStatus.deploy}) no ve Vercel Blob. Variables de Blob que ve: ${blobStatus.seen?.length ? blobStatus.seen.join(', ') : 'ninguna'}. Conecta el store a este proyecto con ${blobStatus.deploy === 'preview' ? 'Preview' : 'Production'} marcado y vuelve a desplegar. Mientras, pega links.`;
   return blobStatus.configured;
 }
 
@@ -320,12 +322,14 @@ $('pj-file').addEventListener('change', async (e) => {
   bar.hidden = false;
   $('pj-err').textContent = '';
   try {
-    const { upload } = await import('https://esm.sh/@vercel/blob@2.8.0/client');
+    // OIDC (stores nuevos, sin token fijo) → uploadPresigned; token fijo → upload
+    const lib = await import('https://esm.sh/@vercel/blob@2.8.1/client');
+    const send = blobStatus.mode === 'oidc' ? lib.uploadPresigned : lib.upload;
     for (const [k, file] of files.entries()) {
       $('pj-bar-note').textContent = `Subiendo ${k + 1} de ${files.length}: ${file.name}`;
       bar.firstElementChild.style.width = '0%';
       const name = file.name.normalize('NFD').replace(/[^\w.-]+/g, '-').toLowerCase();
-      const blob = await upload(`portafolio/${name}`, file, {
+      const blob = await send(`portafolio/${name}`, file, {
         access: 'public',
         handleUploadUrl: '/api/upload',
         contentType: file.type,
@@ -352,7 +356,8 @@ $('pj-form').addEventListener('submit', async (e) => {
   const body = {
     name: $('pj-name').value.trim(),
     year: $('pj-year').value.trim(),
-    info: $('pj-info').value.trim(),
+    what: $('pj-what').value.trim(),
+    did: $('pj-did').value.trim(),
     tags: [...document.querySelectorAll('#pj-form .pj-tags input:checked')].map((c) => c.value),
     videos: pjVideos.map(({ type, url, id: vid }) => ({ type, url, id: vid })),
   };

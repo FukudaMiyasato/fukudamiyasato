@@ -56,9 +56,11 @@ botón de login: el panel se abre escribiendo `/admin`.
 secuencia** y, cuando termina el último, sigue el próximo (al final vuelve al
 primero). De fondo, el video en **semitono** (`js/dither.js`, WebGL: un círculo
 liso por celda, de su color y con radio según su luz, sobre negro; entre
-videos, disolución por celdas). Encima, al centro-izquierda, una tarjeta blanca
-semitransparente y simple: año y nombre arriba a la derecha (chicos), la info
-al centro y las etiquetas «Testimonio real» y/o «Generado con IA». Un proyecto
+videos, disolución por celdas). Encima, al centro-izquierda, la tarjeta: **dos
+cuadrados** blancos semitransparentes del mismo tamaño — **Qué es** (con año y
+nombre, chicos, bajo la etiqueta) y **Qué hice** (con las etiquetas «Testimonio
+real» y/o «Generado con IA»). Si un texto es largo se corta con «…» (el cuadrado
+no crece); si uno está vacío, se ve solo el otro. Un proyecto
 sin videos (o una imagen de los proyectos viejos) dura el **tiempo sin video**
 del panel. Flechas ← → del teclado cambian de proyecto.
 
@@ -70,7 +72,8 @@ primer toque o tecla. Apagarlo abre un modal («Esta experiencia es con audio
 sesión. Encenderlo de nuevo no pregunta.
 
 **Panel → Portafolio** (solo amo supremo): cada proyecto tiene **nombre**,
-**año** (por defecto el actual), **info** (un párrafo), **etiquetas** que se
+**año** (por defecto el actual), **qué es** y **qué hice** (los dos cuadrados;
+unas 30–40 palabras cada uno), **etiquetas** que se
 muestran (checkbox: video generado con IA · testimonio real) y una lista de
 **videos** (subirlos — varios a la vez — o pegar un link mp4/YouTube y Enter;
 se ordenan con ↑ ↓). En la lista, ↑ ↓ cambian el orden de los proyectos y el
@@ -78,23 +81,29 @@ se ordenan con ↑ ↓). En la lista, ↑ ↓ cambian el orden de los proyectos 
 atenuado; editarlo no lo vuelve visible). Si están todos ocultos, la portada
 queda solo con el fondo; si no hay ninguno, se ve el de ejemplo
 (`assets/portfolio/abc.mp4`). Se guarda en Redis (`fm:portfolio`); los
-proyectos del formato anterior (título, categoría, fecha, una sola media) se
-convierten solos al leerlos.
+proyectos de formatos anteriores se convierten solos al leerlos (la «info» de
+antes pasa a «qué es»).
 
 **Videos de YouTube:** se guardan como `{ type: 'youtube', id }`. WebGL no
 puede leerlos (iframe de otro dominio), así que la portada los muestra con el
 reproductor oficial (su API avisa cuándo termina cada video) de fondo, un poco
 agrandado para esconder el título, con una trama de puntos en CSS encima.
 
-**Subir videos — Vercel Blob:** Vercel → Storage → Create → **Blob** →
-**Connect Project** a este proyecto, con **Production** marcado, y **redeploy**
-(las variables solo llegan a los despliegues nuevos). Eso agrega
-`BLOB_READ_WRITE_TOKEN`; si al conectarlo le pusiste otro prefijo, igual se
-encuentra (se busca la variable cuyo valor empieza con `vercel_blob_rw_`). El
-editor de proyectos muestra si este despliegue ve Blob (`GET /api/upload`,
-solo amo supremo, nunca devuelve el token). El archivo va directo del
-navegador a Blob (`api/upload.js` solo firma el permiso), hasta 200 MB.
-Mientras no exista, se puede pegar un link.
+**Subir videos — Vercel Blob:** Vercel → Storage → Create → **Blob**
+(**Public**) → **Connect Project** a este proyecto con **Production** marcado →
+**redeploy** (las variables solo llegan a los despliegues nuevos). El archivo va
+directo del navegador a Blob, hasta 200 MB; `api/upload.js` solo firma el
+permiso, y solo para el amo supremo. Hay dos formas de autenticarse, según
+cómo conectó Vercel el store, y se elige sola:
+- **OIDC** (stores nuevos): variables `BLOB_STORE_ID` y
+  `BLOB_WEBHOOK_PUBLIC_KEY`, sin token fijo; Vercel da una credencial que se
+  renueva sola. Se firma con `handleUploadPresigned` + `issueSignedToken` y el
+  navegador sube con `uploadPresigned` (`@vercel/blob` ≥ 2.8.1).
+- **Token fijo**: `BLOB_READ_WRITE_TOKEN` (o con prefijo propio); se firma con
+  `handleUpload` y el navegador sube con `upload`.
+El editor de proyectos muestra si este despliegue ve Blob y en qué modo
+(`GET /api/upload`, solo amo supremo; nunca devuelve valores). Mientras no
+esté, se puede pegar un link.
 
 **Estilo:** vectorial, en rojo (`css/site.css`): formas lisas, colores planos,
 títulos en Space Grotesk y etiquetas en JetBrains Mono. El panel (`/admin`)
