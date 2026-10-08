@@ -47,8 +47,7 @@ ES y `fetch`, así que abrir el `index.html` con doble clic no funciona.
 ## Portada (portafolio)
 
 La web pública es una sola página: los proyectos, uno tras otro. Arriba a la
-izquierda el logo (FUKU y, debajo, «fullstack user centricity designer» del
-mismo ancho); arriba a la derecha dos botones redondos: **correo**
+izquierda el logo (FUKU y, debajo, «Fullstack user centricity designer»); arriba a la derecha dos botones redondos: **correo**
 (`mailto:fukuda.miyasato@gmail.com`) y **sonido**. No hay menú inferior ni
 botón de login: el panel se abre escribiendo `/admin`.
 
@@ -56,24 +55,25 @@ botón de login: el panel se abre escribiendo `/admin`.
 secuencia** y, cuando termina el último, sigue el próximo (al final vuelve al
 primero). De fondo, el video en **semitono** (`js/dither.js`, WebGL: un círculo
 liso por celda, de su color y con radio según su luz, sobre negro; entre
-videos, disolución por celdas). Encima, al centro-izquierda, la tarjeta: **dos
-cuadrados** blancos semitransparentes del mismo tamaño — **Qué es** (con año y
-nombre, chicos, bajo la etiqueta) y **Qué hice** (con las etiquetas «Testimonio
-real» y/o «Generado con IA»). Si un texto es largo se corta con «…» (el cuadrado
-no crece); si uno está vacío, se ve solo el otro. Un proyecto
+videos, disolución por celdas). Encima, al centro-izquierda, la tarjeta: un
+**cuadrado de vidrio oscuro** (negro translúcido con desenfoque, letra blanca y
+un brillo rojo tenue en la esquina), siempre del mismo tamaño: año y nombre
+chicos arriba, **Qué se hizo** y las etiquetas «Testimonio real» y/o «Generado
+con IA». Si el texto es largo se corta con «…» (la tarjeta no crece). Un proyecto
 sin videos (o una imagen de los proyectos viejos) dura el **tiempo sin video**
 del panel. Flechas ← → del teclado cambian de proyecto.
 
 **Sonido:** la experiencia es con audio, así que arranca activado. Los
-navegadores no dejan sonar sin un toque previo: si lo bloquean, el video
-arranca en silencio, aparece «Toca la pantalla para escuchar» y suena con el
-primer toque o tecla. Apagarlo abre un modal («Esta experiencia es con audio
+navegadores no dejan sonar sin un toque previo (es una regla de Chrome, Safari y
+Firefox; ninguna web puede saltarla): si lo bloquean, el video arranca solo en
+silencio, aparece «Toca en cualquier parte para activar el sonido» y suena con
+el primer toque o tecla. Apagarlo abre un modal («Esta experiencia es con audio
 — ¿Seguro que quieres apagarlo?» · Apagar / Continuar); la elección dura la
 sesión. Encenderlo de nuevo no pregunta.
 
 **Panel → Portafolio** (solo amo supremo): cada proyecto tiene **nombre**,
-**año** (por defecto el actual), **qué es** y **qué hice** (los dos cuadrados;
-unas 30–40 palabras cada uno), **etiquetas** que se
+**año** (por defecto el actual), **qué se hizo** (el texto de la tarjeta, unas
+35 palabras), **etiquetas** que se
 muestran (checkbox: video generado con IA · testimonio real) y una lista de
 **videos** (subirlos — varios a la vez — o pegar un link mp4/YouTube y Enter;
 se ordenan con ↑ ↓). En la lista, ↑ ↓ cambian el orden de los proyectos y el
@@ -81,8 +81,8 @@ se ordenan con ↑ ↓). En la lista, ↑ ↓ cambian el orden de los proyectos 
 atenuado; editarlo no lo vuelve visible). Si están todos ocultos, la portada
 queda solo con el fondo; si no hay ninguno, se ve el de ejemplo
 (`assets/portfolio/abc.mp4`). Se guarda en Redis (`fm:portfolio`); los
-proyectos de formatos anteriores se convierten solos al leerlos (la «info» de
-antes pasa a «qué es»).
+proyectos de formatos anteriores se leen igual (si no tienen «qué se hizo», se
+usa su «qué es» o «info» de antes).
 
 **Videos de YouTube:** se guardan como `{ type: 'youtube', id }`. WebGL no
 puede leerlos (iframe de otro dominio), así que la portada los muestra con el

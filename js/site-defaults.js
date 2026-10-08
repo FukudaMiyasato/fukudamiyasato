@@ -21,7 +21,6 @@ export const DEMO_PROJECTS = [
     id: 'demo-abc',
     name: 'ABC',
     year: '2026',
-    what: 'Una campaña de voluntariado contada por sus propios voluntarios.',
     did: 'Diseño y tecnología para crear experiencias que conectan a las personas.',
     tags: [],
     videos: [{ type: 'video', url: '/assets/portfolio/abc.mp4' }],

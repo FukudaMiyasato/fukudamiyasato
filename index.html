@@ -46,24 +46,16 @@
     </svg>
   </button>
   <!-- los navegadores no dejan sonar antes de que toques algo: este aviso se va con el primer toque -->
-  <p class="sound-hint" id="sound-hint" hidden>Toca la pantalla para escuchar</p>
+  <p class="sound-hint" id="sound-hint" hidden>Toca en cualquier parte para activar el sonido</p>
 </div>
 
-<!-- el proyecto que se ve: dos cuadrados, «qué es» y «qué hice» -->
+<!-- el proyecto que se ve: año y nombre, «qué se hizo» y sus etiquetas -->
 <main class="folio" aria-live="polite">
   <article class="pcard" id="pcard" aria-roledescription="proyecto">
-    <section class="pbox fx" id="pb-what">
-      <header class="pbox-head">
-        <h2 class="pbox-label">Qué es</h2>
-        <p class="pcard-meta"><span id="pc-year"></span><span id="pc-name"></span></p>
-      </header>
-      <p class="pbox-text" id="pc-what"></p>
-    </section>
-    <section class="pbox fx" id="pb-did">
-      <header class="pbox-head"><h2 class="pbox-label">Qué hice</h2></header>
-      <p class="pbox-text" id="pc-did"></p>
-      <ul class="pcard-tags" id="pc-tags"></ul>
-    </section>
+    <p class="pcard-meta fx"><span id="pc-year"></span><span id="pc-name"></span></p>
+    <h2 class="pcard-label fx">Qué se hizo</h2>
+    <p class="pcard-text fx" id="pc-did"></p>
+    <ul class="pcard-tags fx" id="pc-tags"></ul>
   </article>
 </main>
 

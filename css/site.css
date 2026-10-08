@@ -70,7 +70,7 @@
 }
 
 /* ---------- logo (arriba a la izquierda) ----------
-   FUKU y, debajo, "fullstack user centricity designer" del mismo ancho. */
+   FUKU y, debajo, "Fullstack user centricity designer" escrito normal. */
 .brand {
   position: fixed;
   top: calc(18px + env(safe-area-inset-top, 0px));
@@ -84,18 +84,13 @@
 }
 .brand b { font-family: var(--display); font-size: 1em; font-weight: 400; letter-spacing: -.005em; }
 .brand small {
-  /* un poco más chica que el ancho de FUKU y se reparte justo a ese ancho */
-  width: 0;
-  min-width: 100%;
-  margin-top: .1em;
+  margin-top: .14em;
   font-family: var(--head);
-  font-size: .142em;
-  font-weight: 700;
-  letter-spacing: .05em;
-  text-transform: uppercase;
+  font-size: .25em;
+  font-weight: 600;
+  letter-spacing: .02em;
   white-space: nowrap;
-  text-align: justify;
-  text-align-last: justify;
+  color: rgba(255, 255, 255, .88);
 }
 
 /* ---------- arriba a la derecha: correo + sonido ---------- */
@@ -159,97 +154,98 @@
   z-index: 5;
   transform: translateY(-50%);
 }
-/* la tarjeta son dos cuadrados iguales, uno al lado del otro */
+/* la tarjeta: un cuadrado de vidrio oscuro, con letra blanca, que deja ver el video */
 .pcard {
-  --box: 196px;
-  display: flex;
-  gap: 8px;
-  color: var(--ink);
-}
-.pbox {
+  --box: 230px;
   position: relative;
   display: flex;
   flex-direction: column;
   width: var(--box);
-  height: var(--box);              /* cuadrado: siempre del mismo tamaño */
-  padding: 14px 15px 15px;
-  background: rgba(255, 255, 255, .84);
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  box-shadow: 0 24px 50px -28px rgba(0, 0, 0, .75);
+  height: var(--box);               /* cuadrado: siempre del mismo tamaño */
+  padding: 16px 17px 17px;
+  color: #fff;
+  background: linear-gradient(160deg, rgba(20, 20, 24, .5), rgba(6, 6, 8, .62));
+  border: 1px solid rgba(255, 255, 255, .14);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow: 0 24px 50px -24px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .08);
 }
-.pbox[hidden] { display: none; }
-.pbox-head { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-bottom: 10px; }
-.pbox-label {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--accent);
-  white-space: nowrap;
+/* un brillo rojo tenue en la esquina: la une con el semitono rojo del fondo */
+.pcard::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background: radial-gradient(120% 70% at 0% 0%, rgba(224, 16, 43, .22), transparent 60%);
 }
-/* año y nombre: bajo la etiqueta del primer cuadrado, bien chicos */
+.pcard > * { position: relative; }
+/* año y nombre: arriba, bien chicos */
 .pcard-meta {
   display: flex;
   gap: 6px;
   max-width: 100%;
-  margin: 0;
+  margin: 0 0 12px;
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: 9px;
   font-weight: 500;
-  letter-spacing: .08em;
+  letter-spacing: .1em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: rgba(255, 255, 255, .55);
   white-space: nowrap;
   overflow: hidden;
 }
 .pcard-meta span:empty { display: none; }
 .pcard-meta span + span::before { content: "·"; margin-right: 6px; }
-.pcard-meta span:last-child { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
-.pbox-text {
+.pcard-meta span:last-child { color: rgba(255, 255, 255, .9); overflow: hidden; text-overflow: ellipsis; }
+.pcard-label {
+  margin: 0 0 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent-hot);
+}
+.pcard-text {
   min-height: 0;
   margin: 0;
   font-family: var(--head);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   line-height: 1.42;
   letter-spacing: -.005em;
-  color: var(--ink);
+  color: #fff;
   text-wrap: pretty;
-  /* si es muy largo, se corta con «…» (el cuadrado no crece) */
+  /* si es muy largo, se corta con «…» (la tarjeta no crece) */
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 7;
-  line-clamp: 7;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
   overflow: hidden;
 }
-.pbox-text:empty { display: none; }
-.pbox:has(.pcard-tags:not(:empty)) .pbox-text { -webkit-line-clamp: 5; line-clamp: 5; }
-.pcard-tags { flex: none; display: flex; flex-wrap: wrap; gap: 5px; margin: auto 0 0; padding: 10px 0 0; list-style: none; }
+.pcard-text:empty { display: none; }
+.pcard:has(.pcard-tags:not(:empty)) .pcard-text { -webkit-line-clamp: 5; line-clamp: 5; }
+.pcard-tags { flex: none; display: flex; flex-wrap: wrap; gap: 6px; margin: auto 0 0; padding: 12px 0 0; list-style: none; }
 .pcard-tags:empty { display: none; }
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px 3px 7px;
+  padding: 4px 10px;
   border-radius: 99px;
   font-family: var(--head);
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
 }
-.tag::before { content: ""; width: 5px; height: 5px; border-radius: 50%; }
-.tag--real { background: var(--ink); color: #fff; }
-.tag--real::before { background: #39d98a; }
-.tag--ai { border: 1.5px solid rgba(20, 18, 16, .25); color: var(--ink); }
-.tag--ai::before { background: var(--accent); }
+.tag--real { background: #fff; color: var(--ink); }
+.tag--ai { border: 1px solid rgba(255, 255, 255, .45); color: #fff; }
 
 /* cambio de proyecto: sale hacia arriba, entra desde abajo, en cascada */
 .pcard .fx { transition: opacity .28s ease, transform .45s var(--ease); }
 .pcard.is-out .fx { opacity: 0; transform: translateY(-6px); }
 .pcard.is-in .fx { opacity: 0; transform: translateY(8px); transition: none; }
-.pcard .fx:nth-child(2) { transition-delay: .06s; }
+.pcard .fx:nth-child(3) { transition-delay: .03s; }
+.pcard .fx:nth-child(4) { transition-delay: .06s; }
+.pcard .fx:nth-child(5) { transition-delay: .09s; }
 
 /* ---------- modal: ¿apagar el sonido? ---------- */
 .sound-dialog {
@@ -290,11 +286,7 @@
     bottom: calc(24px + env(safe-area-inset-bottom, 0px));
     transform: none;
   }
-  .pcard { --box: calc((100vw - 32px - 8px) / 2); }
-  .pbox { padding: 12px 12px 13px; }
-  .pbox-text { font-size: 12px; -webkit-line-clamp: 6; line-clamp: 6; }
-  .pbox:has(.pcard-tags:not(:empty)) .pbox-text { -webkit-line-clamp: 3; line-clamp: 3; }
-  .pbox-head { margin-bottom: 8px; }
+  .pcard { --box: min(230px, calc(100vw - 32px)); }
   .stage-shade { background: linear-gradient(0deg, rgba(0, 0, 0, .5), transparent 50%), linear-gradient(180deg, rgba(0, 0, 0, .38), transparent 22%); }
 }
 

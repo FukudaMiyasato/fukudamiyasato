@@ -2,8 +2,9 @@
    api/_lib/site.js — contenido público del sitio que edita el amo supremo
    ------------------------------------------------------------
    Vive en Redis (api/_lib/store.js):
-     fm:portfolio { duration, projects: [{ id, name, year, what, did, tags, videos, visible }] }
-              what: «qué es» · did: «qué hice» (los dos cuadrados de la tarjeta)
+     fm:portfolio { duration, projects: [{ id, name, year, did, tags, videos, visible }] }
+              did: «qué se hizo», el texto de la tarjeta (los viejos pueden traer
+              what/info: la portada y el panel los usan si did está vacío)
               la portada (portafolio). Cada proyecto pasa sus videos en
               secuencia y, al terminar el último, sigue el próximo.
               tags: 'ai' (video generado con IA) · 'real' (testimonio real)
@@ -85,7 +86,6 @@ export function cleanProject(b) {
     const out = {
       name: str(b?.name, 60),
       year: /^\d{4}$/.test(year) ? year : String(new Date().getFullYear()),
-      what: str(b?.what, 400),
       did: str(b?.did, 400),
       tags: [...new Set((Array.isArray(b?.tags) ? b.tags : []).filter((t) => TAGS.includes(t)))],
       videos: (Array.isArray(b?.videos) ? b.videos : []).map(cleanVideo).filter(Boolean).slice(0, MAX_VIDEOS),

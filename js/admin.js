@@ -100,8 +100,7 @@ const escA = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
    Portafolio (amo supremo): proyectos de la portada
    ------------------------------------------------------------
    Cada proyecto: nombre y año (chicos, arriba a la derecha de la
-   tarjeta), «qué es» y «qué hice» (los dos cuadrados), etiquetas
-   (checkbox) y una lista de
+   tarjeta), «qué se hizo» (el texto), etiquetas (checkbox) y una lista de
    videos que la portada pasa en orden; al terminar el último sigue
    el próximo proyecto. Switch de visibilidad y ↑ ↓ para el orden.
    ============================================================ */
@@ -139,7 +138,7 @@ function renderFolio() {
   const add = document.createElement('button');
   add.type = 'button';
   add.className = 'folio-row folio-row--new';
-  add.innerHTML = '<span class="folio-thumb folio-thumb--add">+</span><span class="folio-info"><b>Nuevo proyecto</b><small>Nombre, año, qué es, qué hice, etiquetas y videos</small></span>';
+  add.innerHTML = '<span class="folio-thumb folio-thumb--add">+</span><span class="folio-info"><b>Nuevo proyecto</b><small>Nombre, año, qué se hizo, etiquetas y videos</small></span>';
   add.addEventListener('click', () => openProject(null));
   list.append(add);
   if (!folio.projects.length) {
@@ -255,8 +254,7 @@ function openProject(pj) {
   $('pj-form').className = 'modal app-modal';
   $('pj-name').value = pj?.name || '';
   $('pj-year').value = pj?.year || new Date().getFullYear(); // por defecto, el año actual
-  $('pj-what').value = pj?.what ?? pj?.info ?? '';
-  $('pj-did').value = pj?.did || '';
+  $('pj-did').value = pj?.did || pj?.what || pj?.info || ''; // los viejos traían "qué es" o "info"
   document.querySelectorAll('#pj-form .pj-tags input').forEach((c) => { c.checked = Boolean(pj?.tags?.includes(c.value)); });
   $('pj-url').value = '';
   $('pj-err').textContent = '';
@@ -356,7 +354,6 @@ $('pj-form').addEventListener('submit', async (e) => {
   const body = {
     name: $('pj-name').value.trim(),
     year: $('pj-year').value.trim(),
-    what: $('pj-what').value.trim(),
     did: $('pj-did').value.trim(),
     tags: [...document.querySelectorAll('#pj-form .pj-tags input:checked')].map((c) => c.value),
     videos: pjVideos.map(({ type, url, id: vid }) => ({ type, url, id: vid })),
