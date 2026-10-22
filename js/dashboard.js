@@ -1494,11 +1494,51 @@ function notice(title, body) {
   layer.querySelector('button').focus();
 }
 
-/** Conecta una solución arriba del journey: la IA ve en qué etapas impacta. */
+/** La línea de una solución que se va: se recoge hacia su origen y suelta chispas
+    en el nodo del journey. Va por encima del lienzo (no se deforma con la lente). */
+function detachFx(src, j) {
+  if (!src?.el || !j?.el) return;
+  const a = portPoint(src, 'out'), z = portPoint(j, 'top');
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.classList.add('fx');
+  svg.setAttribute('viewBox', `0 0 ${board.clientWidth} ${board.clientHeight}`);
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', curve(a, z, true));
+  path.classList.add('fx-line');
+  svg.append(path);
+  board.append(svg);
+  const len = path.getTotalLength();
+  path.style.strokeDasharray = `${len}`;
+  path.animate([{ strokeDashoffset: 0, opacity: 1 }, { strokeDashoffset: -len, opacity: 0.2 }], { duration: 520, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' });
+  // chispas desde el nodo
+  for (let i = 0; i < 18; i++) {
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', z.x);
+    c.setAttribute('cy', z.y);
+    c.setAttribute('r', 1.4 + Math.random() * 2.2);
+    c.setAttribute('fill', i % 3 ? '#ffd166' : '#ffffff');
+    svg.append(c);
+    const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.6, dist = 26 + Math.random() * 46;
+    c.animate([
+      { transform: 'translate(0,0)', opacity: 1 },
+      { transform: `translate(${Math.cos(ang) * dist}px, ${Math.sin(ang) * dist + 14}px)`, opacity: 0 },
+    ], { duration: 420 + Math.random() * 380, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' });
+  }
+  const flash = document.createElementNS(NS, 'circle');
+  flash.setAttribute('cx', z.x); flash.setAttribute('cy', z.y); flash.setAttribute('r', 10);
+  flash.classList.add('fx-flash');
+  svg.append(flash);
+  flash.animate([{ transform: 'scale(.4)', opacity: 0.9 }, { transform: 'scale(2.4)', opacity: 0 }], { duration: 420, fill: 'forwards' });
+  setTimeout(() => svg.remove(), 900);
+}
+
+/** Conecta una solución arriba del journey: la IA ve en qué etapas impacta. Una a la
+    vez: si encaja, la anterior se desconecta (con chispas). Si ya se había analizado
+    esa misma solución con el mismo journey, el resultado vuelve sin gastar tokens. */
 async function connectSolution(j, src) {
   if (j.tops.includes(src.id)) return;
   if (!j.data.stages?.length) return notice('Primero genera el journey', 'Las soluciones se cruzan con las etapas: conecta usuarios por la izquierda y genera el journey antes.');
-  if (!canAfford('fit')) return flashBroke('fit');
   j.tops.push(src.id);
   j.checking = true;
   j.el.classList.add('is-glowing');
@@ -1513,11 +1553,14 @@ async function connectSolution(j, src) {
     j.tops = j.tops.filter((i) => i !== src.id);
     render(j);
     requestDraw();
+    if (r.status === 402) return flashBroke('fit');
     if (!r.ok) return alert(r.data.error || 'No se pudo analizar la solución.');
     return notice('Esta solución no es compatible con el journey del usuario', `Motivo: ${r.data.reason}`);
   }
+  for (const old of r.data.replaced || []) detachFx(byId(old), j);
   j.data = r.data.data;
   j.tops = r.data.tops;
+  j.lastCached = r.data.cached;
   render(j);
   growToFit(j);
   requestDraw();

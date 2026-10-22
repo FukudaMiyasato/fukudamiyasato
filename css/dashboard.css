@@ -1626,3 +1626,9 @@ body:not(.can-edit) .wgroup-head { cursor: default; }
 body:not(.can-edit) .wnote { cursor: default; }
 .widget.is-selected .wcard--note { box-shadow: 0 0 0 2px var(--red-hot), 0 14px 26px -16px #000; }
 .widget.is-dragging .wcard--note { transform: rotate(-3deg); }
+
+/* solución que se desconecta: la línea se recoge y suelta chispas */
+.fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 7; pointer-events: none; overflow: visible; }
+.fx-line { fill: none; stroke: #ffd166; stroke-width: 2.4; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(255, 209, 102, .9)); }
+.fx-flash { fill: none; stroke: #ffd166; stroke-width: 2; transform-box: fill-box; transform-origin: center; }
+.fx circle:not(.fx-flash) { transform-box: fill-box; transform-origin: center; filter: drop-shadow(0 0 3px rgba(255, 209, 102, .9)); }

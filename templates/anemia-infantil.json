@@ -531,6 +531,68 @@
    "inputs": []
   },
   {
+   "id": "g-sol",
+   "type": "group",
+   "x": 74,
+   "y": -17,
+   "w": 48,
+   "h": 12,
+   "data": {
+    "kind": "group",
+    "title": "Soluciones para probar en el journey",
+    "color": "#ffd166"
+   },
+   "inputs": []
+  },
+  {
+   "id": "sol-mkt",
+   "type": "ask",
+   "x": 75,
+   "y": -14,
+   "w": 15,
+   "h": 8,
+   "data": {
+    "kind": "text",
+    "title": "Campaña «Hierro en tu plato»",
+    "value": "Marketing en el mercado: las caseritas son embajadoras, los puestos llevan el sello «rico en hierro» y venden un combo de S/ 5 (bazo, lentejas y espinaca). En TikTok, ellas mismas enseñan recetas de 15 minutos; en la radio local suena el jingle de la campaña.",
+    "detail": "Solución de ejemplo (ficticia).",
+    "prompt": "",
+    "source": ""
+   },
+   "inputs": []
+  },
+  {
+   "id": "sol-wa",
+   "type": "ask",
+   "x": 91,
+   "y": -14,
+   "w": 15,
+   "h": 8,
+   "data": {
+    "kind": "text",
+    "title": "Madres líderes + recordatorios por WhatsApp",
+    "value": "Una madre líder por barrio acompaña a 15 familias en un grupo de WhatsApp: recordatorio diario del hierro a la hora de la comida, tips cuando el niño lo rechaza y aviso del próximo control con las preguntas que conviene hacer.",
+    "detail": "Inspirada en «Madres líderes» y el piloto de WhatsApp en Chota del benchmark.",
+    "prompt": "",
+    "source": ""
+   },
+   "inputs": []
+  },
+  {
+   "id": "t-sol",
+   "type": "label",
+   "x": 107,
+   "y": -14,
+   "w": 14,
+   "h": 8,
+   "data": {
+    "kind": "label",
+    "style": "body",
+    "text": "Arrastra el + de una solución hasta el punto amarillo de arriba del journey. Si encaja, se alumbran las etapas donde impacta; conecta la otra y la primera se suelta."
+   },
+   "inputs": []
+  },
+  {
    "id": "g3",
    "type": "group",
    "x": 74,
@@ -604,6 +666,52 @@
       "name": "Videos de recetas",
       "channel": "TikTok",
       "detail": "Busca ideas rápidas y baratas."
+     }
+    ],
+    "fitPresets": [
+     {
+      "sol": "sol-mkt",
+      "compatible": true,
+      "reason": "Actúa donde la madre decide y compra: precio, punto de venta y receta.",
+      "impacts": [
+       {
+        "stage": 0,
+        "impact": "El combo de S/ 5 le da un precio fijo para planificar la semana con hierro.",
+        "risk": "Que el combo suba de precio o no esté todos los días en su puesto."
+       },
+       {
+        "stage": 1,
+        "impact": "La casera de confianza y el sello le dicen qué comprar en el mismo puesto.",
+        "risk": "Puestos que usan el sello sin vender lo prometido y la campaña pierde confianza."
+       },
+       {
+        "stage": 2,
+        "impact": "Recetas de 15 minutos en TikTok que sirven para toda la familia.",
+        "risk": "Que las recetas no le gusten al niño o pidan ingredientes que no hay en su feria."
+       }
+      ]
+     },
+     {
+      "sol": "sol-wa",
+      "compatible": true,
+      "reason": "Acompaña los momentos donde hoy abandona: la comida diaria, el control y la rutina.",
+      "impacts": [
+       {
+        "stage": 3,
+        "impact": "Le llega el recordatorio y un tip contra el rechazo justo a la hora de comer.",
+        "risk": "Si los mensajes son muchos, se silencia el grupo y se pierde el recordatorio."
+       },
+       {
+        "stage": 4,
+        "impact": "Llega al control con preguntas preparadas y sabe qué hacer después.",
+        "risk": "Que la posta no tenga turnos y el control se postergue igual."
+       },
+       {
+        "stage": 5,
+        "impact": "La madre líder sostiene la rutina cuando la semana se complica.",
+        "risk": "Que la madre líder se canse sin incentivo y el grupo se apague."
+       }
+      ]
      }
     ],
     "stages": [

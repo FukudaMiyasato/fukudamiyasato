@@ -57,7 +57,11 @@
                                                       solución encaja en alguna etapa. Sí → la deja
                                                       conectada (tops) con su impacto y qué podría
                                                       fallar por etapa; no → { compatible: false, reason }
-                                                      y no queda conectada; cuesta tokens ("fit")
+                                                      y no queda conectada; cuesta tokens ("fit").
+                                                      Una solución a la vez: la nueva reemplaza a la
+                                                      anterior (replaced). Cada resultado se guarda
+                                                      (fitCache): si el journey y la solución no
+                                                      cambiaron, se repite sin gastar tokens (cached)
      POST   ?d=<id>&mark=flag { x, y }              → bandera (color al azar, sin repetir; máx. 8)
      POST   ?d=<id>&mark=divider                    → raya divisoria una columna a la derecha
                                                       de lo más a la derecha (solo una)
@@ -69,6 +73,7 @@
      DELETE ?d=<id>&widget=<widgetId>               → borra el widget
    ============================================================ */
 
+import crypto from 'node:crypto';
 import { currentUser, canSeeDashboard, forgetDashboard, isAmo, listPerms } from './_lib/auth.js';
 import {
   listDashboards, publicDash, createDashboard, updateDashboard, deleteDashboard,
@@ -192,6 +197,25 @@ function voicesOf(list) {
 const txt = (v, max) => String(v ?? '').trim().slice(0, max);
 const JOURNEY_ROWS = ['doing', 'thinking', 'pain', 'opportunity'];
 
+/** Resultado de la IA para una solución, como se guarda. */
+const cleanFit = (f) => ({
+  compatible: Boolean(f?.compatible),
+  reason: txt(f?.reason, 400),
+  impacts: (Array.isArray(f?.impacts) ? f.impacts : []).slice(0, 8)
+    .map((i) => ({ stage: Math.max(0, Math.round(Number(i?.stage) || 0)), impact: txt(i?.impact, 220), risk: txt(i?.risk, 220) })),
+});
+const FIT_CACHE_MAX = 16;
+function cleanFitCache(c) {
+  if (!c || typeof c !== 'object') return {};
+  return Object.fromEntries(Object.entries(c).filter(([k]) => /^[0-9a-f]{40}$/.test(k)).slice(-FIT_CACHE_MAX).map(([k, v]) => [k, cleanFit(v)]));
+}
+/** Clave del resultado: las etapas del journey + lo que dice la solución. Si nada cambió, es la misma. */
+const fitKey = (journey, sol) => crypto.createHash('sha1')
+  .update(JSON.stringify((journey.stages || []).map((x) => [x.name, x.doing, x.thinking, x.feeling, x.emotion, x.pain, x.opportunity])))
+  .update('|')
+  .update(contextFrom([sol]))
+  .digest('hex');
+
 /** Lo que está entero dentro de un grupo (como en el lienzo). */
 const insideOf = (g, all) => all.filter((w) => w !== g && w.x >= g.x && w.y >= g.y && w.x + w.w <= g.x + g.w && w.y + w.h <= g.y + g.h);
 /** Usuarios conectados a un widget: directos o dentro de un grupo conectado. */
@@ -222,6 +246,8 @@ function cleanJourney(d) {
         by: { name: txt(a?.by?.name, 60), picture: /^https:\/\//.test(a?.by?.picture || '') ? String(a.by.picture).slice(0, 500) : '' },
       })).filter((a) => a.text),
     })).filter((x) => x.name),
+    // resultados guardados de cada solución analizada (clave: journey + solución)
+    fitCache: cleanFitCache(d.fitCache),
     // soluciones conectadas arriba que encajan: dónde impactan y qué podría fallar
     solutions: arr(d.solutions, 6).map((s) => ({
       id: txt(s?.id, 40), title: txt(s?.title, 60) || 'Solución',
@@ -591,7 +617,12 @@ export default async function handler(req, res) {
       const clean = items.map((w) => {
         const type = String(w?.type || '');
         const data = type === 'table' || type === 'ask' ? cleanAnswer(w?.data) : CLEANERS[type]?.(w?.data);
-        return data ? { key: String(w.id ?? ''), type, layout: cleanLayout(w), data, inputs: Array.isArray(w.inputs) ? w.inputs.map(String) : [], tops: Array.isArray(w.tops) ? w.tops.map(String) : [] } : null;
+        return data ? {
+          key: String(w.id ?? ''), type, layout: cleanLayout(w), data,
+          inputs: Array.isArray(w.inputs) ? w.inputs.map(String) : [], tops: Array.isArray(w.tops) ? w.tops.map(String) : [],
+          // plantillas: resultados ya calculados de soluciones (para conectarlas sin gastar tokens)
+          presets: type === 'journey' && Array.isArray(w.data?.fitPresets) ? w.data.fitPresets.slice(0, 8) : [],
+        } : null;
       }).filter(Boolean);
       if (!clean.length) return res.status(400).json({ error: 'El archivo no tiene widgets válidos.' });
       // a la derecha de lo que ya hay, para no pisar nada
@@ -606,8 +637,12 @@ export default async function handler(req, res) {
         const inputs = w.inputs.map((k) => ids.get(k)).filter(Boolean);
         const tops = w.tops.map((k) => ids.get(k)).filter(Boolean);
         // las soluciones del journey guardan el id del widget: se pasan a los nuevos
-        if (w.type === 'journey' && w.data.solutions?.length) {
-          w.data.solutions = w.data.solutions.map((s) => ({ ...s, id: ids.get(s.id) })).filter((s) => s.id);
+        if (w.type === 'journey' && (w.data.solutions?.length || w.presets.length)) {
+          w.data.solutions = (w.data.solutions || []).map((s) => ({ ...s, id: ids.get(s.id) })).filter((s) => s.id);
+          for (const p of w.presets) {
+            const sol = clean.find((x) => x.key === String(p?.sol));
+            if (sol) w.data.fitCache = { ...w.data.fitCache, [fitKey(w.data, { type: sol.type, data: sol.data })]: cleanFit(p) };
+          }
           await updateWidget(dash.id, ids.get(w.key), { data: w.data });
         }
         if (inputs.length || tops.length) await updateWidget(dash.id, ids.get(w.key), { inputs, ...(tops.length ? { tops } : {}) });
@@ -624,33 +659,40 @@ export default async function handler(req, res) {
       if (!panel.data?.stages?.length) return res.status(422).json({ error: 'Primero genera el journey.' });
       if (['user', 'group'].includes(sol.data?.kind)) return res.status(400).json({ error: 'Arriba solo se conectan soluciones.' });
 
-      const cost = priceOf(await getConfig(), 'fit');
-      const price = unlimited(user) ? 0 : cost;
-      if (price && !(await charge(user.email, price))) {
-        return res.status(402).json({ error: `No te quedan tokens: esto cuesta ${price.toLocaleString('es-PE')}.`, tokens: await balanceOf(user.email), price });
+      // ¿ya se analizó esta misma solución con este mismo journey? → igual, sin tokens
+      const key = fitKey(panel.data, sol);
+      let out = panel.data.fitCache?.[key];
+      const cached = Boolean(out);
+      let spent;
+      if (!cached) {
+        const cost = priceOf(await getConfig(), 'fit');
+        const price = unlimited(user) ? 0 : cost;
+        if (price && !(await charge(user.email, price))) {
+          return res.status(402).json({ error: `No te quedan tokens: esto cuesta ${price.toLocaleString('es-PE')}.`, tokens: await balanceOf(user.email), price });
+        }
+        try {
+          out = cleanFit(await askJourneyFit({ journey: panel.data, solution: contextFrom([sol]) }));
+        } catch (err) {
+          if (price) await refund(user.email, price);
+          if (err instanceof AIError) return res.status(422).json({ error: err.message });
+          throw err;
+        }
+        spent = await addSpent(dash.id, cost);
       }
-      let out;
-      try {
-        out = await askJourneyFit({ journey: panel.data, solution: contextFrom([sol]) });
-      } catch (err) {
-        if (price) await refund(user.email, price);
-        if (err instanceof AIError) return res.status(422).json({ error: err.message });
-        throw err;
-      }
-      const spent = await addSpent(dash.id, cost);
       const tokens = unlimited(user) ? null : await balanceOf(user.email);
-      const tops = (panel.tops || []).filter((i) => i !== sol.id);
+      const fitCache = { ...(panel.data.fitCache || {}), [key]: out };
       if (!out.compatible) {
-        await updateWidget(dash.id, panel.id, { tops });
-        return res.status(200).json({ compatible: false, reason: out.reason, tops, tokens, spent });
+        // la que estaba conectada se queda
+        const data = cleanJourney({ ...panel.data, fitCache });
+        await updateWidget(dash.id, panel.id, { data });
+        return res.status(200).json({ compatible: false, reason: out.reason, tops: panel.tops || [], cached, tokens, spent });
       }
+      // una solución a la vez: la nueva reemplaza a la anterior
+      const replaced = (panel.tops || []).filter((i) => i !== sol.id);
       const title = sol.data?.title || sol.data?.name || sol.data?.text || 'Solución';
-      const data = cleanJourney({
-        ...panel.data,
-        solutions: [...(panel.data.solutions || []).filter((x) => x.id !== sol.id), { id: sol.id, title, impacts: out.impacts }],
-      });
-      await updateWidget(dash.id, panel.id, { data, tops: [...tops, sol.id] });
-      return res.status(200).json({ compatible: true, data, tops: [...tops, sol.id], tokens, spent });
+      const data = cleanJourney({ ...panel.data, fitCache, solutions: [{ id: sol.id, title, impacts: out.impacts }] });
+      await updateWidget(dash.id, panel.id, { data, tops: [sol.id] });
+      return res.status(200).json({ compatible: true, data, tops: [sol.id], replaced, cached, tokens, spent });
     }
 
     /* ---------- Researcher: investigar y dejar hallazgos ---------- */
