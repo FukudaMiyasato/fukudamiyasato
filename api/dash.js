@@ -7,9 +7,7 @@
                                      prices: lo que cuesta cada herramienta de IA (con sobrecargo)
    Solo amos:
      GET    ?d=<id>&members=1      → chismosos y si tienen este dashboard activo
-     POST   { name, image?, route? }                → crea un dashboard; con route es un
-                                                      proyecto en <route>.fukudamiyasato.com
-                                                      (409 si la ruta ya existe)
+     POST   { name, image? }                        → crea un dashboard
      DELETE ?d=<id>                                 → borra el dashboard (no los fijos)
      POST   ?d=<id>&widget=table
             { prompt, csv?, filename?, inputs?, layout }
@@ -46,7 +44,7 @@
 
 import { currentUser, canSeeDashboard, forgetDashboard, isAmo, listPerms } from './_lib/auth.js';
 import {
-  listDashboards, publicDash, createDashboard, deleteDashboard, checkRoute,
+  listDashboards, publicDash, createDashboard, deleteDashboard,
   listWidgets, createWidget, updateWidget, deleteWidget,
   getMarks, addFlag, setDivider, deleteMark,
 } from './_lib/dashboards.js';
@@ -215,14 +213,7 @@ export default async function handler(req, res) {
       if (image && (!IMAGE_RE.test(image) || image.length > MAX_IMAGE_CHARS)) {
         return res.status(400).json({ error: 'El ícono debe ser una imagen PNG, JPG o WebP chica.' });
       }
-      const route = req.body?.route ? String(req.body.route).trim().toLowerCase() : null;
-      if (route) {
-        const bad = checkRoute(route);
-        if (bad) return res.status(400).json({ error: bad });
-      }
-      const created = await createDashboard(name, image, route);
-      if (!created) return res.status(409).json({ error: 'Ya hay un proyecto con esa ruta.' });
-      return res.status(201).json({ dashboard: publicDash(created) });
+      return res.status(201).json({ dashboard: publicDash(await createDashboard(name, image)) });
     }
 
     /* ---------- banderas y raya divisoria ---------- */

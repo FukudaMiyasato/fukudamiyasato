@@ -17,15 +17,12 @@
      GOOGLE_CLIENT_ID      (obligatoria) OAuth Client ID "Web" de Google
      SESSION_SECRET        (obligatoria) secreto random para firmar la cookie
      ADMIN_EMAIL           (opcional, default fukuda.miyasato@gmail.com)
-     PROJECTS_DOMAIN       (opcional, default fukudamiyasato.com) — la cookie
-                           se comparte con todos sus subdominios, así un login
-                           en el sitio principal vale en cada proyecto
      Upstash Redis         (ver api/_lib/store.js) — guarda los permisos
    ============================================================ */
 
 import crypto from 'node:crypto';
 import { getJSON, setJSON, newId } from './store.js';
-import { listDashboards, publicDash, PROJECTS_DOMAIN } from './dashboards.js';
+import { listDashboards, publicDash } from './dashboards.js';
 
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'fukuda.miyasato@gmail.com';
 
@@ -98,17 +95,10 @@ export function readSession(req) {
   }
 }
 
-/** Domain=.<PROJECTS_DOMAIN> si este host es ese dominio o un subdominio
-    suyo (en local y en *.vercel.app la cookie queda solo para el host). */
-function cookieDomain(req) {
-  const host = String(req.headers?.host || '').split(':')[0].toLowerCase();
-  return host === PROJECTS_DOMAIN || host.endsWith(`.${PROJECTS_DOMAIN}`) ? `; Domain=.${PROJECTS_DOMAIN}` : '';
-}
-
-function cookieAttrs(req, domain = cookieDomain(req)) {
+function cookieAttrs(req) {
   // En local (http) una cookie Secure no se guardaría.
   const local = /^(localhost|127\.0\.0\.1)(:|$)/.test(String(req.headers?.host || ''));
-  return `Path=/; HttpOnly; SameSite=Lax${local ? '' : '; Secure'}${domain}`;
+  return `Path=/; HttpOnly; SameSite=Strict${local ? '' : '; Secure'}`;
 }
 
 export function setSessionCookie(req, res, user) {
@@ -116,11 +106,7 @@ export function setSessionCookie(req, res, user) {
 }
 
 export function clearSessionCookie(req, res) {
-  // borra la compartida y la vieja que era solo de este host
-  res.setHeader('Set-Cookie', [
-    `${COOKIE}=; ${cookieAttrs(req)}; Max-Age=0`,
-    `${COOKIE}=; ${cookieAttrs(req, '')}; Max-Age=0`,
-  ]);
+  res.setHeader('Set-Cookie', `${COOKIE}=; ${cookieAttrs(req)}; Max-Age=0`);
 }
 
 /* ---------- Google: valida el ID token del botón "Sign in with Google" ---------- */

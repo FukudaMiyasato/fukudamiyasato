@@ -196,9 +196,6 @@
 }
 .perm-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .perm-dash-text { font-size: 12.5px; color: var(--text-faint); }
-.perm-dash-pick { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--text-faint); }
-.perm-dash-pick label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
-.perm-dash-pick input:checked + span { color: var(--text); }
 .perm-act { text-align: right; }
 .perm-empty { margin: 0; padding: 18px; border-top: 1px solid var(--line-soft); color: var(--text-faint); font-size: 13px; }
 
@@ -339,30 +336,6 @@
   outline: none;
 }
 .nd-title:focus { border-color: var(--red-hot); }
-.nd-route {
-  width: 100%;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: rgba(0, 0, 0, .2);
-  font-size: 13px;
-  color: var(--text-faint);
-}
-.nd-route:focus-within { border-color: var(--red-hot); }
-.nd-route input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-weight: 600;
-  outline: none;
-}
-.nd-note { font-size: 11.5px; color: var(--text-faint); text-align: center; line-height: 1.4; }
 .nd-modal .m-actions { justify-self: stretch; }
 
 /* ---------- configuración (amo supremo) ---------- */

@@ -21,7 +21,6 @@ const ROLE_LABEL = { supremo: 'Amo supremo', amo: 'Amo', chismoso: 'Chismoso' };
 const isAmo = (role) => role === 'supremo' || role === 'amo';
 
 let me = null;
-let projectsDomain = 'fukudamiyasato.com';
 
 function show(view) {
   for (const v of VIEWS) $(`v-${v}`).hidden = v !== view;
@@ -70,7 +69,7 @@ function enter(user) {
     const add = document.createElement('button');
     add.type = 'button';
     add.className = 'dash-card dash-card--new';
-    add.innerHTML = '<span class="dash-ico">+</span><span class="dash-name">Nuevo proyecto</span>';
+    add.innerHTML = '<span class="dash-ico">+</span><span class="dash-name">Nuevo dashboard</span>';
     add.addEventListener('click', openNewDash);
     grid.append(add);
     dashes.forEach((d) => grid.append(dashLink(d)));
@@ -379,22 +378,15 @@ $('pj-del').addEventListener('click', async () => {
 });
 
 /* ============================================================
-   Nuevo proyecto: título + ruta (subdominio) + ícono opcional
+   Nuevo dashboard: título + ícono opcional (modal encima)
    ============================================================ */
 
 let ndImage = null;
-let ndRouteTouched = false; // si el amo escribió la ruta, el título ya no la cambia
-
-/** Lo mismo que slugify() de api/_lib/dashboards.js. */
-const toRoute = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-  .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
 
 function resetNewDash() {
   ndImage = null;
   $('nd-form').className = 'modal nd-modal';
   $('nd-title').value = '';
-  $('nd-route').value = '';
-  ndRouteTouched = false;
   $('nd-err').textContent = '';
   $('nd-file').value = '';
   $('nd-icon-note').textContent = 'Subir ícono';
@@ -417,14 +409,7 @@ const closeNewDash = () => { $('nd-layer').hidden = true; };
 $('nd-cancel').addEventListener('click', closeNewDash);
 $('nd-layer').addEventListener('pointerdown', (e) => { if (e.target === $('nd-layer')) closeNewDash(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('nd-layer').hidden) closeNewDash(); });
-$('nd-title').addEventListener('input', () => {
-  paintNdIcon();
-  if (!ndRouteTouched) $('nd-route').value = toRoute($('nd-title').value);
-});
-$('nd-route').addEventListener('input', () => {
-  ndRouteTouched = true;
-  $('nd-route').value = $('nd-route').value.toLowerCase().replace(/[^a-z0-9-]/g, '');
-});
+$('nd-title').addEventListener('input', paintNdIcon);
 
 /** Recorta la imagen al centro y la baja a 128×128 para guardarla chica. */
 function toIcon(file) {
@@ -464,21 +449,17 @@ $('nd-file').addEventListener('change', async (e) => {
 $('nd-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('nd-title').value.trim();
-  const route = $('nd-route').value.replace(/^-+|-+$/g, '');
   const form = $('nd-form');
-  if (!name || !route) {
-    $('nd-err').textContent = name ? 'Ponle una ruta.' : 'Ponle un título.';
+  if (!name) {
+    $('nd-err').textContent = 'Ponle un título.';
     form.classList.remove('is-shaking'); void form.offsetWidth; form.classList.add('is-shaking');
     return;
   }
   $('nd-save').disabled = true;
-  const r = await api('/api/dash', { method: 'POST', body: JSON.stringify({ name, route, image: ndImage }) });
+  const r = await api('/api/dash', { method: 'POST', body: JSON.stringify({ name, image: ndImage }) });
   $('nd-save').disabled = false;
   if (!r.ok) { $('nd-err').textContent = r.data.error || 'No se pudo crear.'; return; }
-  closeNewDash();
-  // todavía no está subido a Vercel: se queda en el panel, con la tarjeta nueva
-  const me2 = await api('/api/auth');
-  if (me2.data.user) enter(me2.data.user);
+  location.href = r.data.dashboard.url; // directo al lienzo nuevo
 });
 
 /* ---------- login ---------- */
@@ -634,35 +615,6 @@ $('tk-form').addEventListener('submit', async (e) => {
   loadPerms();
 });
 
-/** Casillas de los proyectos de un chismoso: marcar = darle acceso. */
-function dashPicker(p) {
-  const box = document.createElement('span');
-  box.className = 'perm-dash-pick';
-  const all = me?.dashboards || [];
-  if (!all.length) { box.textContent = 'No hay proyectos'; return box; }
-  for (const d of all) {
-    const lab = document.createElement('label');
-    lab.innerHTML = '<input type="checkbox"><span></span>';
-    const cb = lab.querySelector('input');
-    cb.checked = p.dashboards.includes(d.id);
-    lab.querySelector('span').textContent = d.name;
-    cb.addEventListener('change', async () => {
-      cb.disabled = true;
-      const r = await api('/api/perms', { method: 'PATCH', body: JSON.stringify({ id: p.id, dashboard: d.id, active: cb.checked }) });
-      cb.disabled = false;
-      if (r.ok) {
-        p.dashboards = cb.checked ? [...p.dashboards, d.id] : p.dashboards.filter((x) => x !== d.id);
-        msg(`${p.email} ${cb.checked ? 'ya ve' : 'ya no ve'} ${d.name}.`);
-      } else {
-        cb.checked = !cb.checked;
-        msg(r.data.error || 'No se pudo cambiar.', true);
-      }
-    });
-    box.append(lab);
-  }
-  return box;
-}
-
 async function loadPerms() {
   list.innerHTML = '<p class="perm-empty">Cargando…</p>';
   const { ok, data } = await api('/api/perms');
@@ -674,10 +626,11 @@ async function loadPerms() {
   rate = data.rate || null;
   $('perm-table').classList.toggle('has-credits', supremo);
   document.querySelector('.perm-credits-col').hidden = !supremo;
+  const names = Object.fromEntries((me?.dashboards || []).map((d) => [d.id, d.name]));
 
   $('perm-help').textContent = supremo
-    ? 'Agrega amos (ven y editan todo) y chismosos (solo ven los proyectos que marques).'
-    : 'Agrega chismosos: solo ven los proyectos que marques.';
+    ? 'Agrega amos (ven y editan todo) y chismosos (solo ven lo que un amo les active desde cada dashboard).'
+    : 'Agrega chismosos: solo ven lo que un amo les active desde el botón «Integrantes» de cada dashboard.';
 
   $('perm-role').innerHTML = '';
   for (const r of data.roles) $('perm-role').add(new Option(ROLE_LABEL[r], r));
@@ -701,7 +654,11 @@ async function loadPerms() {
       roleCell = badge(ROLE_LABEL[p.role], p.role === 'amo' ? 'badge--admin' : '');
     }
 
-    const dashCell = p.role === 'amo' ? badge('Todos') : dashPicker(p);
+    const dashText = p.role === 'amo' ? 'Todos'
+      : p.dashboards.length ? p.dashboards.map((id) => names[id] || id).join(', ') : 'Ninguno todavía';
+    const dashCell = document.createElement('span');
+    dashCell.className = 'perm-dash-text';
+    dashCell.textContent = dashText;
 
     let del = null;
     if (supremo || p.role === 'chismoso') {
@@ -739,7 +696,7 @@ $('perm-form').addEventListener('submit', async (e) => {
   if (!r.ok) return msg(r.data.error || 'No se pudo agregar.', true);
   $('perm-email').value = '';
   msg(role === 'chismoso'
-    ? `${email} es chismoso. Márcale los proyectos que puede ver.`
+    ? `${email} es chismoso. Actívale dashboards desde «Integrantes» en cada uno.`
     : `${email} ahora es ${ROLE_LABEL[role]}.`);
   loadPerms();
 });
@@ -876,10 +833,6 @@ new ResizeObserver(() => { if (!$('fe-preview').closest('[hidden]')) paintPrevie
       : (data.error || 'No se pudo conectar con el servidor.'));
   }
   clientId = data.clientId;
-  if (data.projectsDomain) {
-    projectsDomain = data.projectsDomain;
-    document.querySelectorAll('[data-projects-domain]').forEach((el) => { el.textContent = `.${projectsDomain}`; });
-  }
   if (data.user) enter(data.user);
   else showLogin();
 })();

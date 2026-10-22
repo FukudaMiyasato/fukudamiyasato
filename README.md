@@ -15,9 +15,7 @@ marketing/      landing de las apps
 privacy/        políticas de privacidad (una por app: privacy/kofres/)
 admin/          login con Google + panel (Dashboards · Permisos; el amo supremo
                 además Portafolio · Configuración). Se entra con el botón
-                «Login» de la portada. Cada proyecto nuevo es una ruta en su
-                propio subdominio (<ruta>.fukudamiyasato.com, otro repo en
-                Vercel) que valida el acceso con /api/check?p=<ruta>
+                «Login» de la portada
 dashboards/     una sola página para todos: /dashboards/?d=<id>
 ```
 
