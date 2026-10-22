@@ -149,6 +149,12 @@ export const TOOL_ICONS = {
   </svg>`,
 
   // archivo: hoja con la esquina doblada y líneas
+  // ENAHO (INEI): círculo de porcentaje con su tajada, como los de la tarjeta
+  enaho: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="9" fill="currentColor"/>
+    <path d="M12 12V3a9 9 0 0 1 8.6 11.7z" fill="#ff3b4f"/>
+    <circle cx="12" cy="12" r="3.6" fill="#1d1d22"/>
+  </svg>`,
   file: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M14 3H7.2A2.2 2.2 0 0 0 5 5.2v13.6A2.2 2.2 0 0 0 7.2 21h9.6a2.2 2.2 0 0 0 2.2-2.2V8z" fill="currentColor"/>
     <path d="M14 3v3.8A1.2 1.2 0 0 0 15.2 8H19" fill="#9a9aa6"/>

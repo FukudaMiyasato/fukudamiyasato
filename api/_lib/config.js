@@ -26,12 +26,13 @@ export const TOOLS = {
   journey: { label: 'Panel User journey', note: 'Genera el journey de los usuarios conectados' },
   research: { label: 'Researcher', note: 'Investiga en la web y devuelve hallazgos con fuentes' },
   fit: { label: 'Solución en el journey', note: 'Ve en qué etapas impacta una solución y qué podría fallar' },
+  api: { label: 'API de preguntas', note: '/api/ask: elige el dashboard y responde con su contenido' },
 };
 
 export const DEFAULTS = {
   fisheye: 7,
   surcharge: 10,
-  costs: { table: 2500, ask: 900, follow: 1500, journey: 4000, research: 12000, fit: 1800 },
+  costs: { table: 2500, ask: 900, follow: 1500, journey: 4000, research: 12000, fit: 1800, api: 3000 },
   usdPen: 3.75,
   usdPerM: 5,
 };

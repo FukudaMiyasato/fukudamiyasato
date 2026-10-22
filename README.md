@@ -580,6 +580,7 @@ mouse encima) igual que el dock:
   vacío, jubilado). Por ahora la subida es
   simulada: solo se guarda el nombre y el tamaño de cada archivo. Imágenes en
   `assets/users/`.
+- **ENAHO** (`js/enaho.js`, sin IA, 0 tokens): perfil de la ENAHO del INEI en círculos (gasto, ingreso, pobreza, internet, celular, seguro, educación) para el departamento, área, edad y sexo que se elijan en su bloque; lee `data/enaho/<año>.json`, que arma una vez por año `scripts/enaho/enaho.py` (ver su cabecera), y avisa si la muestra es baja (< 50 casos). Un Usuario conectado a su entrada pone su edad y sexo (y la ubicación, si sale de sus notas); el perfil va a la IA, al journey y al Researcher. No mide redes sociales específicas.
 - **Nebulosa de IA** (quinta herramienta): un widget con una nube de color que
   gira lento y estrellas. Por ahora solo se ve; se conecta como cualquier otro.
 - **Maleta** (después de la separación del dock, redonda y color cuero): abre
@@ -656,3 +657,37 @@ y su ícono a `TOOL_ICONS` en `js/dashboard-icons.js`.
 
 En local hace falta `npx vercel dev`: con `npm run dev` no hay API y el
 panel lo avisa.
+
+## API de preguntas (`/api/ask`)
+
+Para preguntarle a los dashboards desde otra app (un bot, un formulario, n8n…).
+La API elige sola el dashboard que trata del tema y responde **solo** con lo que
+hay en él: widgets, archivos subidos, usuarios con sus notas, journeys y hallazgos.
+
+```
+curl -X POST https://fukudamiyasato.com/api/ask \
+  -H "Authorization: Bearer $DASHBOARD_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "¿Cuántas soluciones del benchmark bajaron la anemia?"}'
+```
+
+Responde:
+
+```json
+{
+  "dashboard": { "id": "proyecto-jazz", "name": "PROYECTO-JAZZ", "url": "https://…/dashboards/?d=proyecto-jazz" },
+  "answer": "…",
+  "detail": "…",
+  "confidence": "alta | media | baja",
+  "used": [{ "id": "…", "title": "Benchmark de soluciones", "kind": "file" }],
+  "routing": { "reason": "Trata de anemia infantil.", "candidates": 3 }
+}
+```
+
+- `dashboard` (opcional) en el body: salta la elección y pregunta a ese dashboard.
+- 404 si ningún dashboard trata del tema; 422 si el dashboard no tiene cómo responder.
+- **Acceso:** con `DASHBOARD_API_KEY` (variable de Vercel), todos los dashboards.
+  Sin la clave, la sesión del panel: solo los dashboards que esa persona ve, y
+  paga con sus tokens. La clave da acceso a todo: úsala solo desde servidores.
+- Cuesta tokens (herramienta «API de preguntas» en Configuración) y se suma al
+  gasto del dashboard que respondió.

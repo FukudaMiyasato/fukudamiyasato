@@ -559,3 +559,60 @@ export async function askJourneyFit({ journey, solution, meter = null }) {
   const compatible = Boolean(out.compatible) && impacts.length > 0;
   return { compatible, reason: str(out.reason, 400) || (compatible ? '' : 'No se relaciona con ninguna etapa del recorrido.'), impacts };
 }
+
+/* ============================================================
+   API de preguntas (/api/ask): elegir el dashboard y responder con él
+   ============================================================ */
+
+const SYSTEM_ROUTE = `Recibes una pregunta y una lista de dashboards (cada uno con su nombre y un resumen de lo que
+contiene: widgets, usuarios, archivos, journeys, hallazgos). Elige el dashboard que tiene la información para
+responderla. Si ninguno trata del tema, devuelve "id" vacío.
+- "id": el id exacto del dashboard elegido, o "".
+- "reason": una frase con el porqué (en el idioma de la pregunta).`;
+
+const ROUTE_SCHEMA = {
+  name: 'ruta',
+  strict: true,
+  schema: {
+    type: 'object', additionalProperties: false, required: ['id', 'reason'],
+    properties: { id: { type: 'string' }, reason: { type: 'string' } },
+  },
+};
+
+/** dashboards: [{ id, name, summary }]. Devuelve { id, reason } (id '' si ninguno sirve). */
+export async function askRoute({ question, dashboards, meter = null }) {
+  const list = dashboards.map((d) => `[${d.id}] ${d.name}\n${String(d.summary).slice(0, 2000)}`).join('\n\n');
+  const out = await callOpenAI(SYSTEM_ROUTE, `Pregunta: ${question}\n\nDashboards:\n${list}`, ROUTE_SCHEMA, { meter });
+  const id = dashboards.some((d) => d.id === out.id) ? out.id : '';
+  return { id, reason: str(out.reason, 300) };
+}
+
+const SYSTEM_DASH = `Respondes preguntas usando SOLO el contenido de un dashboard de trabajo (sus widgets: tablas,
+gráficos, archivos subidos, usuarios con sus notas, user journeys, hallazgos con fuentes, textos). Escribe en el
+idioma de la pregunta, claro y directo.
+- "answer": la respuesta (máx. 1200 caracteres). Si hace falta, cita cifras y nombres tal como están en el dashboard.
+- "detail": una aclaración corta (supuestos, lo que falta), o "".
+- "used": los títulos exactos (los que van después de "###") de los widgets que usaste.
+- "confidence": "alta" si el dashboard lo dice directamente, "media" si hay que interpretar, "baja" si apenas lo toca.
+Responde ok=false (con el motivo en "error") si el dashboard no tiene información para responder: no inventes.`;
+
+const DASH_SCHEMA = {
+  name: 'respuesta_dashboard',
+  strict: true,
+  schema: {
+    type: 'object', additionalProperties: false,
+    required: ['ok', 'error', 'answer', 'detail', 'used', 'confidence'],
+    properties: {
+      ok: { type: 'boolean' }, error: { type: 'string' }, answer: { type: 'string' }, detail: { type: 'string' },
+      used: { type: 'array', items: { type: 'string' } }, confidence: { type: 'string', enum: ['alta', 'media', 'baja'] },
+    },
+  },
+};
+
+/** Responde con el contenido de un dashboard. Devuelve { answer, detail, used: [título], confidence } o lanza AIError. */
+export async function askDashboard({ question, name, context, meter = null }) {
+  const user = `Dashboard: ${name}\n\nContenido:\n${String(context).slice(0, MAX_CONTEXT_CHARS)}\n\nPregunta: ${question}`;
+  const out = await callOpenAI(SYSTEM_DASH, user, DASH_SCHEMA, { meter });
+  if (!out.ok) throw new AIError(out.error || 'El dashboard no tiene información para responder eso.');
+  return { answer: str(out.answer, 1400), detail: str(out.detail), used: (out.used || []).map((t) => str(t, 120)), confidence: out.confidence };
+}

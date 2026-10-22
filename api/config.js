@@ -13,7 +13,7 @@
 
 import { currentUser } from './_lib/auth.js';
 import { getConfig, setConfig, RANGES, TOOLS, prices, hasAiKey } from './_lib/config.js';
-import { askVisual, askShort, askFollow, askJourney, askJourneyFit, askResearch } from './_lib/ai.js';
+import { askVisual, askShort, askFollow, askJourney, askJourneyFit, askResearch, askDashboard } from './_lib/ai.js';
 
 export const maxDuration = 60; // medir llama a OpenAI
 
@@ -28,6 +28,7 @@ const MEASURE = {
     users: [{ name: 'Lucía', sex: 'f', age: 34, context: 'Texto «entrevista»:\nNo entiendo las coberturas y desconfío de los precios que cambian al final.' }],
     meter,
   }),
+  api: (meter) => askDashboard({ question: '¿Qué conclusiones saca este dashboard?', name: 'Ejemplo', context: SAMPLE_CONTEXT, meter }),
   research: (meter) => askResearch({ question: '¿Qué apps ayudan a dividir gastos entre amigos?', meter }),
   fit: (meter) => askJourneyFit({
     journey: { goal: 'Pagar una cuenta entre amigos', stages: [{ name: 'Pide la cuenta', doing: 'Llama al mozo', pain: 'Nadie lleva efectivo' }, { name: 'Divide', doing: 'Calcula cuánto le toca a cada uno', pain: 'Errores en la división' }] },

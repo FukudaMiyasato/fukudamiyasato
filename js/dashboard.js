@@ -60,6 +60,7 @@ import {
 import { PROS, proOf, newPro, proSize, findingSize, proHTML, findingHTML, proAvatar } from './pro.js';
 import { emptyFile, fileWidgetSize, fileHTML, readUploads, textLeft, MAX_FILES, ACCEPT } from './file.js';
 import { EXPERTS, expertOf, fromPreset, defaultExpert, expertSize, expertHTML, expertAvatar } from './expert.js';
+import { emptyEnaho, enahoSize, enahoHTML, loadEnaho, profileOf, bandOf, placeFrom, sampleNote } from './enaho.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('d') || '';
@@ -335,6 +336,7 @@ function doneHTML(wd) {
   if (d.kind === 'pro') return proHTML(d, { busy: wd.researching });
   if (d.kind === 'finding') return findingHTML(d);
   if (d.kind === 'nebula') return nebulaHTML(wd);
+  if (d.kind === 'enaho') return enahoHTML(d, { loading: wd.enahoLoading, linked: d.follow ? linkedUsers(wd)[0]?.name : null });
   return `
     <header class="whead" title="${esc(d.prompt || '')}">
       <h3>${esc(d.title || 'Respuesta')}</h3>
@@ -351,7 +353,7 @@ function render(wd) {
   el.dataset.id = wd.id;
   const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
   el.innerHTML = `<div class="wbox">
-    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'file' ? ' wcard--file' : ''}${wd.data?.kind === 'pro' ? ' wcard--user wcard--pro' : ''}${wd.data?.kind === 'finding' ? ' wcard--finding' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}${wd.data?.kind === 'label' ? ' wcard--label' : ''}${isGroup(wd) ? ' wcard--group' : ''}${wd.data?.kind === 'note' ? ' wcard--note' : ''}">${inner}</div>
+    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'file' ? ' wcard--file' : ''}${wd.data?.kind === 'pro' ? ' wcard--user wcard--pro' : ''}${wd.data?.kind === 'finding' ? ' wcard--finding' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}${wd.data?.kind === 'enaho' ? ' wcard--enaho' : ''}${wd.data?.kind === 'label' ? ' wcard--label' : ''}${isGroup(wd) ? ' wcard--group' : ''}${wd.data?.kind === 'note' ? ' wcard--note' : ''}">${inner}</div>
     ${canEdit ? `
       ${isGroup(wd) ? '' : '<button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>'}
       ${wd.data?.kind === 'journey' ? '<button class="wport wport--top" type="button" tabindex="-1" aria-label="Conector de soluciones" title="Soluciones"></button>' : ''}
@@ -460,7 +462,7 @@ function unmount(wd, animate = true) {
 
 let lastAction = null;
 // tipos cuyos datos se pueden volver a guardar tal cual (las respuestas de IA no se editan)
-const RESTORABLE = ['timeline', 'user', 'expert', 'journey', 'file', 'pro', 'finding', 'label', 'group', 'note', 'nebula'];
+const RESTORABLE = ['timeline', 'user', 'expert', 'journey', 'file', 'pro', 'finding', 'label', 'group', 'note', 'nebula', 'enaho'];
 const snapOf = (w) => ({
   id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h,
   data: structuredClone(w.data), inputs: [...(w.inputs || [])], tops: [...(w.tops || [])],
@@ -795,6 +797,7 @@ function markTarget(hit) {
 
 /** Nota en el borrador: "Contexto: 2 widgets conectados". */
 function refreshContextNote(wd) {
+  if (wd.data?.kind === 'enaho') { syncEnaho(wd); return; }
   // el panel de journey muestra quiénes están conectados aunque todavía no se haya generado
   if (wd.data?.kind === 'journey' && wd.state === 'done') {
     render(wd);
@@ -990,6 +993,7 @@ function sizeFor(d) {
   if (d.kind === 'note') return noteSize();
   if (d.kind === 'group') return groupSize();
   if (d.kind === 'nebula') return NEBULA_SIZE;
+  if (d.kind === 'enaho') return enahoSize();
   if (d.kind === 'number') return { w: 7, h: 6 };
   if (d.kind === 'text') {
     const n = d.value.length;
@@ -1333,7 +1337,7 @@ $('info-x').addEventListener('click', () => select(null));
 /* ---------- bloque de información del seleccionado ---------- */
 
 const KIND_LABEL = { table: 'Tabla', chart: 'Gráfico', number: 'Número', text: 'Texto' };
-const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Celebridad', journey: 'User journey', file: 'Archivo', pro: 'Profesional', finding: 'Hallazgo', label: 'Texto', group: 'Grupo', note: 'Post-it', nebula: 'Nebulosa de IA' };
+const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Celebridad', journey: 'User journey', file: 'Archivo', pro: 'Profesional', finding: 'Hallazgo', label: 'Texto', group: 'Grupo', note: 'Post-it', nebula: 'Nebulosa de IA', enaho: 'ENAHO' };
 
 /** Muestra el bloque; la animación de entrada solo cuando cambia de widget
     (editarlo no lo "recarga"). */
@@ -1362,6 +1366,7 @@ function renderInfo() {
   if (d.kind === 'group') return renderGroupInfo(box);
   if (d.kind === 'pro') return renderProInfo(box);
   if (d.kind === 'finding') return renderFindingInfo(box);
+  if (d.kind === 'enaho') return renderEnahoInfo(box);
   const rows = [];
   const add = (label, value) => { if (value) rows.push(`<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`); };
   add('Pregunta', d.prompt);
@@ -1564,6 +1569,11 @@ const createPro = (role) => createPlain('pro', newPro(role), proSize());
 const createLabel = () => createPlain('label', newLabel(), labelSize('title'));
 const createNote = () => createPlain('note', newNote(), noteSize());
 const createGroup = () => createPlain('group', newGroup(), groupSize());
+const createEnaho = async () => {
+  const data = emptyEnaho();
+  try { data.profile = profileOf(await loadEnaho(data.year), data.filters); } catch { /* sin JSON: se calcula al abrirlo */ }
+  return createPlain('enaho', data, enahoSize());
+};
 
 /** «Agrupar»: un marco alrededor de lo seleccionado (con un poco de aire). */
 async function groupSelection(list) {
@@ -2220,6 +2230,140 @@ function saveData(wd, failMsg = 'No se pudo guardar.') {
 }
 
 /* ============================================================
+   ENAHO: filtros del perfil (sin IA). El Usuario conectado pone su
+   edad y sexo (y la ubicación, si sale de sus notas)
+   ============================================================ */
+
+/** Filtros que tocan con el usuario conectado; recalcula el perfil y lo guarda si cambió. */
+async function syncEnaho(wd) {
+  const d = wd.data;
+  let table;
+  try {
+    if (!d.profile) { wd.enahoLoading = true; render(wd); }
+    table = await loadEnaho(d.year);
+  } catch {
+    wd.enahoLoading = false;
+    render(wd);
+    return;
+  }
+  wd.enahoLoading = false;
+  const f = { ...d.filters };
+  const u = linkedUsers(wd)[0];
+  if (u && d.follow) {
+    f.age = bandOf(u.age) || f.age;
+    f.sex = u.sex;
+  }
+  if (u && d.place !== 'manual') {
+    const at = placeFrom((u.context || []).filter((c) => c.text).map((c) => c.text));
+    if (at.dep) f.dep = at.dep;
+    if (at.area) f.area = at.area;
+  }
+  const profile = profileOf(table, f);
+  const changed = JSON.stringify([f, profile]) !== JSON.stringify([d.filters, d.profile]);
+  d.filters = f;
+  d.profile = profile;
+  if (changed && canEdit) saveData(wd, 'No se pudo guardar el ENAHO.');
+  else { render(wd); requestDraw(); }
+  if (selected === wd) renderInfo();
+}
+
+let enahoInfoTicket = 0; // el bloque se arma cuando llega el JSON: solo vale el último pedido
+function renderEnahoInfo(box) {
+  const wd = selected;
+  const d = wd.data;
+  const ticket = ++enahoInfoTicket;
+  $('info-kind').textContent = 'ENAHO · INEI';
+  $('info-title').textContent = d.profile?.label || 'Perfil ENAHO';
+  const list = $('info-list');
+  list.innerHTML = '';
+  loadEnaho(d.year).then((table) => {
+    if (selected !== wd || ticket !== enahoInfoTicket) return;
+    const u = linkedUsers(wd)[0];
+    const locked = Boolean(u && d.follow);
+
+    if (u) {
+      const who = document.createElement('div');
+      who.className = 'en-user';
+      who.innerHTML = `<span class="us-av"></span><span><b></b><small></small></span>`;
+      who.querySelector('.us-av').innerHTML = avatarSVG(u);
+      who.querySelector('b').textContent = u.name;
+      who.querySelector('small').textContent = `${u.sex === 'f' ? 'Mujer' : 'Hombre'} · ${ageLabel(u.age)}${bandOf(u.age) ? '' : ' · la ENAHO empieza en 12 años'}`;
+      list.append(who);
+      if (canEdit) {
+        const follow = document.createElement('label');
+        follow.className = 'en-follow';
+        follow.innerHTML = '<input type="checkbox"><span>Usar su edad y sexo</span>';
+        const cb = follow.querySelector('input');
+        cb.checked = d.follow;
+        cb.addEventListener('change', () => { d.follow = cb.checked; syncEnaho(wd); });
+        list.append(follow);
+      }
+    }
+
+    const FIELDS = [['dep', 'Departamento'], ['area', 'Área'], ['age', 'Edad'], ['sex', 'Sexo']];
+    for (const [key, label] of FIELDS) {
+      const field = document.createElement('label');
+      field.className = 'ex-field en-field';
+      field.innerHTML = `<span>${label}</span><select>${table.filters[key].map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('')}</select>`;
+      const sel = field.querySelector('select');
+      sel.value = d.filters[key];
+      sel.disabled = !canEdit || (locked && (key === 'age' || key === 'sex'));
+      sel.addEventListener('change', () => {
+        d.filters = { ...d.filters, [key]: sel.value };
+        if (key === 'dep' || key === 'area') d.place = 'manual'; // ya no se adivina de las notas
+        d.profile = profileOf(table, d.filters);
+        saveData(wd, 'No se pudo guardar el ENAHO.');
+        $('info-title').textContent = d.profile.label;
+        paintSample();
+        if (u && d.place === 'manual' && !list.querySelector('.en-again')) renderInfo(); // aparece «Volver a tomar…»
+      });
+      list.append(field);
+    }
+    if (canEdit && u && d.place === 'manual') {
+      const again = document.createElement('button');
+      again.type = 'button';
+      again.className = 'link-btn en-again';
+      again.textContent = 'Volver a tomar la ubicación de sus notas';
+      again.addEventListener('click', () => { d.place = 'auto'; syncEnaho(wd); });
+      list.append(again);
+    }
+
+    const sample = document.createElement('p');
+    sample.className = 'en-sample';
+    const paintSample = () => {
+      const p = d.profile;
+      const note = sampleNote(p?.n || 0);
+      sample.classList.toggle('is-low', Boolean(note));
+      sample.textContent = `Muestra: ${(p?.n || 0).toLocaleString('es-PE')} personas${p?.hh ? ` en ${p.hh.toLocaleString('es-PE')} hogares` : ''}${note ? ` · ${note}` : ''}`;
+    };
+    paintSample();
+    list.append(sample);
+
+    const src = document.createElement('p');
+    src.className = 'ex-hint en-src';
+    src.innerHTML = `<b>${esc(table.edition)}</b><br>${esc(table.source)}${table.published ? ` · publicada el ${esc(new Date(`${table.published}T12:00:00`).toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' }))}` : ''}${table.example ? '<br><b>Datos de EJEMPLO, no reales.</b>' : ''}`;
+    list.append(src);
+    const notes = document.createElement('ul');
+    notes.className = 'en-notes';
+    for (const n of table.notes || []) {
+      const li = document.createElement('li');
+      li.textContent = n;
+      notes.append(li);
+    }
+    list.append(notes);
+    const hint = document.createElement('p');
+    hint.className = 'ex-hint';
+    hint.textContent = u ? 'La IA, el journey y el Researcher usan este perfil: conecta el + del ENAHO a una pregunta o al Researcher.'
+      : 'Conecta un Usuario a la izquierda: los filtros se llenan con su edad y sexo (y su ubicación, si está en sus notas).';
+    list.append(hint);
+  }).catch(() => {
+    if (selected !== wd || ticket !== enahoInfoTicket) return;
+    list.innerHTML = `<p class="us-none">No se pudo cargar la ENAHO ${esc(d.year)} (/data/enaho/${esc(d.year)}.json).</p>`;
+  });
+  showInfo(box);
+}
+
+/* ============================================================
    Celebridad: elige una celebridad (o arma una) y cómo piensa
    ============================================================ */
 
@@ -2323,6 +2467,7 @@ function saveUser(wd) {
     });
     if (!r.ok) alert(r.data.error || 'No se pudo guardar el usuario.');
   }, 250);
+  for (const w of widgets) if (w.data?.kind === 'enaho' && w.inputs.includes(wd.id)) syncEnaho(w);
 }
 
 /* Contexto del usuario: audios y textos. Los textos se leen y se guardan (la
@@ -2565,6 +2710,7 @@ const TOOLS = [
   { key: 'user', label: 'Usuario', open: () => createUser() },
   { key: 'expert', label: 'Celebridad', open: () => createExpert() },
   { key: 'file', label: 'Archivo', open: () => createFile() },
+  { key: 'enaho', label: 'ENAHO · datos del INEI', open: () => createEnaho() },
   { key: 'note', label: 'Post-it', open: () => createNote() },
   { key: 'label', label: 'Texto', open: () => createLabel() },
   { key: 'group', label: 'Grupo', open: () => createGroup() },
@@ -3423,6 +3569,7 @@ $('dash-delete').addEventListener('click', async () => {
   renderDock();
   widgets = data.widgets.map((w) => ({ ...w, state: 'done', inputs: w.inputs || [], tops: w.tops || [] }));
   widgets.forEach((wd) => mount(wd));
+  widgets.filter((w) => w.data?.kind === 'enaho').forEach((w) => syncEnaho(w));
   marks = { flags: data.marks?.flags || [], divider: data.marks?.divider || null };
   renderMarks();
   refreshEmpty();

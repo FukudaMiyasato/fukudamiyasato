@@ -47,6 +47,9 @@
                                                       la IA responde con su mirada (data.voices)
      POST   ?d=<id>&widget=journey { data, layout } → panel User journey, vacío
      POST   ?d=<id>&widget=pro { data, layout }     → profesional (por ahora, Researcher)
+     POST   ?d=<id>&widget=enaho { data, layout }   → perfil ENAHO (sin IA): filtros + el perfil
+                                                      ya calculado en el navegador; el journey lo
+                                                      usa si toma como entrada a sus usuarios
      POST   ?d=<id>&research=<proId> { question | similar: widgetId, filters?, slots: [{ x, y, w, h }] }
                                                     → similar: busca soluciones parecidas a ese widget
                                                       (conectado al Researcher), con filtros opcionales.
@@ -87,6 +90,7 @@ import {
   getMarks, addFlag, setDivider, deleteMark, moveMark, addSpent, spentOf,
 } from './_lib/dashboards.js';
 import { askVisual, askShort, askFollow, askJourney, askJourneyFit, askResearch, AIError } from './_lib/ai.js';
+import { contextFrom } from './_lib/context.js';
 import { getConfig, priceOf, prices } from './_lib/config.js';
 import { unlimited, balanceOf, charge, refund } from './_lib/tokens.js';
 
@@ -390,10 +394,48 @@ function cleanFile(d) {
   return { kind: 'file', title: txt(d.title, 60) || 'Archivo', files };
 }
 
+/* ---------- ENAHO (perfil del INEI, sin IA) ---------- */
+const ENAHO_STATS = ['gpc', 'gh', 'ipc', 'ih', 'il', 'ocu', 'pobre', 'pobext', 'tam', 'sec', 'seguro', 'sis', 'essalud', 'internet', 'celular', 'intcasa', 'intfija', 'diario'];
+const num = (v, max = 1e7) => (v == null || !Number.isFinite(Number(v)) ? null : Math.min(max, Math.max(0, Math.round(Number(v) * 10) / 10)));
+const pairs = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []).map((x) => [txt(x?.[0], 60), num(x?.[1], 100)]).filter((x) => x[0]);
+
+/** Filtros y el perfil ya calculado en el navegador (de /data/enaho/<año>.json):
+    se guarda para que la IA lo lea (contextFrom) sin abrir el JSON. */
+function cleanEnaho(d) {
+  if (!d || typeof d !== 'object') return null;
+  const f = d.filters || {};
+  const p = d.profile && typeof d.profile === 'object' ? d.profile : null;
+  const year = Math.round(Number(d.year));
+  return {
+    kind: 'enaho',
+    title: txt(d.title, 60) || 'ENAHO',
+    year: year >= 2004 && year <= 2100 ? year : 2025,
+    filters: {
+      dep: /^(\d{2}|LM)$/.test(f.dep) ? f.dep : '00',
+      area: ['t', 'u', 'r'].includes(f.area) ? f.area : 't',
+      age: /^(t|\d{2}-\d{2}|60\+)$/.test(f.age) ? f.age : 't',
+      sex: ['t', 'f', 'm'].includes(f.sex) ? f.sex : 't',
+    },
+    follow: d.follow !== false,
+    place: d.place === 'manual' ? 'manual' : 'auto',
+    profile: p ? {
+      label: txt(p.label, 160), source: txt(p.source, 60), edition: txt(p.edition, 200), example: Boolean(p.example),
+      n: num(p.n), hh: num(p.hh), pop: num(p.pop, 1e9),
+      ...(p.stats ? { stats: Object.fromEntries(ENAHO_STATS.map((k) => [k, num(p.stats[k])])) } : {}),
+      ...(p.edu ? { edu: pairs(p.edu, 8) } : {}),
+      ...(p.uses ? { uses: pairs(p.uses, 12) } : {}),
+    } : null,
+  };
+}
+
+/** Perfiles ENAHO que toman como entrada a alguno de estos usuarios (para el journey). */
+const enahoOf = (users, all) => all.filter((w) => w.data?.kind === 'enaho' && w.data.profile
+  && (w.inputs || []).some((i) => users.some((u) => u.id === i)));
+
 /* ---------- nebulosa de IA ---------- */
 const cleanNebula = () => ({ kind: 'nebula', title: 'Nebulosa de IA' });
 
-const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, file: cleanFile, pro: cleanPro, finding: cleanFinding, label: cleanLabel, group: cleanGroup, note: cleanNote, nebula: cleanNebula };
+const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, file: cleanFile, pro: cleanPro, finding: cleanFinding, label: cleanLabel, group: cleanGroup, note: cleanNote, nebula: cleanNebula, enaho: cleanEnaho };
 
 /** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
 function cleanInputs(v, widgets, selfId) {
@@ -420,51 +462,6 @@ function chainOf(ids, all, max = 30) {
     level = next;
   }
   return out.slice(0, max);
-}
-
-/** Lo que muestran los widgets conectados, en texto, para dárselo a la IA. */
-function contextFrom(list) {
-  return list.map((w) => {
-    const d = w.data || {};
-    let body;
-    if (d.kind === 'table') {
-      body = [d.columns, ...(d.rows || []).slice(0, 200)].map((r) => r.join(' | ')).join('\n');
-    } else if (d.kind === 'user') {
-      body = [
-        d.sex ? `${d.sex === 'f' ? 'Mujer' : 'Hombre'} de ${d.age} años` : `Tipo de usuario: ${d.persona}`,
-        ...(d.context || []).map((f) => (f.kind === 'text' && f.text
-          ? `Texto «${f.name}»:\n${f.text.slice(0, 4000)}`
-          : `Audio de contexto: ${f.name} (sin transcribir)`)),
-      ].join('\n');
-    } else if (d.kind === 'timeline') {
-      body = d.milestones.map((m) => `${m.date}: ${m.name}`).join('\n');
-    } else if (d.kind === 'journey') {
-      body = [
-        d.goal ? `Objetivo: ${d.goal}` : '', d.persona ? `Usuario: ${d.persona}` : '',
-        d.entries?.length ? `Puntos de entrada: ${d.entries.map((e) => `${e.name} (${e.channel})`).join(', ')}` : '',
-        ...(d.stages || []).map((x, i) => `${i + 1}. ${x.name} — hace: ${x.doing}; piensa: ${x.thinking}; siente: ${x.emotion} (${x.feeling}); dolor: ${x.pain}; oportunidad: ${x.opportunity}`),
-      ].filter(Boolean).join('\n') || 'User journey vacío';
-    } else if (d.kind === 'expert') {
-      body = `Celebridad: ${d.name} (${d.role}). ${d.prompt}`;
-    } else if (d.kind === 'label' || d.kind === 'note') {
-      body = d.text;
-    } else if (d.kind === 'group') {
-      body = `Grupo «${d.title}»`;
-    } else if (d.kind === 'finding') {
-      body = `${d.summary}\nFuentes: ${(d.sources || []).map((x) => x.url).join(' · ')}`;
-    } else if (d.kind === 'pro') {
-      body = `${d.name}: ${d.thought || ''}`;
-    } else if (d.kind === 'file') {
-      body = (d.files || []).map((f) => `Archivo «${f.name}» (${f.type === 'xlsx' ? 'Excel, como CSV' : f.type}${f.rows != null ? `, ${f.rows} filas` : ''}${f.cut ? ', recortado' : ''}):\n\`\`\`\n${f.text}\n\`\`\``).join('\n\n') || 'Archivo vacío';
-    } else if (d.kind === 'nebula') {
-      body = 'Nebulosa de IA (todavía sin contenido)';
-    } else if (d.kind === 'chart') {
-      body = d.labels.map((l, i) => `${l}: ${d.values[i]}${d.unit ? ` ${d.unit}` : ''}`).join('\n');
-    } else {
-      body = [d.value, d.detail].filter(Boolean).join('\n');
-    }
-    return `### ${d.title || d.name || 'Widget'}${d.prompt ? `\n(Pregunta original: ${d.prompt})` : ''}\n${body}`;
-  }).join('\n\n');
 }
 
 export default async function handler(req, res) {
@@ -633,6 +630,8 @@ export default async function handler(req, res) {
         out = await askJourney({
           goal,
           users: users.map((w) => ({ name: w.data.name, sex: w.data.sex, age: w.data.age, context: userContext(w.data) })),
+          // el perfil ENAHO de esos usuarios (si alguno está conectado a un widget ENAHO)
+          context: contextFrom(enahoOf(users, all)),
         });
       } catch (err) {
         if (price) await refund(user.email, price);
