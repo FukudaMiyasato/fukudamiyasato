@@ -9,7 +9,10 @@
    Solo amos:
      GET    ?d=<id>&members=1      → chismosos y si tienen este dashboard activo
      POST   { name, image? }                        → crea un dashboard
-     POST   ?d=<id>&import=1 { widgets: [{ id, type, x, y, w, h, data, inputs }] }
+     POST   ?d=<id>&import=1[&keep=1] { widgets: [{ id, type, x, y, w, h, data, inputs }] }
+                                                    → { created, ids: { idViejo: idNuevo } }. Con keep
+                                                      (deshacer un borrado) quedan en su mismo lugar y
+                                                      pueden conectarse a widgets que ya están
                                                     → agrega widgets de una plantilla o de otro
                                                       dashboard (exportado): se validan como
                                                       cualquier widget, se ponen a la derecha de lo
@@ -662,15 +665,19 @@ export default async function handler(req, res) {
       if (!clean.length) return res.status(400).json({ error: 'El archivo no tiene widgets válidos.' });
       // a la derecha de lo que ya hay, para no pisar nada
       const existing = await listWidgets(dash.id);
+      const keep = Boolean(req.query?.keep);
+      const there = new Set(existing.map((w) => w.id));
       const minX = Math.min(...clean.map((w) => w.layout.x));
-      const dx = existing.length ? Math.max(...existing.map((w) => w.x + w.w)) + 6 - minX : 0;
+      const dx = existing.length && !keep ? Math.max(...existing.map((w) => w.x + w.w)) + 6 - minX : 0;
       const ids = new Map();
       for (const w of clean) w.layout.x = Math.min(500, w.layout.x + dx);
       // primero sin conexiones (para conocer los ids nuevos), después se reconectan
       for (const w of clean) ids.set(w.key, (await createWidget(dash.id, w.type, w.layout, w.data, [])).id);
       for (const w of clean) {
-        const inputs = w.inputs.map((k) => ids.get(k)).filter(Boolean);
-        const tops = w.tops.map((k) => ids.get(k)).filter(Boolean);
+        // con keep, una conexión a un widget que ya está en el dashboard se respeta
+        const remap = (k) => ids.get(k) || (keep && there.has(k) ? k : null);
+        const inputs = w.inputs.map(remap).filter(Boolean);
+        const tops = w.tops.map(remap).filter(Boolean);
         // las soluciones del journey guardan el id del widget: se pasan a los nuevos
         if (w.type === 'journey' && (w.data.solutions?.length || w.presets.length)) {
           w.data.solutions = (w.data.solutions || []).map((s) => ({ ...s, id: ids.get(s.id) })).filter((s) => s.id);
@@ -690,7 +697,7 @@ export default async function handler(req, res) {
         }
         if (inputs.length || tops.length) await updateWidget(dash.id, ids.get(w.key), { inputs, ...(tops.length ? { tops } : {}) });
       }
-      return res.status(201).json({ created: clean.length });
+      return res.status(201).json({ created: clean.length, ids: Object.fromEntries(ids) });
     }
 
     /* ---------- journey: ¿esta solución encaja? ---------- */

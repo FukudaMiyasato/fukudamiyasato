@@ -1642,3 +1642,24 @@ body:not(.can-edit) .wnote { cursor: default; }
 .pro-sol-name { font-size: 14px; color: #22222a; }
 .pro-similar select { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(0, 0, 0, .12); background: rgba(255, 255, 255, .7); color: #22222a; font: inherit; font-size: 13px; }
 .pro-free { justify-self: center; font-size: 12px; }
+
+/* aviso corto (deshacer) */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  padding: 9px 16px;
+  border-radius: 99px;
+  background: rgba(24, 24, 29, .95);
+  border: 1px solid var(--line);
+  color: #f2f2f4;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 14px 30px -14px #000;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  pointer-events: none;
+  transition: opacity .2s, transform .2s var(--ease);
+}
+.toast.is-in { opacity: 1; transform: translate(-50%, 0); }

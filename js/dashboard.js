@@ -221,6 +221,7 @@ linksSvg.addEventListener('pointerdown', (e) => {
   if (!t || t.state === 'thinking') return;
   if (!confirm('¿Quitar esta conexión?')) return;
   if (g.dataset.kind === 'top') { disconnectSolution(t, g.dataset.from); return; }
+  remember('quitar la conexión', { changed: [t] });
   t.inputs = t.inputs.filter((i) => i !== g.dataset.from);
   if (t.state === 'done') saveInputs(t);
   refreshContextNote(t);
@@ -447,8 +448,105 @@ function unmount(wd, animate = true) {
   requestDraw();
 }
 
+/* ============================================================
+   Deshacer (Cmd/Ctrl + Z): solo la última acción
+   ------------------------------------------------------------
+   Antes de cada acción se guarda cómo estaban los widgets que toca:
+     changed  → se vuelven a dejar como estaban (lugar, tamaño,
+                conexiones, soluciones del journey, datos)
+     deleted  → se vuelven a crear en su mismo lugar
+     created  → se borran
+   ============================================================ */
+
+let lastAction = null;
+// tipos cuyos datos se pueden volver a guardar tal cual (las respuestas de IA no se editan)
+const RESTORABLE = ['timeline', 'user', 'expert', 'journey', 'file', 'pro', 'finding', 'label', 'group', 'note', 'nebula'];
+const snapOf = (w) => ({
+  id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h,
+  data: structuredClone(w.data), inputs: [...(w.inputs || [])], tops: [...(w.tops || [])],
+});
+
+/** Guarda la acción que está por pasar (reemplaza a la anterior: solo hay un paso). */
+function remember(label, { changed = [], deleted = [], created = [] } = {}) {
+  // quienes estaban conectados a lo que se borra también cambian (pierden la línea)
+  const gone = new Set(deleted.map((w) => w.id));
+  const refs = widgets.filter((o) => !gone.has(o.id) && [...(o.inputs || []), ...(o.tops || [])].some((i) => gone.has(i)));
+  const ch = [...new Set([...changed, ...refs])].filter((w) => w && !gone.has(w.id) && w.state === 'done');
+  lastAction = { label, changed: ch.map(snapOf), deleted: deleted.filter((w) => w.state === 'done').map(snapOf), created: [...created] };
+}
+
+function toast(text) {
+  let el = $('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.append(el); }
+  el.textContent = text;
+  el.classList.remove('is-in'); void el.offsetWidth; el.classList.add('is-in');
+  clearTimeout(el.timer);
+  el.timer = setTimeout(() => el.classList.remove('is-in'), 2200);
+}
+
+async function undo() {
+  const a = lastAction;
+  if (!a) return toast('No hay nada para deshacer');
+  lastAction = null; // un solo paso
+  const url = `/api/dash?d=${encodeURIComponent(id)}`;
+  // 1) lo creado se borra
+  for (const wid of a.created) {
+    const w = byId(wid);
+    if (!w) continue;
+    await api(`${url}&widget=${encodeURIComponent(wid)}`, { method: 'DELETE' });
+    unmount(w, false);
+  }
+  // 2) lo borrado vuelve a su lugar (con id nuevo: se corrigen las conexiones de los demás)
+  const newId = new Map();
+  if (a.deleted.length) {
+    const r = await api(`${url}&import=1&keep=1`, { method: 'POST', body: JSON.stringify({ widgets: a.deleted }) });
+    if (!r.ok) return alert(r.data.error || 'No se pudo deshacer.');
+    for (const [old, nid] of Object.entries(r.data.ids || {})) newId.set(old, nid);
+    const fresh = await api(url);
+    for (const w of fresh.data.widgets || []) {
+      if (byId(w.id) || ![...newId.values()].includes(w.id)) continue;
+      const nw = { ...w, state: 'done', inputs: w.inputs || [], tops: w.tops || [] };
+      widgets.push(nw);
+      mount(nw, { isNew: true });
+    }
+  }
+  // 3) lo que cambió vuelve a como estaba
+  const fix = (ids) => ids.map((i) => newId.get(i) || i);
+  for (const sn of a.changed) {
+    const w = byId(sn.id);
+    if (!w) continue;
+    Object.assign(w, { x: sn.x, y: sn.y, w: sn.w, h: sn.h, inputs: fix(sn.inputs), tops: fix(sn.tops) });
+    if (RESTORABLE.includes(sn.data?.kind)) {
+      w.data = sn.data;
+      if (w.data.kind === 'journey') w.data.solutions = (w.data.solutions || []).map((x) => ({ ...x, id: newId.get(x.id) || x.id }));
+    }
+    render(w);
+    await api(url, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        widget: w.id, x: w.x, y: w.y, w: w.w, h: w.h, inputs: w.inputs,
+        ...(w.type === 'journey' ? { tops: w.tops } : {}),
+        ...(RESTORABLE.includes(w.data?.kind) ? { data: w.data } : {}),
+      }),
+    });
+  }
+  refreshEmpty();
+  refreshGlow();
+  requestDraw();
+  if (selected) renderInfo();
+  toast(`Deshecho: ${a.label}`);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!canEdit || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return; // ahí deshace el texto
+  e.preventDefault();
+  undo();
+});
+
 async function removeWidget(wd) {
   if (!confirm(`¿Borrar «${wd.data?.title || 'este widget'}»?`)) return;
+  remember('borrar', { deleted: [wd] });
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=${encodeURIComponent(wd.id)}`, { method: 'DELETE' });
   if (!r.ok) return alert(r.data.error || 'No se pudo borrar.');
   unmount(wd);
@@ -537,6 +635,7 @@ function startEdit(e, wd, mode) {
     if (cell) { dropNoteOnJourney(wd, cell); return; }
     const changed = next.x !== start.x || next.y !== start.y || next.w !== start.w || next.h !== start.h;
     if (changed && (isGroup(wd) || !collides(next, wd.id))) {
+      remember(mode === 'move' ? 'mover' : 'cambiar el tamaño', { changed: [wd] });
       Object.assign(wd, next);
       saveLayout(wd);
     }
@@ -598,6 +697,7 @@ function startGroupMove(e, group) {
     if (!dragging) return;
     ghosts.forEach((g) => g.remove());
     const ok = (off.x || off.y) && starts.every((s) => free({ x: s.x + off.x, y: s.y + off.y, w: s.w.w, h: s.w.h }, s.w));
+    if (ok) remember(`mover ${group.length} widgets`, { changed: group });
     for (const s of starts) {
       s.w.el.classList.remove('is-dragging');
       if (ok) { s.w.x = s.x + off.x; s.w.y = s.y + off.y; saveLayout(s.w); }
@@ -669,6 +769,7 @@ function startLink(e, src) {
     if (hit?.side === 'top') { connectSolution(hit.t, src); requestDraw(); return; }
     const t = hit?.t;
     if (t && !t.inputs.includes(src.id)) {
+      if (t.state === 'done') remember('conectar', { changed: [t] });
       t.inputs.push(src.id);
       if (t.state === 'done') saveInputs(t);
       refreshContextNote(t);
@@ -1154,6 +1255,7 @@ async function removeMany(list) {
   if (!list.length) return;
   if (list.length === 1) return removeWidget(list[0]);
   if (!confirm(`¿Borrar ${list.length} widgets?`)) return;
+  remember(`borrar ${list.length} widgets`, { deleted: list });
   const results = await Promise.all(list.map((w) => api(`/api/dash?d=${encodeURIComponent(id)}&widget=${encodeURIComponent(w.id)}`, { method: 'DELETE' })));
   select(null);
   list.forEach((w, i) => { if (results[i].ok) unmount(w); });
@@ -1447,6 +1549,7 @@ async function createPlain(type, data, size) {
   const wd = { ...r.data.widget, state: 'done', inputs: [] };
   widgets.push(wd);
   mount(wd, { isNew: true });
+  remember(`crear ${(TOOL_LABEL[type] || 'widget').toLowerCase()}`, { created: [wd.id] });
   refreshEmpty();
   focusOn(wd);
   select(wd); // abre su bloque para editarlo
@@ -1473,6 +1576,7 @@ async function groupSelection(list) {
   const g = { ...r.data.widget, state: 'done', inputs: [] };
   widgets.push(g);
   mount(g, { isNew: true });
+  remember('agrupar', { created: [g.id] });
   select(g);
 }
 
@@ -1543,6 +1647,7 @@ function detachFx(src, j, color = '#ffd166') {
 async function connectSolution(j, src) {
   if (j.tops.includes(src.id)) return;
   if (!j.data.stages?.length) return notice('Primero genera el journey', 'Las soluciones se cruzan con las etapas: conecta usuarios por la izquierda y genera el journey antes.');
+  const before = snapOf(j); // si encaja, deshacer vuelve a esto (sin gastar tokens)
   j.tops.push(src.id);
   j.checking = true;
   j.el.classList.add('is-glowing');
@@ -1561,6 +1666,7 @@ async function connectSolution(j, src) {
     if (!r.ok) return alert(r.data.error || 'No se pudo analizar la solución.');
     return notice('Esta solución no es compatible con el journey del usuario', `Motivo: ${r.data.reason}`);
   }
+  lastAction = { label: 'conectar la solución', changed: [before], deleted: [], created: [] };
   // la más antigua se suelta (con su color) si ya había 3
   for (const old of r.data.replaced || []) detachFx(byId(old), j, j.data.solutions?.find((x) => x.id === old)?.color);
   j.data = r.data.data;
@@ -1586,6 +1692,7 @@ function growToFit(j) {
 
 /** Quita una solución de arriba (y lo que había agregado a las etapas). */
 async function disconnectSolution(j, solId) {
+  remember('quitar la solución', { changed: [j] });
   j.tops = j.tops.filter((i) => i !== solId);
   j.data.solutions = (j.data.solutions || []).filter((x) => x.id !== solId);
   render(j);
@@ -1615,6 +1722,7 @@ async function dropNoteOnJourney(note, cell) {
   const j = widgets.find((w) => w.el.contains(cell));
   const text = (note.data.text || '').trim();
   if (!j || !text) { place(note); if (!text) alert('El post-it está vacío: escríbele algo antes.'); return; }
+  remember('pegar el post-it', { changed: [j], deleted: [note] });
   const stage = j.data.stages[Number(cell.dataset.stage)];
   stage.adds = [...(stage.adds || []), { row: cell.dataset.row, text, by: { name: meUser?.name || '', picture: meUser?.picture || '' } }];
   render(j);
