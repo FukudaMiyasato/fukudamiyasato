@@ -107,6 +107,27 @@ export const TOOL_ICONS = {
     <path d="M4.2 20.5c.4-4.2 3.6-6.8 7.8-6.8s7.4 2.6 7.8 6.8z" fill="currentColor"/>
   </svg>`,
 
+  // paneles: tres bloques de distinto tamaño
+  panels: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="3" y="3.5" width="18" height="7" rx="2" fill="currentColor"/>
+    <rect x="3" y="12.5" width="8" height="8" rx="2" fill="currentColor" opacity=".55"/>
+    <rect x="13" y="12.5" width="8" height="8" rx="2" fill="currentColor" opacity=".8"/>
+  </svg>`,
+
+  // user journey: curva de emociones con tres puntos
+  journey: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M3 15c3-7 5-7 7.5-2.5S16 18 21 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="5.5" cy="11.5" r="2.2" fill="#ffd166"/><circle cx="12" cy="15" r="2.2" fill="#ff5a6a"/><circle cx="19.5" cy="9" r="2.2" fill="#3ecf8e"/>
+  </svg>`,
+
+  // profesional: silueta con maletín
+  expert: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="9.5" cy="7.6" r="3.6" fill="currentColor"/>
+    <path d="M2.8 19.8c.4-3.9 3.1-6.3 6.7-6.3 1.2 0 2.3.3 3.2.8V19.8z" fill="currentColor"/>
+    <rect x="13.4" y="13.6" width="8.2" height="6.4" rx="1.4" fill="#e9b04e"/>
+    <path d="M15.6 13.6v-1a1 1 0 0 1 1-1h1.8a1 1 0 0 1 1 1v1" fill="none" stroke="#e9b04e" stroke-width="1.4"/>
+  </svg>`,
+
   // línea de tiempo: dos hitos unidos por una barra
   timeline: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <rect x="5" y="10.9" width="14" height="2.2" rx="1.1" fill="currentColor"/>

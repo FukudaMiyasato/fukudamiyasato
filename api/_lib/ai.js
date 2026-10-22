@@ -16,6 +16,8 @@
 
    `context` es el contenido de los widgets conectados (por su conector
    izquierdo): la IA lo usa como fuente principal.
+   `voices` son los profesionales conectados (nombre, rol y cómo piensan):
+   la respuesta sale con su mirada, sin cambiar el formato pedido.
 
    Usa siempre OPENAI_API_KEY. Cada función acepta `meter` ({}): al
    terminar trae en meter.tokens los tokens que gastó la llamada (así se
@@ -65,6 +67,16 @@ async function callOpenAI(system, user, schema, { temperature = 0, meter = null 
   if (msg?.refusal) throw new AIError(msg.refusal);
   try { return JSON.parse(msg?.content || ''); } catch { throw new Error('OpenAI devolvió una respuesta ilegible.'); }
 }
+
+/** Instrucción extra para responder con la mirada de los profesionales conectados. */
+export const withVoices = (system, voices) => (voices
+  ? `${system}
+
+MIRADA PROFESIONAL — responde como lo harían estos profesionales, con su forma de pensar, sus
+criterios y su tono (si son varios, combina sus miradas y deja ver en qué coinciden o difieren).
+No digas que eres una IA ni rompas el formato pedido:
+${String(voices).slice(0, 6000)}`
+  : system);
 
 /** Bloque de contexto (widgets conectados) para el mensaje del usuario. */
 const contextBlock = (context) => (context
@@ -147,7 +159,7 @@ const VISUAL_SCHEMA = {
 };
 
 /** Devuelve { kind, title, … , truncated, fromFile } o lanza AIError (pregunta que no sirve) / Error (falla técnica). */
-export async function askVisual({ prompt, csv = '', filename = '', context = '', meter = null }) {
+export async function askVisual({ prompt, csv = '', filename = '', context = '', voices = '', meter = null }) {
   let body = String(csv || '').replace(/^﻿/, '');
   const fromFile = Boolean(body.trim());
   let truncated = false;
@@ -166,7 +178,7 @@ export async function askVisual({ prompt, csv = '', filename = '', context = '',
     : `Pedido: ${prompt}`);
 
   const system = fromFile ? SYSTEM_CSV : context ? SYSTEM_CONTEXT : SYSTEM_FREE;
-  const out = await callOpenAI(system, user, VISUAL_SCHEMA, { meter });
+  const out = await callOpenAI(withVoices(system, voices), user, VISUAL_SCHEMA, { meter });
   if (!out.ok) throw new AIError(out.error || 'La pregunta no se puede responder.');
   const title = str(out.title || 'Respuesta', 80);
   const base = { title, truncated, fromFile };
@@ -222,8 +234,8 @@ const SHORT_SCHEMA = {
 };
 
 /** Devuelve { kind: 'text', title, value, detail } o lanza AIError / Error. */
-export async function askShort({ prompt, context = '', meter = null }) {
-  const out = await callOpenAI(SYSTEM_SHORT, contextBlock(context) + prompt, SHORT_SCHEMA, { meter });
+export async function askShort({ prompt, context = '', voices = '', meter = null }) {
+  const out = await callOpenAI(withVoices(SYSTEM_SHORT, voices), contextBlock(context) + prompt, SHORT_SCHEMA, { temperature: voices ? 0.6 : 0, meter });
   if (!out.ok) throw new AIError(out.error || 'No se puede responder eso.');
   const value = str(out.answer, 700);
   if (!value) throw new AIError('No salió ninguna respuesta.');
@@ -247,10 +259,89 @@ conocimiento general (dilo en "detail").
 Responde ok=false (con un motivo breve en español en "error") SOLO si el pedido está vacío o no se entiende.`;
 
 /** Devuelve { kind: 'text', title, value, detail } o lanza AIError / Error. */
-export async function askFollow({ prompt, context = '', meter = null }) {
-  const out = await callOpenAI(SYSTEM_FOLLOW, contextBlock(context) + `Pedido: ${prompt}`, SHORT_SCHEMA, { temperature: 0.5, meter });
+export async function askFollow({ prompt, context = '', voices = '', meter = null }) {
+  const out = await callOpenAI(withVoices(SYSTEM_FOLLOW, voices), contextBlock(context) + `Pedido: ${prompt}`, SHORT_SCHEMA, { temperature: 0.5, meter });
   if (!out.ok) throw new AIError(out.error || 'No entendí la pregunta.');
   const value = str(out.answer, 800);
   if (!value) throw new AIError('No salió ninguna respuesta.');
   return { kind: 'text', title: str(out.title || 'Respuesta', 80), value, detail: str(out.detail) };
+}
+
+/* ============================================================
+   Panel "User journey": puntos de entrada + etapas con emociones
+   ============================================================ */
+
+const SYSTEM_JOURNEY = `Eres investigadora UX y diseñadora de servicios. Armas un user journey realista a partir de
+uno o más usuarios (sexo, edad y su contexto: notas, entrevistas, textos) y un objetivo que dice qué flujo
+recorrer. Escribe en el idioma del objetivo (español si no hay objetivo).
+- Si hay VARIOS usuarios, crea UN usuario promedio que combine sus rasgos (edad intermedia, lo que comparten,
+  lo que más pesa del contexto de cada uno) y arma un solo journey para él. Descríbelo en "persona".
+- Si hay uno, "persona" lo describe en una frase.
+- "entries": 2 a 5 puntos de entrada al flujo (dónde o cómo llega: búsqueda, recomendación, redes, tienda…).
+  "name" corto, "channel" el canal (web, app, presencial, WhatsApp…), "detail" una frase.
+- "stages": 4 a 7 etapas en orden. "name" de 1 a 3 palabras. "doing": qué hace (máx. 90 caracteres).
+  "thinking": lo que piensa, en primera persona y entre comillas (máx. 90). "feeling": entero de -2 (muy mal)
+  a 2 (muy bien). "emotion": una palabra (ej. curioso, frustrado, aliviado). "pain": el dolor principal o "".
+  "opportunity": una idea concreta para mejorar esa etapa.
+- Usa el contexto de los usuarios: sus palabras, problemas y edad deben notarse. No inventes datos duros.
+- "title": 2 a 5 palabras con el flujo (ej. "Compra del primer seguro").
+Responde ok=false (con el motivo breve en español en "error") solo si el objetivo no tiene sentido.`;
+
+const JOURNEY_SCHEMA = {
+  name: 'user_journey',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['ok', 'error', 'title', 'persona', 'entries', 'stages'],
+    properties: {
+      ok: { type: 'boolean' },
+      error: { type: 'string' },
+      title: { type: 'string' },
+      persona: { type: 'string' },
+      entries: {
+        type: 'array',
+        items: {
+          type: 'object', additionalProperties: false, required: ['name', 'channel', 'detail'],
+          properties: { name: { type: 'string' }, channel: { type: 'string' }, detail: { type: 'string' } },
+        },
+      },
+      stages: {
+        type: 'array',
+        items: {
+          type: 'object', additionalProperties: false,
+          required: ['name', 'doing', 'thinking', 'feeling', 'emotion', 'pain', 'opportunity'],
+          properties: {
+            name: { type: 'string' }, doing: { type: 'string' }, thinking: { type: 'string' },
+            feeling: { type: 'integer' }, emotion: { type: 'string' }, pain: { type: 'string' }, opportunity: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+};
+
+/** users: [{ name, sex, age, context }] (context en texto). Devuelve { title, persona, entries, stages }. */
+export async function askJourney({ goal = '', users = [], context = '', voices = '', meter = null }) {
+  const people = users.map((u, i) => [
+    `Usuario ${i + 1}: ${u.name}, ${u.sex === 'f' ? 'mujer' : 'hombre'} de ${u.age} años.`,
+    u.context ? `Su contexto:\n${u.context}` : '(sin contexto adjunto)',
+  ].join('\n')).join('\n\n');
+  const user = [
+    goal ? `Objetivo / flujo a recorrer: ${goal}` : 'Objetivo: no se indicó; elige el flujo más relevante para este usuario.',
+    users.length > 1 ? `Hay ${users.length} usuarios: arma UN usuario promedio.` : '',
+    people,
+    context ? `\nOtros widgets conectados:\n${String(context).slice(0, MAX_CONTEXT_CHARS / 2)}` : '',
+  ].filter(Boolean).join('\n\n').slice(0, MAX_CONTEXT_CHARS);
+
+  const out = await callOpenAI(withVoices(SYSTEM_JOURNEY, voices), user, JOURNEY_SCHEMA, { temperature: 0.6, meter });
+  if (!out.ok) throw new AIError(out.error || 'No se pudo armar el journey.');
+  const stages = (out.stages || []).slice(0, 8).map((s) => ({
+    name: str(s.name, 40), doing: str(s.doing, 160), thinking: str(s.thinking, 160),
+    feeling: Math.max(-2, Math.min(2, Math.round(Number(s.feeling) || 0))),
+    emotion: str(s.emotion, 30), pain: str(s.pain, 160), opportunity: str(s.opportunity, 160),
+  })).filter((s) => s.name);
+  if (stages.length < 2) throw new AIError('No salieron etapas suficientes.');
+  const entries = (out.entries || []).slice(0, 6).map((e) => ({ name: str(e.name, 40), channel: str(e.channel, 30), detail: str(e.detail, 140) })).filter((e) => e.name);
+  return { title: str(out.title || 'User journey', 60), persona: str(out.persona, 200), entries, stages };
 }

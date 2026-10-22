@@ -53,6 +53,8 @@ import {
   defaultUser, randomUser, fromLegacy, nameForSex, userHTML, userSize, fileSize, avatarSVG, ageLabel, stageLabel,
   AGE_MAX, MAX_CONTEXT, MAX_TEXT,
 } from './persona.js';
+import { emptyJourney, journeySize, journeyHTML } from './journey.js';
+import { EXPERTS, expertOf, fromPreset, defaultExpert, expertSize, expertHTML, expertAvatar } from './expert.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('d') || '';
@@ -296,11 +298,14 @@ function doneHTML(wd) {
   const d = wd.data || {};
   if (d.kind === 'timeline') return timelineHTML(d);
   if (d.kind === 'user') return userHTML(d);
+  if (d.kind === 'expert') return expertHTML(d);
+  if (d.kind === 'journey') return journeyHTML(d, { linked: linkedUsers(wd), generating: wd.generating });
   if (d.kind === 'nebula') return nebulaHTML(wd);
   return `
     <header class="whead" title="${esc(d.prompt || '')}">
       <h3>${esc(d.title || 'Respuesta')}</h3>
       ${d.source ? `<small>${esc(d.source)}</small>` : ''}
+      ${d.voices?.length ? `<small class="wvoices">con la mirada de ${esc(d.voices.join(' y '))}</small>` : ''}
     </header>
     ${contentHTML(d)}`;
 }
@@ -312,7 +317,7 @@ function render(wd) {
   el.dataset.id = wd.id;
   const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
   el.innerHTML = `<div class="wbox">
-    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' ? ' wcard--user' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}">${inner}</div>
+    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}">${inner}</div>
     ${canEdit ? `
       <button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>
       ${wd.state === 'done' ? `<button class="wport wport--out" type="button" data-tip-ai="follow" data-tip-label="Preguntar sobre esto (arrastra para conectar)" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
@@ -327,7 +332,7 @@ function render(wd) {
   if (chart) new ResizeObserver(() => drawChart(chart, wd.data)).observe(chart);
 
   if (!canEdit) return;
-  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser, .wneb')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
+  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser, .wexpert, .wneb')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
   el.querySelector('.whandle')?.addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
   el.querySelector('.wport--out')?.addEventListener('pointerdown', (e) => startLink(e, wd));
   el.querySelector('.wx')?.addEventListener('click', () => removeWidget(wd));
@@ -566,13 +571,24 @@ function markTarget(wd) {
 
 /** Nota en el borrador: "Contexto: 2 widgets conectados". */
 function refreshContextNote(wd) {
+  // el panel de journey muestra quiénes están conectados aunque todavía no se haya generado
+  if (wd.data?.kind === 'journey' && wd.state === 'done') {
+    render(wd);
+    if (selected === wd) renderInfo();
+    return;
+  }
   const note = wd.el.querySelector('.wctx');
   if (!note) return;
-  const title = (i) => byId(i)?.data?.title || 'un widget';
+  const title = (i) => byId(i)?.data?.title || byId(i)?.data?.name || 'un widget';
+  const isExpert = (i) => byId(i)?.data?.kind === 'expert';
   const parts = [];
-  if (wd.about?.length) parts.push(`Sobre «${title(wd.about[0])}»`);
-  const n = wd.inputs.length;
-  if (n) parts.push(n === 1 ? `Contexto: «${title(wd.inputs[0])}»` : `Contexto: ${n} widgets conectados`);
+  if (wd.about?.length && !isExpert(wd.about[0])) parts.push(`Sobre «${title(wd.about[0])}»`);
+  const ctx = wd.inputs.filter((i) => !isExpert(i));
+  const n = ctx.length;
+  if (n) parts.push(n === 1 ? `Contexto: «${title(ctx[0])}»` : `Contexto: ${n} widgets conectados`);
+  // los profesionales no son contexto: le dan su mirada a la respuesta
+  const voices = [...(wd.about || []), ...wd.inputs].filter(isExpert).map(title);
+  if (voices.length) parts.push(`Con la mirada de ${voices.join(' y ')}`);
   note.hidden = !parts.length;
   note.textContent = parts.join(' · ');
 }
@@ -740,6 +756,8 @@ async function submit(wd) {
 function sizeFor(d) {
   if (d.kind === 'timeline') return timelineSize(d.milestones.length);
   if (d.kind === 'user') return userSize();
+  if (d.kind === 'expert') return expertSize();
+  if (d.kind === 'journey') return journeySize(d);
   if (d.kind === 'nebula') return NEBULA_SIZE;
   if (d.kind === 'number') return { w: 7, h: 6 };
   if (d.kind === 'text') {
@@ -887,7 +905,7 @@ $('info-x').addEventListener('click', () => select(null));
 /* ---------- bloque de información del seleccionado ---------- */
 
 const KIND_LABEL = { table: 'Tabla', chart: 'Gráfico', number: 'Número', text: 'Texto' };
-const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', nebula: 'Nebulosa de IA' };
+const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Profesional', journey: 'User journey', nebula: 'Nebulosa de IA' };
 
 /** Muestra el bloque; la animación de entrada solo cuando cambia de widget
     (editarlo no lo "recarga"). */
@@ -907,10 +925,13 @@ function renderInfo() {
   $('info-title').hidden = false;
   if (d.kind === 'timeline') return renderTimelineInfo(box);
   if (d.kind === 'user') return renderUserInfo(box);
+  if (d.kind === 'expert') return renderExpertInfo(box);
+  if (d.kind === 'journey') return renderJourneyInfo(box);
   const rows = [];
   const add = (label, value) => { if (value) rows.push(`<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`); };
   add('Pregunta', d.prompt);
   add('Archivo', d.source);
+  if (d.voices?.length) add('Con la mirada de', d.voices.join(' · '));
   if (d.kind === 'nebula') add('Qué es', 'Una nebulosa de IA. Todavía no hace nada más que verse.');
   const ctx = (selected.inputs || []).map((i) => byId(i)?.data?.title).filter(Boolean);
   add(ctx.length === 1 ? 'Conectado' : 'Conectados', ctx.join(' · '));
@@ -1100,6 +1121,217 @@ async function createPlain(type, data, size) {
 }
 
 const createUser = () => createPlain('user', defaultUser(), userSize());
+const createExpert = () => createPlain('expert', defaultExpert(), expertSize());
+const createJourney = () => createPlain('journey', emptyJourney(), journeySize({}));
+
+/** Usuarios conectados a un widget (para los paneles). */
+const linkedUsers = (wd) => (wd.inputs || []).map(byId).filter((w) => w?.data?.kind === 'user').map((w) => fromLegacy(w.data));
+const linkedExperts = (wd) => (wd.inputs || []).map(byId).filter((w) => w?.data?.kind === 'expert').map((w) => w.data.name);
+
+/* ============================================================
+   Panel User journey: objetivo + generar con los usuarios conectados
+   ============================================================ */
+
+async function generateJourney(wd, btn, errEl) {
+  if (!canAfford('journey')) return flashBroke('journey');
+  errEl.textContent = '';
+  btn.disabled = true;
+  wd.generating = true;
+  wd.el.classList.add('is-glowing');
+  render(wd);
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&journey=${encodeURIComponent(wd.id)}`, {
+    method: 'POST', body: JSON.stringify({ goal: wd.data.goal || '' }),
+  });
+  wd.generating = false;
+  wd.el.classList.remove('is-glowing');
+  btn.disabled = false;
+  if (r.data.tokens !== undefined) setTokens(r.data.tokens);
+  if (!r.ok) { render(wd); errEl.textContent = r.data.error || 'No se pudo generar el journey.'; return; }
+  wd.data = r.data.data;
+  // crece para que entren todas las etapas
+  const size = journeySize(wd.data);
+  if (size.w !== wd.w || size.h !== wd.h) {
+    const fits = !collides({ x: wd.x, y: wd.y, ...size }, wd.id);
+    Object.assign(wd, fits ? { x: wd.x, y: wd.y, ...size } : freeSpot(size.w, size.h, { x: wd.x, y: wd.y }));
+    saveLayout(wd);
+  }
+  render(wd);
+  requestDraw();
+  focusOn(wd);
+  if (selected === wd) renderInfo();
+}
+
+function renderJourneyInfo(box) {
+  const wd = selected;
+  const d = wd.data;
+  $('info-kind').textContent = 'Panel · User journey';
+  $('info-title').hidden = true;
+  const list = $('info-list');
+  list.innerHTML = '';
+  const users = linkedUsers(wd);
+  const voices = linkedExperts(wd);
+
+  const head = (t) => { const p = document.createElement('p'); p.className = 'tl-head'; p.textContent = t; list.append(p); };
+
+  head('Objetivo');
+  if (canEdit) {
+    const goal = document.createElement('textarea');
+    goal.className = 'jr-goal';
+    goal.rows = 3;
+    goal.maxLength = 300;
+    goal.placeholder = 'Ej.: Contratar su primer seguro de auto por la web';
+    goal.value = d.goal || '';
+    goal.addEventListener('input', () => { d.goal = goal.value; saveData(wd, 'No se pudo guardar el objetivo.'); });
+    list.append(goal);
+  } else {
+    const p = document.createElement('p');
+    p.className = 'us-none';
+    p.textContent = d.goal || 'Sin objetivo.';
+    list.append(p);
+  }
+
+  head(users.length > 1 ? 'Usuarios (se promedian)' : 'Usuario');
+  const who = document.createElement('div');
+  who.className = 'jr-who';
+  if (users.length) {
+    for (const u of users) {
+      const c = document.createElement('span');
+      c.className = 'jr-who-u';
+      c.innerHTML = `<span class="jr-av">${avatarSVG(u)}</span><b></b><small>${esc(ageLabel(u.age))}</small>`;
+      c.querySelector('b').textContent = u.name;
+      who.append(c);
+    }
+  } else {
+    who.innerHTML = '<p class="us-none">Conecta uno o más usuarios: arrastra su + hasta el conector izquierdo del panel.</p>';
+  }
+  list.append(who);
+  if (voices.length) {
+    const v = document.createElement('p');
+    v.className = 'ex-hint';
+    v.textContent = `Con la mirada de ${voices.join(' y ')}.`;
+    list.append(v);
+  }
+
+  if (canEdit) {
+    const err = document.createElement('p');
+    err.className = 'us-err';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn jr-gen';
+    btn.disabled = !users.length || wd.generating;
+    btn.innerHTML = `${d.stages?.length ? 'Volver a generar' : 'Generar journey'}${tokens != null && prices.journey ? `<small>${nfTok.format(prices.journey)} tk</small>` : ''}`;
+    btn.addEventListener('click', () => generateJourney(wd, btn, err));
+    list.append(btn, err);
+  }
+  showInfo(box);
+}
+
+/* guardado con espera: los campos se editan letra por letra */
+const dataSaveTimers = new Map();
+function saveData(wd, failMsg = 'No se pudo guardar.') {
+  render(wd);
+  requestDraw();
+  clearTimeout(dataSaveTimers.get(wd.id));
+  dataSaveTimers.set(wd.id, setTimeout(async () => {
+    const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify({ widget: wd.id, data: wd.data }),
+    });
+    if (!r.ok) alert(r.data.error || failMsg);
+  }, 300));
+}
+
+/* ============================================================
+   Profesional: elige un experto (o arma uno) y cómo piensa
+   ============================================================ */
+
+function renderExpertInfo(box) {
+  const wd = selected;
+  const d = wd.data;
+  $('info-kind').textContent = 'Profesional';
+  $('info-title').hidden = true;
+  const list = $('info-list');
+  list.innerHTML = '';
+
+  // ‹ avatar › para cambiar de experto
+  const pick = document.createElement('div');
+  pick.className = 'tl-pick ex-pick';
+  pick.innerHTML = `${canEdit ? '<button type="button" class="tl-arrow" data-step="-1" aria-label="Experto anterior">‹</button>' : ''}
+    <figure><span class="us-av"></span><figcaption></figcaption></figure>
+    ${canEdit ? '<button type="button" class="tl-arrow" data-step="1" aria-label="Experto siguiente">›</button>' : ''}`;
+  const paintPick = () => {
+    pick.querySelector('.us-av').innerHTML = expertAvatar(d);
+    pick.querySelector('figcaption').textContent = d.preset === 'custom' ? 'Personalizado' : `Inspirado en ${expertOf(d.preset).name}`;
+  };
+  paintPick();
+  list.append(pick);
+
+  if (!canEdit) {
+    const who = document.createElement('div');
+    who.className = 'ex-read';
+    who.innerHTML = '<b></b><small></small><p></p>';
+    who.querySelector('b').textContent = d.name;
+    who.querySelector('small').textContent = d.role;
+    who.querySelector('p').textContent = d.prompt || 'Sin descripción.';
+    list.append(who);
+    return showInfo(box);
+  }
+
+  pick.querySelectorAll('.tl-arrow').forEach((b) => b.addEventListener('click', () => {
+    const i = EXPERTS.findIndex((e) => e.id === d.preset);
+    wd.data = fromPreset(EXPERTS[(i + Number(b.dataset.step) + EXPERTS.length) % EXPERTS.length].id);
+    saveData(wd, 'No se pudo guardar el profesional.');
+    renderInfo(); // cambian todos los campos
+  }));
+
+  const field = (label, el) => {
+    const f = document.createElement('label');
+    f.className = 'ex-field';
+    f.innerHTML = `<span>${label}</span>`;
+    f.append(el);
+    list.append(f);
+    return el;
+  };
+  const input = (value, max, onInput) => {
+    const i = document.createElement('input');
+    i.maxLength = max;
+    i.value = value;
+    i.addEventListener('input', () => { onInput(i.value); saveData(wd, 'No se pudo guardar el profesional.'); });
+    return i;
+  };
+  field('Nombre', input(d.name, 40, (v) => { d.name = v.trim() || 'Profesional'; }));
+  field('Rol', input(d.role, 40, (v) => { d.role = v.trim() || 'Profesional'; }));
+
+  if (d.preset === 'custom') {
+    const sex = document.createElement('div');
+    sex.className = 'us-sex';
+    sex.innerHTML = '<button type="button" data-sex="m">Hombre</button><button type="button" data-sex="f">Mujer</button>';
+    const paintSex = () => sex.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.sex === d.sex)));
+    sex.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { d.sex = b.dataset.sex; paintSex(); paintPick(); saveData(wd); }));
+    paintSex();
+    list.append(sex);
+    const age = document.createElement('input');
+    age.type = 'range';
+    age.min = 18; age.max = AGE_MAX; age.value = d.age;
+    age.className = 'ex-age';
+    age.setAttribute('aria-label', 'Edad');
+    age.addEventListener('input', () => { d.age = Number(age.value); paintPick(); saveData(wd); });
+    field(`Edad`, age);
+  }
+
+  const prompt = document.createElement('textarea');
+  prompt.rows = 6;
+  prompt.maxLength = 2000;
+  prompt.placeholder = 'Ej.: Piensa como una diseñadora de servicios: empieza por el problema, cuestiona supuestos y propone prototipos rápidos.';
+  prompt.value = d.prompt;
+  prompt.addEventListener('input', () => { d.prompt = prompt.value; saveData(wd, 'No se pudo guardar el profesional.'); });
+  field('Cómo piensa y actúa', prompt);
+
+  const hint = document.createElement('p');
+  hint.className = 'ex-hint';
+  hint.textContent = 'Conéctalo a una pregunta, una tabla o un panel (o usa su +): la IA responde con esta mirada.';
+  list.append(hint);
+  showInfo(box);
+}
 
 let userSaveTimer = 0;
 function saveUser(wd) {
@@ -1343,7 +1575,13 @@ const TOOLS = [
   { key: 'ask', label: 'Pregúntale a la IA', open: () => createDraft('ask') },
   { key: 'timeline', label: 'Línea de tiempo', open: () => createTimeline() },
   { key: 'user', label: 'Usuario', open: () => createUser() },
+  { key: 'expert', label: 'Profesional', open: () => createExpert() },
+  { key: 'panels', label: 'Paneles', menu: true },
   { key: 'nebula', label: 'Nebulosa de IA', open: () => createPlain('nebula', { kind: 'nebula', title: 'Nebulosa de IA' }, NEBULA_SIZE) },
+];
+// paneles: widgets más complejos (se abren desde su propio menú)
+const PANELS = [
+  { key: 'journey', label: 'User journey', note: 'Puntos de entrada y emociones de los usuarios conectados', open: () => createJourney() },
 ];
 // dentro de la maleta: no son widgets
 const KIT = [
@@ -1358,6 +1596,7 @@ function renderDock() {
   dock.hidden = false;
   dock.innerHTML = '';
   for (const t of canEdit ? TOOLS : VIEWER_TOOLS) {
+    if (t.menu) { dock.append(panelsMenu()); continue; }
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'tool';
@@ -1395,6 +1634,27 @@ function renderDock() {
   }
   dock.append(sep, kit);
   refreshKit();
+}
+
+/** Botón Paneles: abre la lista de paneles (con nombre y para qué sirve). */
+function panelsMenu() {
+  const wrap = document.createElement('div');
+  wrap.className = 'kit panels';
+  wrap.innerHTML = `
+    <button class="tool" id="panels-btn" type="button" title="Paneles" aria-label="Paneles" aria-haspopup="true" aria-expanded="false" aria-controls="panels-menu">${TOOL_ICONS.panels}</button>
+    <div class="kit-menu panels-menu" id="panels-menu" role="menu" hidden>
+      <p class="panels-title">Paneles</p>
+      ${PANELS.map((p) => `<button class="panel-item" type="button" role="menuitem" data-panel="${p.key}">
+        <span class="panel-ico">${TOOL_ICONS[p.key]}</span><span><b>${esc(p.label)}</b><small>${esc(p.note)}</small></span>
+        ${tokens != null && prices[p.key] ? `<em>${nfTok.format(prices[p.key])} tk</em>` : ''}</button>`).join('')}
+    </div>`;
+  const btn = wrap.querySelector('#panels-btn'), menu = wrap.querySelector('#panels-menu');
+  const toggle = (open) => { menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); };
+  btn.addEventListener('click', () => toggle(menu.hidden));
+  for (const p of PANELS) wrap.querySelector(`[data-panel="${p.key}"]`).addEventListener('click', () => { toggle(false); p.open(); });
+  document.addEventListener('pointerdown', (e) => { if (!e.target.closest?.('.panels')) toggle(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
+  return wrap;
 }
 
 function toggleKit(open) {

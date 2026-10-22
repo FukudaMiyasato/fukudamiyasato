@@ -34,6 +34,12 @@
      POST   ?d=<id>&widget=user { data, layout }
                                                     → usuario (sin IA): tipo + archivos de contexto
      POST   ?d=<id>&widget=nebula { data, layout }  → nebulosa de IA (sin IA por ahora)
+     POST   ?d=<id>&widget=expert { data, layout }  → profesional: si se conecta a una pregunta,
+                                                      la IA responde con su mirada (data.voices)
+     POST   ?d=<id>&widget=journey { data, layout } → panel User journey, vacío
+     POST   ?d=<id>&journey=<widgetId> { goal }     → la IA arma el journey con los usuarios
+                                                      conectados (varios = uno promedio) y los
+                                                      profesionales; cuesta tokens ("journey")
      POST   ?d=<id>&mark=flag { x, y }              → bandera (color al azar, sin repetir; máx. 8)
      POST   ?d=<id>&mark=divider                    → raya divisoria una columna a la derecha
                                                       de lo más a la derecha (solo una)
@@ -50,7 +56,7 @@ import {
   listWidgets, createWidget, updateWidget, deleteWidget,
   getMarks, addFlag, setDivider, deleteMark,
 } from './_lib/dashboards.js';
-import { askVisual, askShort, askFollow, AIError } from './_lib/ai.js';
+import { askVisual, askShort, askFollow, askJourney, AIError } from './_lib/ai.js';
 import { getConfig, priceOf, prices } from './_lib/config.js';
 import { unlimited, balanceOf, charge, refund } from './_lib/tokens.js';
 
@@ -136,10 +142,65 @@ function cleanUser(d) {
   };
 }
 
+/* ---------- profesional ---------- */
+
+/** Un experto: nombre, rol y cómo piensa (prompt). El preset solo elige su dibujo. */
+function cleanExpert(d) {
+  if (!d || typeof d !== 'object') return null;
+  const age = Math.round(Number(d.age));
+  return {
+    kind: 'expert',
+    preset: /^[a-z]{2,20}$/.test(String(d.preset)) ? String(d.preset) : 'custom',
+    name: String(d.name ?? '').trim().slice(0, 40) || 'Profesional',
+    role: String(d.role ?? '').trim().slice(0, 40) || 'Profesional',
+    prompt: String(d.prompt ?? '').slice(0, 2000),
+    sex: d.sex === 'm' ? 'm' : 'f',
+    age: Number.isFinite(age) ? Math.min(90, Math.max(18, age)) : 35,
+  };
+}
+
+/** Los profesionales conectados no son contexto: le dan su mirada a la IA. */
+function voicesOf(list) {
+  const experts = list.filter((w) => w.data?.kind === 'expert');
+  return {
+    rest: list.filter((w) => w.data?.kind !== 'expert'),
+    names: experts.map((w) => w.data.name),
+    voices: experts.map((w) => `- ${w.data.name} (${w.data.role}): ${w.data.prompt || 'usa su experiencia en ese rol.'}`).join('\n'),
+  };
+}
+
+/* ---------- panel user journey ---------- */
+const txt = (v, max) => String(v ?? '').trim().slice(0, max);
+
+/** El panel: objetivo + lo que generó la IA (se guarda tal cual, recortado). */
+function cleanJourney(d) {
+  if (!d || typeof d !== 'object') return null;
+  const arr = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
+  return {
+    kind: 'journey',
+    title: txt(d.title, 60) || 'User journey',
+    goal: txt(d.goal, 300),
+    persona: txt(d.persona, 200),
+    users: arr(d.users, 6).map((u) => ({ name: txt(u?.name, 40) || 'Usuario', sex: u?.sex === 'f' ? 'f' : 'm', age: Math.min(90, Math.max(0, Math.round(Number(u?.age) || 0))) })),
+    voices: arr(d.voices, 6).map((v) => txt(v, 40)).filter(Boolean),
+    entries: arr(d.entries, 6).map((e) => ({ name: txt(e?.name, 40), channel: txt(e?.channel, 30), detail: txt(e?.detail, 140) })).filter((e) => e.name),
+    stages: arr(d.stages, 8).map((x) => ({
+      name: txt(x?.name, 40), doing: txt(x?.doing, 160), thinking: txt(x?.thinking, 160),
+      feeling: Math.max(-2, Math.min(2, Math.round(Number(x?.feeling) || 0))),
+      emotion: txt(x?.emotion, 30), pain: txt(x?.pain, 160), opportunity: txt(x?.opportunity, 160),
+    })).filter((x) => x.name),
+  };
+}
+
+/** Un usuario en texto para la IA: sus textos de contexto (los audios solo se nombran). */
+const userContext = (d) => (d.context || []).map((f) => (f.kind === 'text' && f.text
+  ? `Texto «${f.name}»:\n${f.text.slice(0, 6000)}`
+  : `Audio «${f.name}» (sin transcribir)`)).join('\n\n');
+
 /* ---------- nebulosa de IA ---------- */
 const cleanNebula = () => ({ kind: 'nebula', title: 'Nebulosa de IA' });
 
-const CLEANERS = { timeline: cleanTimeline, user: cleanUser, nebula: cleanNebula };
+const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, nebula: cleanNebula };
 
 /** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
 function cleanInputs(v, widgets, selfId) {
@@ -184,6 +245,14 @@ function contextFrom(list) {
       ].join('\n');
     } else if (d.kind === 'timeline') {
       body = d.milestones.map((m) => `${m.date}: ${m.name}`).join('\n');
+    } else if (d.kind === 'journey') {
+      body = [
+        d.goal ? `Objetivo: ${d.goal}` : '', d.persona ? `Usuario: ${d.persona}` : '',
+        d.entries?.length ? `Puntos de entrada: ${d.entries.map((e) => `${e.name} (${e.channel})`).join(', ')}` : '',
+        ...(d.stages || []).map((x, i) => `${i + 1}. ${x.name} — hace: ${x.doing}; piensa: ${x.thinking}; siente: ${x.emotion} (${x.feeling}); dolor: ${x.pain}; oportunidad: ${x.opportunity}`),
+      ].filter(Boolean).join('\n') || 'User journey vacío';
+    } else if (d.kind === 'expert') {
+      body = `Profesional: ${d.name} (${d.role}). ${d.prompt}`;
     } else if (d.kind === 'nebula') {
       body = 'Nebulosa de IA (todavía sin contenido)';
     } else if (d.kind === 'chart') {
@@ -281,9 +350,10 @@ export default async function handler(req, res) {
       // el + de un widget usa toda la cadena hacia atrás (de su widget de origen, que no
       // queda conectado, y de lo que se le haya conectado); el resto, solo lo directo
       const about = tool === 'follow' ? cleanInputs(req.body?.about, all, null) : [];
-      const context = contextFrom(tool === 'follow'
+      const { rest, names, voices } = voicesOf(tool === 'follow'
         ? chainOf([...about, ...inputs], all)
         : all.filter((w) => inputs.includes(w.id)));
+      const context = contextFrom(rest);
 
       // tokens: se reservan antes de llamar a OpenAI (el amo supremo no paga)
       const price = unlimited(user) ? 0 : priceOf(await getConfig(), tool);
@@ -297,9 +367,9 @@ export default async function handler(req, res) {
       let answer, source = '';
       try {
         if (tool === 'follow') {
-          answer = await askFollow({ prompt, context });
+          answer = await askFollow({ prompt, context, voices });
         } else if (tool === 'ask') {
-          answer = await askShort({ prompt, context });
+          answer = await askShort({ prompt, context, voices });
         } else {
           // tabla con IA: el CSV es opcional; sin archivo, GPT responde con lo que sabe
           const csv = String(req.body?.csv || '');
@@ -308,7 +378,7 @@ export default async function handler(req, res) {
             return res.status(413).json({ error: 'El CSV supera 2 MB.' });
           }
           source = csv.trim() ? String(req.body?.filename || 'datos.csv').slice(0, 120) : '';
-          answer = await askVisual({ prompt, csv, filename: source, context });
+          answer = await askVisual({ prompt, csv, filename: source, context, voices });
         }
       } catch (err) {
         if (price) await refund(user.email, price); // no hubo respuesta útil: no se cobra
@@ -318,7 +388,7 @@ export default async function handler(req, res) {
         throw err;
       }
 
-      const data = { ...answer, prompt, source };
+      const data = { ...answer, prompt, source, ...(names.length ? { voices: names } : {}) };
       while (JSON.stringify(data).length > MAX_DATA_CHARS && data.rows?.length > 1) {
         data.rows = data.rows.slice(0, Math.floor(data.rows.length * 0.8));
         data.cut = true;
@@ -328,7 +398,46 @@ export default async function handler(req, res) {
       return res.status(201).json({ widget: publicWidget(widget), tokens: unlimited(user) ? null : await balanceOf(user.email) });
     }
 
-    /* ---------- widgets sin IA: línea de tiempo, usuario y nebulosa ---------- */
+    /* ---------- panel User journey: generar ---------- */
+    if (req.method === 'POST' && dash && req.query?.journey) {
+      const all = await listWidgets(dash.id);
+      const panel = all.find((w) => w.id === String(req.query.journey) && w.type === 'journey');
+      if (!panel) return res.status(404).json({ error: 'Panel no encontrado.' });
+      const linked = all.filter((w) => (panel.inputs || []).includes(w.id));
+      const users = linked.filter((w) => w.data?.kind === 'user' && w.data.sex);
+      if (!users.length) return res.status(422).json({ error: 'Conecta al menos un usuario al panel.' });
+      const { rest, names, voices } = voicesOf(linked.filter((w) => w.data?.kind !== 'user'));
+      const goal = txt(req.body?.goal, 300);
+
+      const price = unlimited(user) ? 0 : priceOf(await getConfig(), 'journey');
+      if (price && !(await charge(user.email, price))) {
+        return res.status(402).json({
+          error: `No te quedan tokens: el journey cuesta ${price.toLocaleString('es-PE')}.`,
+          tokens: await balanceOf(user.email), price,
+        });
+      }
+      let out;
+      try {
+        out = await askJourney({
+          goal,
+          users: users.map((w) => ({ name: w.data.name, sex: w.data.sex, age: w.data.age, context: userContext(w.data) })),
+          context: contextFrom(rest),
+          voices,
+        });
+      } catch (err) {
+        if (price) await refund(user.email, price);
+        if (err instanceof AIError) return res.status(422).json({ error: `No salió el journey: ${err.message}` });
+        throw err;
+      }
+      const data = cleanJourney({
+        ...out, goal, voices: names,
+        users: users.map((w) => ({ name: w.data.name, sex: w.data.sex, age: w.data.age })),
+      });
+      await updateWidget(dash.id, panel.id, { data });
+      return res.status(200).json({ data, tokens: unlimited(user) ? null : await balanceOf(user.email) });
+    }
+
+    /* ---------- widgets sin IA: línea de tiempo, usuario, profesional, paneles y nebulosa ---------- */
     if (req.method === 'POST' && dash && CLEANERS[tool]) {
       const data = CLEANERS[tool](req.body?.data);
       if (!data) return res.status(400).json({ error: 'Datos del widget inválidos.' });

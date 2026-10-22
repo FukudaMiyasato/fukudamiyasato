@@ -13,7 +13,7 @@
 
 import { currentUser } from './_lib/auth.js';
 import { getConfig, setConfig, RANGES, TOOLS, prices, hasAiKey } from './_lib/config.js';
-import { askVisual, askShort, askFollow } from './_lib/ai.js';
+import { askVisual, askShort, askFollow, askJourney } from './_lib/ai.js';
 
 export const maxDuration = 60; // medir llama a OpenAI
 
@@ -23,6 +23,11 @@ const MEASURE = {
   table: (meter) => askVisual({ prompt: 'Las 5 ciudades más pobladas del Perú con su población aproximada', meter }),
   ask: (meter) => askShort({ prompt: '¿Por qué el cielo es azul?', meter }),
   follow: (meter) => askFollow({ prompt: '¿Qué conclusiones sacas de esto y qué harías?', context: SAMPLE_CONTEXT, meter }),
+  journey: (meter) => askJourney({
+    goal: 'Comprar un seguro de auto por internet',
+    users: [{ name: 'Lucía', sex: 'f', age: 34, context: 'Texto «entrevista»:\nNo entiendo las coberturas y desconfío de los precios que cambian al final.' }],
+    meter,
+  }),
 };
 
 function num(v, [min, max], label) {
