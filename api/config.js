@@ -13,7 +13,7 @@
 
 import { currentUser } from './_lib/auth.js';
 import { getConfig, setConfig, RANGES, TOOLS, prices, hasAiKey } from './_lib/config.js';
-import { askVisual, askShort, askFollow, askJourney } from './_lib/ai.js';
+import { askVisual, askShort, askFollow, askJourney, askResearch } from './_lib/ai.js';
 
 export const maxDuration = 60; // medir llama a OpenAI
 
@@ -28,6 +28,7 @@ const MEASURE = {
     users: [{ name: 'Lucía', sex: 'f', age: 34, context: 'Texto «entrevista»:\nNo entiendo las coberturas y desconfío de los precios que cambian al final.' }],
     meter,
   }),
+  research: (meter) => askResearch({ question: '¿Qué apps ayudan a dividir gastos entre amigos?', meter }),
 };
 
 function num(v, [min, max], label) {

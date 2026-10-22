@@ -1,0 +1,974 @@
+{
+ "version": 1,
+ "name": "Anemia infantil: de los datos a la acción",
+ "widgets": [
+  {
+   "id": "t-title",
+   "type": "label",
+   "x": 0,
+   "y": -12,
+   "w": 46,
+   "h": 3,
+   "data": {
+    "kind": "label",
+    "style": "title",
+    "text": "Anemia infantil en el Perú: de los datos a la acción"
+   },
+   "inputs": []
+  },
+  {
+   "id": "t-sub",
+   "type": "label",
+   "x": 0,
+   "y": -9,
+   "w": 46,
+   "h": 3,
+   "data": {
+    "kind": "label",
+    "style": "subtitle",
+    "text": "40 soluciones analizadas, 4 madres reales de mercado y una IA que investiga, opina y arma el recorrido."
+   },
+   "inputs": []
+  },
+  {
+   "id": "g1",
+   "type": "group",
+   "x": -1,
+   "y": -3,
+   "w": 58,
+   "h": 37,
+   "data": {
+    "kind": "group",
+    "title": "1 · La evidencia: benchmark de 40 soluciones",
+    "color": "#ff3b4f"
+   },
+   "inputs": []
+  },
+  {
+   "id": "f-csv",
+   "type": "file",
+   "x": 0,
+   "y": 0,
+   "w": 10,
+   "h": 8,
+   "data": {
+    "kind": "file",
+    "title": "Benchmark de soluciones",
+    "files": [
+     {
+      "name": "benchmark_soluciones_anemia.csv",
+      "size": 26011,
+      "type": "csv",
+      "text": "Categoría,Solución,¿Cómo funcionaba la solución?,País de ejecución,Tiempo de ejecución,Resultados,¿Por qué funcionó o no funcionó?,Contexto,Año,Link de información\nPerú,Meta 4: visitas domiciliarias con incentivos municipales,\"Agentes comunitarios visitaban periódicamente hogares con niños pequeños. Durante las visitas revisaban si el niño consumía el suplemento, daban orientación a la familia y derivaban casos al establecimiento de salud. Las municipalidades recibían incentivos por cumplir metas de cobertura y seguimiento.\",Perú,Aproximadamente 1 año por ciclo,Cada visita adicional se asoció con pequeñas mejoras en hemoglobina y reducción de anemia. En algunas municipalidades la anemia bajó alrededor de 2.9 puntos porcentuales.,Funcionó mejor donde las visitas realmente se realizaron con frecuencia. Los retrasos administrativos redujeron el tiempo efectivo de intervención.,Estrategia vinculada al Programa de Incentivos Municipales.,2019,https://www.mef.gob.pe/contenidos/presu_publ/ppr/eval_indep/PMAT1_1131_090_RE.pdf\nPerú,Transferencia Primera Infancia de Juntos,\"Las familias recibían una transferencia monetaria condicionada al cumplimiento de controles infantiles, vacunación, medición de hemoglobina y acceso a suplementos de hierro. El incentivo buscaba que las familias utilizaran oportunamente los servicios de salud.\",Perú,Desde 2022,\"Aumentaron las pruebas de hemoglobina, el acceso al hierro y la vacunación, pero no se encontró una reducción significativa de anemia.\",\"Logró llevar a las familias al servicio, pero recibir el suplemento no significó necesariamente consumirlo de manera continua. Tampoco resolvía causas no nutricionales de anemia.\",Hogares vulnerables con bebés y niños pequeños.,2022-2025,https://www.unicef.org/executiveboard/media/39316/file/2026-AS-Item-11-TPI-evaluation-Robert-McCouch-PPT-EN.pdf\nPerú,Aliados contra la Anemia: Juntos + Cuna Más,\"Juntos identificaba a las familias y reforzaba el cumplimiento de controles. Cuna Más acompañaba al hogar mediante visitas, orientación sobre alimentación, monitoreo del consumo de hierro y seguimiento del estado del niño. Ambas instituciones compartían información para recuperar casos de abandono.\",Perú,Abril de 2024 a abril de 2025,Los registros administrativos mostraron reducciones importantes de anemia entre usuarios de ambos programas.,\"La combinación de seguimiento frecuente, acompañamiento domiciliario y articulación entre programas parece prometedora. No hubo grupo de control, por lo que no se puede atribuir todo el cambio a la intervención.\",Niños de distritos con alta vulnerabilidad.,2024-2025,https://www.gob.pe/institucion/midis/noticias/1202792-midis-redujo-mas-de-7-mil-casos-de-anemia-infantil-con-programas-juntos-y-cuna-mas-en-2025\nPerú,Seguimiento estricto de suplementación en zonas de altura,\"Los niños recibían suplementación de hierro y controles mensuales. El personal verificaba continuidad, revisaba la evolución de la hemoglobina y reforzaba las indicaciones con los cuidadores.\",\"Perú, Puno\",6 meses,Los niños con seguimiento estricto tuvieron mejor hemoglobina y menor prevalencia de anemia que quienes no recibieron el mismo nivel de seguimiento.,\"La supervisión mensual ayudó a sostener el tratamiento. Sin embargo, muchos niños no alcanzaron la respuesta esperada, posiblemente por otras causas de anemia o por particularidades del diagnóstico en altura.\",\"Niños de 6 a 12 meses a más de 3,800 metros de altitud.\",Cohortes 2017-2019; publicación 2026,https://pubmed.ncbi.nlm.nih.gov/42647478/\nPerú,Educación nutricional + Lucky Iron Fish + apoyo alimentario,Las familias cocinaban algunos alimentos introduciendo una pieza metálica con forma de pez que liberaba hierro durante la cocción. La herramienta se acompañaba con educación nutricional y apoyo alimentario.,Perú,12 meses,\"Entre quienes completaron el programa, la anemia bajó de 34% a 13%.\",\"Sumó una herramienta doméstica, educación y alimentos. Sin embargo, hubo mucho abandono y no fue posible saber cuál de los componentes produjo el resultado.\",Niños de 6 meses a 4 años.,2020-2022 aprox.,https://pubmed.ncbi.nlm.nih.gov/33605012/\nPerú,Galletas Nutri H con hierro,Los niños consumían diariamente una galleta fortificada como alternativa al jarabe de sulfato ferroso. El formato buscaba reducir el rechazo asociado al sabor medicinal y facilitar el consumo.,\"Perú, Ate\",30 días,Tanto las galletas como el jarabe aumentaron la hemoglobina. No hubo una diferencia significativa entre ambas opciones.,\"El formato alimentario puede ser más agradable y sencillo, pero el estudio fue muy corto para evaluar adherencia o sostenibilidad.\",Niños de 2 a 11 años.,2021,https://repositorio.uwiener.edu.pe/entities/publication/4cdd3a70-afb3-4b2a-b833-8d2acd50c328\nPerú,Galletas con hierro hemínico,Se elaboraron galletas usando una fuente de hierro de origen animal. Los niños recibían una porción diaria durante el periodo de intervención.,\"Perú, Ayacucho\",30 días,La hemoglobina aumentó y la proporción de niños sin anemia fue mayor que en el grupo que recibió sulfato ferroso.,El hierro hemínico tiene buena absorción y el formato pudo ser aceptado por los niños. La muestra fue pequeña y se requiere replicación independiente.,Niños de 1 a 2 años de Acosvinchos.,2019,https://dialnet.unirioja.es/servlet/tesis?codigo=339164\nPerú,Mensajes educativos diarios por WhatsApp,\"Las madres recibían mensajes escritos, imágenes o recomendaciones varias veces al día. Los mensajes recordaban cómo administrar el hierro, qué alimentos ofrecer y cómo enfrentar efectos adversos o rechazo del niño.\",\"Perú, Chota\",2 meses,La adherencia reportada aumentó de manera importante. No se midió el efecto sobre hemoglobina.,\"WhatsApp facilitó recordatorios frecuentes con bajo costo. La muestra fue pequeña, la adherencia fue autorreportada y no hubo grupo de comparación.\",Madres de niños de 6 a 35 meses.,2022,https://revistas.unisabana.edu.co/index.php/aquichan/article/view/21651\nPerú,Educación participativa para cuidadores,\"Las madres participaban en sesiones donde discutían dificultades reales: rechazo del suplemento, preparación de alimentos, olvido y efectos secundarios. En lugar de recibir solo una charla, resolvían problemas y practicaban conductas.\",\"Perú, Huancavelica\",Intervención breve,Mejoró la adherencia alimentaria y farmacológica reportada.,La metodología participativa hizo que la información fuera más práctica. No se midió anemia ni se comparó con un grupo de control.,Comunidad rural con 30 madres.,2022,https://www.journal.gnosiswisdom.pe/index.php/revista/article/view/39\nPerú,Anemia Cero: campañas de tamizaje y seguimiento,\"Se realizaban pruebas de hemoglobina en campañas comunitarias. Las familias con niños en riesgo recibían orientación nutricional y seguimiento posterior, en parte mediante WhatsApp, para facilitar la derivación y el tratamiento.\",\"Perú, Lima e Ica\",2023-2025,\"Más de 22,000 tamizajes y 15,000 orientaciones reportadas. Parte de las familias indicó haber modificado hábitos.\",Su fortaleza fue identificar niños que nunca habían sido evaluados. Todavía falta evidencia independiente sobre recuperación clínica y sostenibilidad.,Campañas comunitarias mediante alianzas privadas.,2023-2025,https://peruanosxperuanos.pe/2025/07/26/anemia-infantil-mas-de-22-mil-descartes-gratuitos-se-han-realizado-en-lima-metropolitana-e-ica/\nPerú,Madres líderes: Juntos por una Vida sin Anemia,\"Mujeres usuarias de Juntos eran capacitadas para convertirse en referentes de su comunidad. Después acompañaban a otras madres mediante llamadas, reuniones, visitas y grupos de WhatsApp.\",Perú,12 sesiones y 72 horas de formación,\"Miles de madres fueron capacitadas, pero todavía no existen resultados públicos sólidos sobre reducción de anemia.\",El uso de pares puede generar confianza y adaptar los mensajes al contexto local. Su efecto dependerá de la continuidad de la red y de la calidad del acompañamiento.,Regiones con alta prevalencia de anemia.,2025,https://www.gob.pe/es/n/1310920\nPerú,Plan Multisectorial 2024-2030,\"Combina tamizaje, tratamiento con hierro, controles de hemoglobina, seguimiento nominal, sesiones demostrativas de preparación de alimentos y coordinación entre salud, municipios y programas sociales.\",Perú,Tratamientos de 6 meses dentro de un plan multianual,MINSA reportó niños recuperados y decenas de miles que completaron tratamiento.,\"El enfoque integral cubre varias barreras, pero los datos operativos no permiten identificar cuál componente produjo la recuperación ni qué ocurrió con quienes abandonaron.\",Estrategia nacional.,2024-2030,https://www.gob.pe/institucion/minsa/noticias/1138768-minsa-mas-de-21-000-ninos-de-6-a-11-meses-combatieron-la-anemia-y-mas-de-92-000-completaron-su-tratamiento\nPerú,Polvos de micronutrientes o chispitas,Cada sobre contenía hierro y otros micronutrientes. El cuidador debía abrirlo y mezclarlo diariamente con una pequeña porción de comida semisólida que el niño pudiera terminar.,Perú,Escalamiento 2014-2016,\"Aumentó la distribución, pero el consumo se mantuvo bajo y la anemia no disminuyó de forma uniforme.\",\"El programa se concentró mucho en entregar sobres. El sabor, los cambios en la comida, los efectos adversos, el olvido y las instrucciones confusas limitaron el uso diario.\",Programa nacional de suplementación.,2014-2016,https://thedocs.worldbank.org/en/doc/141311517000522702-0090022018/render/DocumentsENGWBG9PresentacionResumenDonacionv3.txt\nPerú,Plan Nacional para la Reducción y Control de la Anemia,\"Articulaba suplementación, consejería, sesiones demostrativas, controles de salud, visitas domiciliarias y promoción de alimentos ricos en hierro.\",Perú,5 años,La reducción esperada no se alcanzó y la prevalencia continuó siendo alta.,\"Hubo diferencias importantes en implementación territorial, problemas de adherencia, fragmentación institucional y posteriormente interrupciones asociadas a la pandemia.\",Política nacional para primera infancia y gestantes.,2017-2021,https://www.saludarequipa.gob.pe/salud_personas/archivos/Anemia%202017/plan%20nacional%202017-2021%20para%20la%20disminucion%20de%20anemia%20y%20dci.pdf\nPerú,Qali Warma como canal de alimentos fortificados,\"Las escuelas entregaban desayunos o almuerzos preparados con productos fortificados. El niño recibía el alimento dentro de una rutina institucional, sin depender completamente de la administración diaria del hogar.\",Perú,Análisis 2016-2019,Un estudio observacional encontró una asociación con menor anemia.,El comedor escolar reduce olvidos y facilita consumo supervisado. No atiende a menores de dos años y la evidencia disponible no demuestra causalidad definitiva.,Escolares de instituciones públicas.,2016-2019,https://economia.uncp.edu.pe/wp-content/uploads/2024/04/Investigaciones_1.pdf\nSuplementación y alimentos,Polvos de micronutrientes mezclados con alimentos,\"El cuidador abría un sobre individual y mezclaba su contenido con una pequeña porción de comida preparada en casa. El producto permitía fortificar la comida justo antes de consumirla, sin cambiar toda la dieta familiar.\",Varios países,\"2 a 44 meses, según estudio\",Reducción aproximada de 18% en riesgo de anemia y de 53% en deficiencia de hierro.,\"Es fácil de transportar y dosificar, pero depende mucho de que el cuidador lo use correctamente todos los días.\",Principalmente niños de 6 a 23 meses.,Revisión 2020,https://www.cochrane.org/evidence/CD008959_using-vitamin-and-mineral-powder-mixed-complementary-foods-improve-health-and-nutrition-children\nSuplementación y alimentos,SQ-LNS: suplemento lipídico de pequeña cantidad,\"El niño recibía diariamente una pequeña porción de pasta lista para consumir, generalmente elaborada con maní, leche, aceite, vitaminas, minerales y hierro. Podía comerse directamente o mezclarse con alimentos.\",Países de ingresos bajos y medios,Generalmente 6 a 18 meses,\"Reducciones de anemia, deficiencia de hierro y anemia ferropénica.\",\"Requiere poca preparación y aporta energía además de micronutrientes. Sus principales barreras son el costo, el abastecimiento y la dependencia de programas externos.\",Niños de 6 a 24 meses.,2021-2023,https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8560313/\nSuplementación y alimentos,Paquete nutricional de WASH Benefits,\"Las familias recibían consejería frecuente sobre alimentación infantil y suplementos nutricionales. Algunos grupos también recibían intervenciones de agua, saneamiento y lavado de manos.\",Kenia y Bangladesh,Aproximadamente 2 años,Los grupos con componente nutricional tuvieron menor anemia que los grupos de control.,La combinación de suplemento tangible y acompañamiento fue más efectiva que trabajar únicamente higiene o saneamiento.,Ensayos comunitarios aleatorizados.,2018-2021,https://pmc.ncbi.nlm.nih.gov/articles/PMC6358037/\nSuplementación y alimentos,MNP administrados en centros preescolares,El personal del centro mezclaba el polvo de micronutrientes con la comida del niño seis días por semana. La familia no tenía que recordar la administración diaria.,India,8 meses,Mayor reducción de anemia y deficiencia de hierro que con placebo.,\"La administración supervisada redujo olvidos, errores de preparación y pérdida de sobres. La asistencia regular al centro seguía siendo necesaria.\",Niños de 29 a 49 meses.,2021,https://pure.johnshopkins.edu/en/publications/a-randomized-multiple-micronutrient-powder-point-of-use-fortifica/\nSuplementación y alimentos,Sal doblemente fortificada con hierro y yodo,\"Las cocinas escolares reemplazaban la sal habitual por una sal fortificada. El hierro llegaba al niño integrado en los platos del almuerzo, sin una tarea adicional visible.\",\"India, Bihar\",1 año,Mejoró la hemoglobina y redujo la anemia. No mejoró claramente asistencia o rendimiento académico.,Se integró a un ingrediente utilizado todos los días. El beneficio dependía de que el niño asistiera y comiera la ración completa.,Estudiantes de primaria.,2018,https://www.researchgate.net/profile/Santosh-Kumar-127/publication/343565532_Improving_Child_Health_and_Cognition_Evidence_From_a_School-Based_Nutrition_Intervention_in_India/links/5f50607e92851c250b8b571d/Improving-Child-Health-and-Cognition-Evidence-From-a-School-Based-Nutrition-Intervention-in-India.pdf\nSuplementación y alimentos,Arroz fortificado en alimentación escolar,Granos de arroz enriquecidos con vitaminas y minerales se mezclaban con arroz convencional y se cocinaban normalmente en las escuelas.,Camboya,6 meses,\"Algunas formulaciones mejoraron hemoglobina o reservas de hierro, pero los resultados no fueron uniformes.\",\"La efectividad dependió de la formulación, la cantidad consumida y el estado nutricional inicial de los niños.\",\"Más de 2,000 escolares.\",2016-2018,https://www.mdpi.com/2072-6643/8/1/29\nSuplementación y alimentos,Arroz fortificado en diferentes programas,\"El arroz fortificado reemplazaba parcial o totalmente al arroz convencional en escuelas, comedores o programas comunitarios.\",Varios países,Generalmente 6 meses o más,\"Los estudios muestran una mejora promedio en hemoglobina, pero con diferencias importantes entre programas.\",\"Aprovecha un alimento cotidiano, aunque el resultado depende de la tecnología de fortificación, almacenamiento, dosis y consumo real.\",Programas escolares y comunitarios.,2022-2023,https://europepmc.org/article/pmc/10041047\nSuplementación y alimentos,Mijo biofortificado con hierro,Se cultivaba una variedad de mijo con mayor contenido natural de hierro. El cereal reemplazaba al mijo convencional en las comidas habituales.,India,6 meses,Mejoraron indicadores de hierro y algunas medidas cognitivas.,No exigía recordar un suplemento separado: el nutriente estaba incorporado en un alimento conocido.,Adolescentes de 12 a 16 años.,2018,https://europepmc.org/article/MED/30016516\nSuplementación y alimentos,Frijoles biofortificados con hierro,Se reemplazaban los frijoles habituales por variedades desarrolladas para contener más hierro. Se preparaban de la misma manera que los frijoles comunes.,Ruanda,128 días,\"Mejoraron hemoglobina, ferritina y hierro corporal.\",El producto se integró a una dieta ya existente y las participantes tenían deficiencia de hierro al inicio.,Mujeres jóvenes con deficiencia de hierro.,2016,https://pubmed.ncbi.nlm.nih.gov/27358417/\nSuplementación y alimentos,Frijoles biofortificados en internados,Los comedores de internados ofrecían frijoles biofortificados en lugar de frijoles convencionales durante los días de alimentación institucional.,México,6 meses,No se encontraron mejoras significativas en anemia o deficiencia de hierro.,Los niños no consumieron el alimento suficientes días y la diferencia de hierro entre las variedades pudo ser demasiado pequeña.,Niños de 5 a 12 años.,2019,https://www.mdpi.com/2072-6643/11/2/381/xml\nSuplementación y alimentos,Camote de pulpa naranja: cultivo familiar + educación,\"Las familias recibían esquejes para cultivar camote rico en vitamina A, capacitación agrícola, recetas y orientación sobre cómo incorporarlo a la alimentación infantil.\",Mozambique y Uganda,Aproximadamente 2 años,Aumentó la adopción del cultivo y el consumo infantil de vitamina A.,Combinó acceso físico al alimento con educación. Una capacitación extremadamente intensiva no produjo mucho más que una versión simplificada.,Referente de biofortificación y agricultura familiar; no aborda hierro directamente.,2018-2020,https://pmc.ncbi.nlm.nih.gov/articles/PMC7053385/\nSuplementación y alimentos,Lulun Project: un huevo al día,\"Las familias recibían huevos semanalmente y debían ofrecer uno al bebé cada día. Promotores visitaban el hogar, reforzaban el mensaje y resolvían dudas sobre preparación e introducción del alimento.\",Ecuador,6 meses,Mejoró el crecimiento y redujo el retraso de crecimiento.,La conducta era extremadamente concreta y el alimento se entregaba directamente. No fue una intervención específica contra anemia.,Bebés de 6 a 9 meses al inicio.,2017,https://research.usfq.edu.ec/en/publications/eggs-in-early-complementary-feeding-and-child-growth-a-randomized/\nSuplementación y alimentos,Mazira Project: un huevo al día,\"Las familias recibían huevos para ofrecer uno diariamente al bebé durante seis meses, acompañado de seguimiento.\",Malawi,6 meses,No mejoró hemoglobina ni ferritina.,\"El huevo es nutritivo, pero contiene poco hierro. Mejorar la dieta general no fue suficiente para corregir la anemia predominante.\",660 bebés.,2020-2022,https://escholarship.org/uc/item/32d0s9fw\nCambio de conducta,Alive & Thrive: consejería + medios + comunidad,\"Las familias recibían visitas y consejería individual durante controles de salud. Los mismos mensajes se repetían en televisión, radio, comunidad y materiales impresos.\",Bangladesh,2010-2014,\"Mejoraron diversidad alimentaria, frecuencia de comidas y consumo de alimentos ricos en hierro.\",La repetición multicanal y los contactos frecuentes reforzaron las prácticas. No logró una mejora clara en crecimiento infantil.,Aproximadamente 1.7 millones de hogares.,2010-2014,https://colab.ws/articles/10.3945%2Fjn.116.232314\nCambio de conducta,Alive & Thrive mediante franquicia social,\"Los establecimientos de salud ofrecían un servicio de consejería con marca, materiales, protocolos y personal capacitado. Las madres debían asistir voluntariamente a las sesiones.\",Vietnam,2010-2014,\"Hubo mejoras entre las usuarias frecuentes, pero el efecto general fue limitado porque muchas familias no utilizaron el servicio.\",\"El contenido podía funcionar, pero existía una barrera de acceso o motivación para acudir.\",Familias con niños pequeños.,2010-2014,https://ichgcp.net/da/clinical-trials-registry/publications/248759-social-franchising-and-a-nationwide-mass-media-campaign-increased-the-prevalence-of-adequate\nCambio de conducta,Transferencia monetaria + consejería intensiva,\"Las familias recibían dinero para aliviar restricciones económicas y, además, sesiones frecuentes sobre compra, preparación y distribución de alimentos para el niño.\",Bangladesh,24 meses,Mejoró la talla y redujo el retraso de crecimiento más que las transferencias o alimentos sin consejería intensiva.,La familia recibió simultáneamente conocimiento y capacidad económica para actuar.,Familias pobres con niños pequeños.,2012-2014; análisis 2024,https://cgspace.cgiar.org/items/d3d5d365-d2a4-4475-bc01-3f4827918805\nCambio de conducta,Suaahara: intervención multisectorial,\"Combinaba programas de radio, voluntarias comunitarias, agricultura familiar, salud, higiene, saneamiento y visitas al hogar. Las familias encontraban mensajes similares en distintos momentos y servicios.\",Nepal,10 años,Mejoraron varias prácticas de alimentación infantil y algunos indicadores maternos.,\"La duración prolongada permitió trabajar normas sociales y disponibilidad de alimentos, no únicamente conocimiento.\",Programa nacional.,2012-2022,https://scholarcommons.sc.edu/sph_health_promotion_education_behavior_facpub/539/\nCambio de conducta,Curso de alimentación complementaria por WhatsApp,\"Las madres participaban en sesiones cortas dentro de un grupo de WhatsApp. Recibían videos, imágenes, preguntas, ejercicios y retroalimentación de facilitadores.\",Indonesia,10 sesiones en 8 días,\"Mejoraron conocimiento, actitud, intención y autoeficacia. No se midió el consumo real del niño.\",\"WhatsApp redujo el costo de participación, pero el programa fue corto y se evaluaron principalmente percepciones.\",Madres de niños pequeños.,2023,https://pubmed.ncbi.nlm.nih.gov/36712578/\nCambio de conducta,SMS semanales con consejos de alimentación,\"Las familias recibían mensajes de texto breves con consejos generales sobre frutas, verduras, bebidas y alimentación infantil. No existía interacción humana frecuente ni personalización profunda.\",\"Puerto Rico y Hawái, Estados Unidos\",4 meses,No cambió de manera significativa los alimentos consumidos por los niños.,\"Los mensajes eran generales, poco interactivos y llegaron cuando algunas rutinas alimentarias ya estaban establecidas.\",Familias usuarias de WIC.,2022,https://pmc.ncbi.nlm.nih.gov/articles/PMC9194266/\nCambio de conducta,MyKid'sNutrition,\"Una aplicación ofrecía contenidos nutricionales, recomendaciones, registro y recordatorios para madres de niños con problemas nutricionales.\",Irán,3 meses,\"Mejoraron conocimientos, prácticas, peso e IMC; no mejoró la talla.\",\"Organizó información y acompañamiento, pero tres meses son insuficientes para observar cambios importantes en crecimiento lineal.\",Niños de 2 a 6 años con desnutrición.,2025,https://nutrition.bmj.com/content/early/2025/04/23/bmjnph-2024-001007\nCambio de conducta,FIT Game,\"El comedor escolar se convertía en un juego narrativo. Los estudiantes formaban parte de una misión colectiva y debían alcanzar metas de consumo de frutas y verduras para desbloquear capítulos, personajes o recompensas grupales.\",Estados Unidos,Aproximadamente 8 semanas,Aumentó el consumo y algunos efectos persistieron después de terminar el juego.,\"La comida estaba disponible justo cuando se planteaba la meta. La narrativa, el progreso visible y la presión positiva del grupo reforzaban la conducta.\",Escuelas primarias.,2021,https://www.mdpi.com/2072-6643/13/8/2646/xml\nCambio de conducta,Food Dudes,Personajes de superhéroes aparecían en videos y mensajes. Los niños recibían pequeños premios por probar o consumir frutas y verduras.,Reino Unido,16 días + mantenimiento,No produjo cambios sostenidos en las frutas y verduras enviadas desde casa.,\"Influyó en el niño dentro del colegio, pero no cambió suficientemente la compra y preparación de alimentos realizada por los padres.\",Niños de 4 a 7 años.,2015,https://eprints.worc.ac.uk/2912/1/Taylor%20et%20al_WRaP.pdf\nCambio de conducta,Exposición repetida a verduras + stickers,\"El niño recibía pequeñas porciones de una verdura durante varios días consecutivos. Se le invitaba a probarla sin presión y, en algunos grupos, recibía un sticker al aceptar probar.\",Australia,14 días; seguimiento a 3 meses,Mejoró la aceptación y el consumo. Los stickers ayudaron principalmente a iniciar la conducta.,\"La familiaridad repetida permitió que el gusto se desarrollara. La recompensa actuó como impulso inicial, no como motor permanente.\",Niños de 4 a 6 años.,2014-2016,https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10271312/\nCambio de conducta,Baby's First Bites,Las familias recibían orientación para ofrecer verduras repetidamente desde el inicio de la alimentación complementaria y para responder de forma sensible a señales de hambre y saciedad.,Países Bajos,Hasta los 16 meses; evaluación a los 24 meses,No produjo aumentos sostenidos en consumo de verduras.,\"Las familias participantes ya tenían buenas prácticas y alta motivación, por lo que existía poco margen de mejora.\",246 familias.,2022,https://www.researchgate.net/publication/356374434_The_Baby%27s_First_Bites_RCT_Evaluating_a_Vegetable-Exposure_and_a_Sensitive-Feeding_Intervention_in_Terms_of_Child_Health_Outcomes_and_Maternal_Feeding_Behavior_During_Toddlerhood\nCambio de conducta,Introducir verduras antes que frutas,\"Durante las primeras semanas de alimentación complementaria, las familias ofrecían primero diferentes verduras. Las frutas se incorporaban posteriormente, mientras se mantenían alimentos ricos en hierro como carne, pescado o pollo.\",Nueva Zelanda,4 semanas; evaluación posterior,Los bebés consumieron más verduras como brócoli y espinaca.,\"Actuó en un momento temprano, antes de que las preferencias estuvieran consolidadas. La instrucción era clara, concreta y limitada en el tiempo.\",Bebés de 4 a 6 meses al inicio.,2022,https://www.mdpi.com/2673-9992/9/1/32\n",
+      "rows": 40
+     }
+    ]
+   },
+   "inputs": []
+  },
+  {
+   "id": "c-cat",
+   "type": "table",
+   "x": 11,
+   "y": 0,
+   "w": 15,
+   "h": 10,
+   "data": {
+    "kind": "chart",
+    "chartType": "pie",
+    "title": "Soluciones por categoría",
+    "labels": [
+     "Programas en Perú",
+     "Suplementación y alimentos",
+     "Cambio de conducta"
+    ],
+    "values": [
+     15,
+     13,
+     12
+    ],
+    "unit": "soluciones",
+    "detail": "",
+    "prompt": "Un pastel de las soluciones por categoría",
+    "source": "benchmark_soluciones_anemia.csv"
+   },
+   "inputs": [
+    "f-csv"
+   ]
+  },
+  {
+   "id": "c-res",
+   "type": "table",
+   "x": 27,
+   "y": 0,
+   "w": 16,
+   "h": 10,
+   "data": {
+    "kind": "chart",
+    "chartType": "bar",
+    "title": "¿Qué pasó con cada solución?",
+    "labels": [
+     "Bajó anemia",
+     "Mejoró conductas",
+     "No funcionó",
+     "Mixtos",
+     "Sin datos aún"
+    ],
+    "values": [
+     14,
+     12,
+     8,
+     4,
+     2
+    ],
+    "unit": "soluciones",
+    "detail": "Según la columna «Resultados». «Mejoró conductas» = mejoró prácticas sin medir anemia.",
+    "prompt": "Barras con el resultado de cada solución",
+    "source": "benchmark_soluciones_anemia.csv"
+   },
+   "inputs": [
+    "f-csv"
+   ]
+  },
+  {
+   "id": "n-ok",
+   "type": "table",
+   "x": 44,
+   "y": 0,
+   "w": 12,
+   "h": 6,
+   "data": {
+    "kind": "number",
+    "title": "Soluciones con efecto medido en anemia o hierro",
+    "value": "14 de 40",
+    "detail": "35% del benchmark. Otras 12 mejoraron conductas pero no midieron anemia.",
+    "prompt": "¿Cuántas soluciones bajaron la anemia?",
+    "source": "benchmark_soluciones_anemia.csv"
+   },
+   "inputs": [
+    "f-csv"
+   ]
+  },
+  {
+   "id": "c-pais",
+   "type": "table",
+   "x": 0,
+   "y": 11,
+   "w": 14,
+   "h": 9,
+   "data": {
+    "kind": "chart",
+    "chartType": "bar",
+    "title": "¿Dónde se hizo?",
+    "labels": [
+     "Perú",
+     "India",
+     "Bangladesh",
+     "Varios países",
+     "Otros 17 países"
+    ],
+    "values": [
+     15,
+     3,
+     2,
+     3,
+     17
+    ],
+    "unit": "soluciones",
+    "detail": "",
+    "prompt": "Barras de soluciones por país",
+    "source": "benchmark_soluciones_anemia.csv"
+   },
+   "inputs": [
+    "f-csv"
+   ]
+  },
+  {
+   "id": "c-anio",
+   "type": "table",
+   "x": 15,
+   "y": 11,
+   "w": 19,
+   "h": 9,
+   "data": {
+    "kind": "chart",
+    "chartType": "line",
+    "title": "Soluciones por año de inicio",
+    "labels": [
+     "2010",
+     "2011",
+     "2012",
+     "2013",
+     "2014",
+     "2015",
+     "2016",
+     "2017",
+     "2018",
+     "2019",
+     "2020",
+     "2021",
+     "2022",
+     "2023",
+     "2024",
+     "2025"
+    ],
+    "values": [
+     2,
+     0,
+     2,
+     0,
+     2,
+     1,
+     3,
+     3,
+     4,
+     3,
+     3,
+     4,
+     7,
+     2,
+     2,
+     2
+    ],
+    "unit": "soluciones",
+    "detail": "Año de inicio o de publicación del estudio.",
+    "prompt": "Una línea de soluciones por año",
+    "source": "benchmark_soluciones_anemia.csv"
+   },
+   "inputs": [
+    "f-csv"
+   ]
+  },
+  {
+   "id": "n-pe",
+   "type": "table",
+   "x": 44,
+   "y": 7,
+   "w": 12,
+   "h": 6,
+   "data": {
+    "kind": "number",
+    "title": "Programas peruanos que bajaron la anemia",
+    "value": "7 de 15",
+    "detail": "Los que no: chispitas sin seguimiento, el Plan 2017-2021 y la transferencia de Juntos sola.",
+    "prompt": "¿Cuántas soluciones peruanas redujeron la anemia?",
+    "source": "benchmark_soluciones_anemia.csv"
+   },
+   "inputs": [
+    "f-csv"
+   ]
+  },
+  {
+   "id": "tb-ok",
+   "type": "table",
+   "x": 35,
+   "y": 14,
+   "w": 21,
+   "h": 9,
+   "data": {
+    "kind": "table",
+    "title": "Lo que se repite en las que funcionaron",
+    "columns": [
+     "Patrón",
+     "Ejemplos del benchmark",
+     "Por qué ayuda"
+    ],
+    "rows": [
+     [
+      "Seguimiento frecuente en casa",
+      "Meta 4, Juntos + Cuna Más, seguimiento en Puno",
+      "Sostiene el consumo diario, no solo la entrega"
+     ],
+     [
+      "Consumo supervisado fuera de casa",
+      "MNP en preescolares (India), Qali Warma",
+      "Quita el olvido y la preparación a la familia"
+     ],
+     [
+      "Hierro dentro de un alimento cotidiano",
+      "Sal doble fortificada, mijo y frijol biofortificados",
+      "No exige recordar un suplemento aparte"
+     ],
+     [
+      "Formato agradable",
+      "Galletas con hierro, Lucky Iron Fish",
+      "Menos rechazo por sabor"
+     ],
+     [
+      "Dinero o alimento + consejería",
+      "Transferencia + consejería (Bangladesh), WASH Benefits",
+      "Da la capacidad y el saber hacer al mismo tiempo"
+     ]
+    ],
+    "prompt": "Tabla de patrones de las soluciones que funcionaron",
+    "source": "benchmark_soluciones_anemia.csv"
+   },
+   "inputs": [
+    "f-csv"
+   ]
+  },
+  {
+   "id": "tb-ko",
+   "type": "table",
+   "x": 0,
+   "y": 21,
+   "w": 34,
+   "h": 9,
+   "data": {
+    "kind": "table",
+    "title": "Por qué fallaron las que no funcionaron",
+    "columns": [
+     "Barrera",
+     "Ejemplo",
+     "Aprendizaje"
+    ],
+    "rows": [
+     [
+      "Entregar no es consumir",
+      "Chispitas 2014-2016, Juntos (TPI)",
+      "Medir el consumo real, no la distribución"
+     ],
+     [
+      "Mensajes genéricos y sin conversación",
+      "SMS semanales (WIC)",
+      "Personalizar y abrir diálogo"
+     ],
+     [
+      "Poco hierro en el alimento",
+      "Un huevo al día (Malawi)",
+      "Elegir alimentos ricos en hierro de verdad"
+     ],
+     [
+      "Uso voluntario bajo",
+      "Alive & Thrive en Vietnam",
+      "Llevar el servicio a donde ya está la madre"
+     ],
+     [
+      "Se cambia al niño, no la compra",
+      "Food Dudes",
+      "Trabajar con quien compra y cocina"
+     ]
+    ],
+    "prompt": "Tabla de por qué fallaron",
+    "source": "benchmark_soluciones_anemia.csv"
+   },
+   "inputs": [
+    "f-csv"
+   ]
+  },
+  {
+   "id": "n-whats",
+   "type": "table",
+   "x": 35,
+   "y": 24,
+   "w": 21,
+   "h": 6,
+   "data": {
+    "kind": "text",
+    "title": "Una pista para el diseño",
+    "value": "Las soluciones que llegaron a la cocina de la casa (o la reemplazaron con un comedor) funcionaron; las que se quedaron en entregar productos o mandar mensajes, no.",
+    "detail": "Lectura del benchmark completo.",
+    "prompt": "¿Qué conclusión sacas del benchmark?",
+    "source": ""
+   },
+   "inputs": [
+    "tb-ok",
+    "tb-ko"
+   ]
+  },
+  {
+   "id": "g2",
+   "type": "group",
+   "x": 60,
+   "y": -3,
+   "w": 13,
+   "h": 17,
+   "data": {
+    "kind": "group",
+    "title": "2 · Las madres",
+    "color": "#ff9f1c"
+   },
+   "inputs": []
+  },
+  {
+   "id": "u-rosa",
+   "type": "user",
+   "x": 61,
+   "y": 0,
+   "w": 5,
+   "h": 6,
+   "data": {
+    "kind": "user",
+    "name": "Rosa",
+    "sex": "f",
+    "age": 27,
+    "context": [
+     {
+      "kind": "text",
+      "name": "Su día a día",
+      "size": 212,
+      "text": "Vive en San Juan de Lurigancho (Lima) con su pareja y su hijo Thiago de 1 año. Atiende un puesto de verduras en el mercado de 6 a. m. a 2 p. m. y lleva a Thiago con ella. En la tarde cocina para toda la familia."
+     },
+     {
+      "kind": "text",
+      "name": "Cómo compra la comida",
+      "size": 204,
+      "text": "Compra todos los días en el mismo mercado donde trabaja, con S/ 20 a 25 al día. Prefiere pollo y menestras porque rinden; el hígado le parece caro y a su pareja no le gusta. Paga con Yape cuando puede."
+     },
+     {
+      "kind": "text",
+      "name": "Lo que dijo",
+      "size": 121,
+      "text": "\"Las gotas de hierro se las doy cuando me acuerdo; en el mercado el día se pasa volando y en la noche ya estoy rendida.\""
+     }
+    ]
+   },
+   "inputs": []
+  },
+  {
+   "id": "u-maribel",
+   "type": "user",
+   "x": 67,
+   "y": 0,
+   "w": 5,
+   "h": 6,
+   "data": {
+    "kind": "user",
+    "name": "Maribel",
+    "sex": "f",
+    "age": 34,
+    "context": [
+     {
+      "kind": "text",
+      "name": "Su día a día",
+      "size": 184,
+      "text": "Vive en Juliaca (Puno), a 3 800 m de altura, con sus 3 hijos. Vende ropa en la feria los sábados y teje por encargo. Su hija Luz, de 10 meses, salió con anemia en el último control."
+     },
+     {
+      "kind": "text",
+      "name": "Cómo compra la comida",
+      "size": 162,
+      "text": "Hace la compra grande en la feria del sábado: papa, chuño, quinua, arroz y algo de carne de alpaca. Entre semana compra en la bodega de la esquina lo que falta."
+     },
+     {
+      "kind": "text",
+      "name": "Lo que dijo",
+      "size": 150,
+      "text": "\"Le daba las chispitas en la sopa pero la niña ya no quería comer, cambiaba el sabor. En la posta me dijeron que siga, pero no me explicaron cómo.\""
+     }
+    ]
+   },
+   "inputs": []
+  },
+  {
+   "id": "u-yesenia",
+   "type": "user",
+   "x": 61,
+   "y": 7,
+   "w": 5,
+   "h": 6,
+   "data": {
+    "kind": "user",
+    "name": "Yesenia",
+    "sex": "f",
+    "age": 20,
+    "context": [
+     {
+      "kind": "text",
+      "name": "Su día a día",
+      "size": 162,
+      "text": "Mamá primeriza en Ica. Trabaja en un fundo agroexportador; sale a las 5 a. m. y vuelve a las 5 p. m. Su mamá cuida a su bebé Mía, de 8 meses, durante el día."
+     },
+     {
+      "kind": "text",
+      "name": "Cómo compra la comida",
+      "size": 182,
+      "text": "Compra en la bodega del barrio y los domingos en el mercado. Busca recetas en TikTok y en el grupo de WhatsApp de mamás del barrio. Lo que se cocina en la semana lo decide su mamá."
+     },
+     {
+      "kind": "text",
+      "name": "Lo que dijo",
+      "size": 135,
+      "text": "\"Yo quiero hacerlo bien, pero no estoy en la casa a la hora de la comida. Le mando audios a mi mamá para que no se olvide del hierro.\""
+     }
+    ]
+   },
+   "inputs": []
+  },
+  {
+   "id": "u-carmen",
+   "type": "user",
+   "x": 67,
+   "y": 7,
+   "w": 5,
+   "h": 6,
+   "data": {
+    "kind": "user",
+    "name": "Carmen",
+    "sex": "f",
+    "age": 41,
+    "context": [
+     {
+      "kind": "text",
+      "name": "Su día a día",
+      "size": 177,
+      "text": "Vive en una comunidad de Huancavelica, a 2 horas a pie del puesto de salud. Tiene 5 hijos; el menor, Elmer, tiene 2 años. Trabaja la chacra y cría cuyes. Es usuaria de Juntos."
+     },
+     {
+      "kind": "text",
+      "name": "Cómo compra la comida",
+      "size": 185,
+      "text": "Casi todo sale de su chacra (papa, habas, oca). Baja a la feria dominical del distrito a vender y a comprar arroz, fideos y aceite. Mata un cuy para las fiestas, no para el día a día."
+     },
+     {
+      "kind": "text",
+      "name": "Lo que dijo",
+      "size": 137,
+      "text": "\"La sangrecita sé que es buena, pero en la feria no siempre hay. Si me enseñan a preparar algo con lo que tengo en la chacra, lo hago.\""
+     }
+    ]
+   },
+   "inputs": []
+  },
+  {
+   "id": "g3",
+   "type": "group",
+   "x": 74,
+   "y": -3,
+   "w": 48,
+   "h": 27,
+   "data": {
+    "kind": "group",
+    "title": "3 · Su semana con la comida (user journey)",
+    "color": "#22d3ee"
+   },
+   "inputs": []
+  },
+  {
+   "id": "jr",
+   "type": "journey",
+   "x": 75,
+   "y": 0,
+   "w": 46,
+   "h": 23,
+   "data": {
+    "kind": "journey",
+    "title": "Comida con hierro para su hijo",
+    "goal": "Conseguir, cocinar y lograr que su hijo coma alimentos con hierro todos los días",
+    "persona": "Promedio: madre de 30 años que compra en mercado o feria, con presupuesto ajustado, poco tiempo y un hijo menor de 2 años",
+    "users": [
+     {
+      "name": "Rosa",
+      "sex": "f",
+      "age": 27
+     },
+     {
+      "name": "Maribel",
+      "sex": "f",
+      "age": 34
+     },
+     {
+      "name": "Yesenia",
+      "sex": "f",
+      "age": 20
+     },
+     {
+      "name": "Carmen",
+      "sex": "f",
+      "age": 41
+     }
+    ],
+    "voices": [],
+    "entries": [
+     {
+      "name": "Control en la posta",
+      "channel": "Presencial",
+      "detail": "Le dicen que su hijo tiene anemia y le entregan gotas o chispitas."
+     },
+     {
+      "name": "Mercado o feria",
+      "channel": "Presencial",
+      "detail": "Donde decide qué comprar con lo que le alcanza."
+     },
+     {
+      "name": "Grupo de mamás",
+      "channel": "WhatsApp",
+      "detail": "Consejos y recetas de otras madres del barrio."
+     },
+     {
+      "name": "Programas sociales",
+      "channel": "Visita",
+      "detail": "Juntos, Cuna Más o el Vaso de Leche."
+     },
+     {
+      "name": "Videos de recetas",
+      "channel": "TikTok",
+      "detail": "Busca ideas rápidas y baratas."
+     }
+    ],
+    "stages": [
+     {
+      "name": "Planifica",
+      "doing": "Decide qué cocinar en la semana con lo que alcanza",
+      "thinking": "\"¿Me alcanza para carne esta semana?\"",
+      "feeling": -1,
+      "emotion": "preocupada",
+      "pain": "Hígado y sangrecita no siempre entran en el presupuesto",
+      "opportunity": "Lista semanal barata con hierro (bazo, sangrecita, lentejas)"
+     },
+     {
+      "name": "Compra",
+      "doing": "Va al mercado o la feria, muchas veces con el bebé",
+      "thinking": "\"Llevo lo de siempre, no sé qué tiene más hierro\"",
+      "feeling": 0,
+      "emotion": "apurada",
+      "pain": "No hay información en el punto de compra",
+      "opportunity": "Sello «rico en hierro» y precio por porción en el puesto"
+     },
+     {
+      "name": "Cocina",
+      "doing": "Prepara un solo plato para toda la familia",
+      "thinking": "\"No tengo tiempo de hacer algo aparte para el bebé\"",
+      "feeling": -1,
+      "emotion": "cansada",
+      "pain": "Las recetas especiales toman tiempo",
+      "opportunity": "Recetas de 15 minutos que sirven para todos"
+     },
+     {
+      "name": "Da de comer",
+      "doing": "Ofrece el plato y el suplemento",
+      "thinking": "\"No le gusta, lo escupe\"",
+      "feeling": -2,
+      "emotion": "frustrada",
+      "pain": "Rechazo por sabor y estreñimiento",
+      "opportunity": "Formatos agradables y tips para el rechazo"
+     },
+     {
+      "name": "Control",
+      "doing": "Lleva al niño a medir la hemoglobina",
+      "thinking": "\"Otra vez salió con anemia, ¿qué hice mal?\"",
+      "feeling": -2,
+      "emotion": "culpable",
+      "pain": "Le dicen qué hacer, pero no cómo",
+      "opportunity": "Consejería práctica y seguimiento entre controles"
+     },
+     {
+      "name": "Sostiene",
+      "doing": "Recibe recordatorios y el apoyo de otras madres",
+      "thinking": "\"Si otras pueden, yo también\"",
+      "feeling": 1,
+      "emotion": "acompañada",
+      "pain": "Se olvida cuando cambia la rutina",
+      "opportunity": "Red de madres líderes + recordatorios por WhatsApp"
+     },
+     {
+      "name": "Ve el avance",
+      "doing": "La hemoglobina sube en el siguiente control",
+      "thinking": "\"¡Valió la pena!\"",
+      "feeling": 2,
+      "emotion": "orgullosa",
+      "pain": "",
+      "opportunity": "Celebrar el avance y compartirlo con la familia"
+     }
+    ]
+   },
+   "inputs": [
+    "u-rosa",
+    "u-maribel",
+    "u-yesenia",
+    "u-carmen"
+   ]
+  },
+  {
+   "id": "g4",
+   "type": "group",
+   "x": 60,
+   "y": 27,
+   "w": 62,
+   "h": 24,
+   "data": {
+    "kind": "group",
+    "title": "4 · La IA investiga y opina",
+    "color": "#a855f7"
+   },
+   "inputs": []
+  },
+  {
+   "id": "pro",
+   "type": "pro",
+   "x": 61,
+   "y": 30,
+   "w": 7,
+   "h": 7,
+   "data": {
+    "kind": "pro",
+    "role": "researcher",
+    "name": "Researcher",
+    "thought": "Entregar el hierro no basta: hay que lograr que se coma.",
+    "history": [
+     {
+      "q": "¿Qué soluciones contra la anemia infantil funcionaron mejor y por qué?",
+      "n": 5
+     }
+    ]
+   },
+   "inputs": []
+  },
+  {
+   "id": "fd0",
+   "type": "finding",
+   "x": 69,
+   "y": 30,
+   "w": 10,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Visitas a casa con metas municipales",
+    "summary": "Agentes comunitarios visitaban hogares para revisar el consumo del suplemento y orientar a la familia; los municipios recibían incentivos. En algunos distritos la anemia bajó cerca de 2,9 puntos (2019). Funcionó donde las visitas fueron frecuentes.",
+    "question": "¿Qué soluciones contra la anemia infantil funcionaron mejor y por qué?",
+    "by": "Researcher",
+    "confidence": "media",
+    "sources": [
+     {
+      "url": "https://www.mef.gob.pe/contenidos/presu_publ/ppr/eval_indep/PMAT1_1131_090_RE.pdf",
+      "title": "Meta 4: visitas domiciliarias con incentivos municipales — mef.gob.pe"
+     }
+    ]
+   },
+   "inputs": [
+    "pro"
+   ]
+  },
+  {
+   "id": "fd1",
+   "type": "finding",
+   "x": 80,
+   "y": 30,
+   "w": 10,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Juntos + Cuna Más: acompañar al hogar",
+    "summary": "Juntos identificaba a las familias y Cuna Más hacía visitas, orientación y seguimiento del hierro, compartiendo datos para recuperar abandonos. Hubo reducciones importantes de anemia en 2024-2025, aunque sin grupo de control.",
+    "question": "¿Qué soluciones contra la anemia infantil funcionaron mejor y por qué?",
+    "by": "Researcher",
+    "confidence": "media",
+    "sources": [
+     {
+      "url": "https://www.gob.pe/institucion/midis/noticias/1202792-midis-redujo-mas-de-7-mil-casos-de-anemia-infantil-con-programas-juntos-y-cuna-mas-en-2025",
+      "title": "Aliados contra la Anemia: Juntos + Cuna Más — gob.pe"
+     }
+    ]
+   },
+   "inputs": [
+    "pro"
+   ]
+  },
+  {
+   "id": "fd2",
+   "type": "finding",
+   "x": 91,
+   "y": 30,
+   "w": 10,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Hierro supervisado en el centro infantil",
+    "summary": "En India, el personal del preescolar mezclaba micronutrientes con la comida seis días por semana: más reducción de anemia que con placebo en 8 meses. La familia no tenía que recordar nada.",
+    "question": "¿Qué soluciones contra la anemia infantil funcionaron mejor y por qué?",
+    "by": "Researcher",
+    "confidence": "alta",
+    "sources": [
+     {
+      "url": "https://pure.johnshopkins.edu/en/publications/a-randomized-multiple-micronutrient-powder-point-of-use-fortifica/",
+      "title": "MNP administrados en centros preescolares — pure.johnshopkins.edu"
+     }
+    ]
+   },
+   "inputs": [
+    "pro"
+   ]
+  },
+  {
+   "id": "fd3",
+   "type": "finding",
+   "x": 69,
+   "y": 39,
+   "w": 10,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Hierro dentro de lo que ya se come",
+    "summary": "La sal doblemente fortificada en cocinas escolares (India) y el arroz fortificado mejoraron la hemoglobina sin pedir una tarea extra. El efecto depende de que el niño coma la ración completa.",
+    "question": "¿Qué soluciones contra la anemia infantil funcionaron mejor y por qué?",
+    "by": "Researcher",
+    "confidence": "alta",
+    "sources": [
+     {
+      "url": "https://www.researchgate.net/profile/Santosh-Kumar-127/publication/343565532_Improving_Child_Health_and_Cognition_Evidence_From_a_School-Based_Nutrition_Intervention_in_India/links/5f50607e92851c250b8b571d/Improving-Child-Health-and-Cognition-Evidence-From-a-School-Based-Nutrition-Intervention-in-India.pdf",
+      "title": "Sal doblemente fortificada con hierro y yodo — researchgate.net"
+     },
+     {
+      "url": "https://europepmc.org/article/pmc/10041047",
+      "title": "Arroz fortificado en diferentes programas — europepmc.org"
+     }
+    ]
+   },
+   "inputs": [
+    "pro"
+   ]
+  },
+  {
+   "id": "fd4",
+   "type": "finding",
+   "x": 80,
+   "y": 39,
+   "w": 10,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Pez de hierro + educación + alimentos",
+    "summary": "Cocinar con el Lucky Iron Fish, sumado a educación nutricional y apoyo alimentario, bajó la anemia de 34% a 13% entre quienes completaron 12 meses en Perú. Hubo mucho abandono.",
+    "question": "¿Qué soluciones contra la anemia infantil funcionaron mejor y por qué?",
+    "by": "Researcher",
+    "confidence": "media",
+    "sources": [
+     {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/33605012/",
+      "title": "Educación nutricional + Lucky Iron Fish + apoyo alimentario — pubmed.ncbi.nlm.nih.gov"
+     }
+    ]
+   },
+   "inputs": [
+    "pro"
+   ]
+  },
+  {
+   "id": "cel",
+   "type": "expert",
+   "x": 101,
+   "y": 39,
+   "w": 5,
+   "h": 6,
+   "data": {
+    "kind": "expert",
+    "preset": "norman",
+    "name": "Don Norman",
+    "role": "Experto en UX",
+    "sex": "m",
+    "age": 78,
+    "prompt": "Piensa como Don Norman: diseño centrado en las personas. Habla de affordances, significantes, mapeos, retroalimentación y modelos mentales. Si algo falla, la culpa es del diseño y no de la persona. Explica con ejemplos cotidianos y propone cómo hacer visible lo que la persona necesita saber."
+   },
+   "inputs": []
+  },
+  {
+   "id": "ask-dn",
+   "type": "ask",
+   "x": 107,
+   "y": 39,
+   "w": 14,
+   "h": 10,
+   "data": {
+    "kind": "text",
+    "title": "Diseñar para que no abandonen",
+    "voices": [
+     "Don Norman"
+    ],
+    "value": "Si la madre abandona el hierro, el problema es el diseño, no ella. Hoy el tratamiento es invisible: no hay señal de cuántas dosis van, ni retroalimentación hasta el siguiente control, meses después. Haría visible el progreso (un calendario en la refrigeradora o un mensaje que celebre cada semana), quitaría pasos (el hierro ya dentro de la comida de todos) y diseñaría para el rechazo del niño, que es lo normal y no la excepción.",
+    "detail": "Respuesta con la mirada de Don Norman.",
+    "prompt": "¿Cómo lograrías que las madres no abandonen el tratamiento con hierro?",
+    "source": ""
+   },
+   "inputs": [
+    "cel",
+    "jr"
+   ]
+  },
+  {
+   "id": "g5",
+   "type": "group",
+   "x": -1,
+   "y": 36,
+   "w": 58,
+   "h": 12,
+   "data": {
+    "kind": "group",
+    "title": "5 · Próximos pasos",
+    "color": "#2ecc71"
+   },
+   "inputs": []
+  },
+  {
+   "id": "tl",
+   "type": "timeline",
+   "x": 0,
+   "y": 39,
+   "w": 14,
+   "h": 3,
+   "data": {
+    "kind": "timeline",
+    "title": "Piloto propuesto",
+    "character": "f",
+    "milestones": [
+     {
+      "id": "h1",
+      "name": "Entrevistas",
+      "date": "2026-11-09"
+     },
+     {
+      "id": "h2",
+      "name": "Prototipo",
+      "date": "2026-11-30"
+     },
+     {
+      "id": "h3",
+      "name": "Piloto 2 mercados",
+      "date": "2027-01-11"
+     },
+     {
+      "id": "h4",
+      "name": "Hemoglobina",
+      "date": "2027-04-05"
+     },
+     {
+      "id": "h5",
+      "name": "Decidir escala",
+      "date": "2027-05-03"
+     }
+    ]
+   },
+   "inputs": []
+  },
+  {
+   "id": "ask-next",
+   "type": "ask",
+   "x": 16,
+   "y": 38,
+   "w": 20,
+   "h": 9,
+   "data": {
+    "kind": "text",
+    "title": "Qué probar primero",
+    "value": "Un piloto en dos mercados con tres piezas que el benchmark respalda: recetas de 15 minutos con hierro que sirvan para toda la familia, una red de madres líderes con recordatorios por WhatsApp y seguimiento entre controles. Medir consumo real y hemoglobina, no solo cuántas madres recibieron mensajes.",
+    "detail": "Cruza el journey, el benchmark y los hallazgos del Researcher.",
+    "prompt": "Con todo esto, ¿qué deberíamos probar primero?",
+    "source": ""
+   },
+   "inputs": []
+  },
+  {
+   "id": "t-how",
+   "type": "label",
+   "x": 37,
+   "y": 38,
+   "w": 19,
+   "h": 9,
+   "data": {
+    "kind": "label",
+    "style": "body",
+    "text": "Cómo se armó este tablero: el CSV se subió a un widget Archivo; con su + se pidieron los gráficos y tablas. Las 4 madres son widgets Usuario con sus notas; conectadas al User journey generan su semana promedio. El Researcher busca evidencia con fuentes y Don Norman le da su mirada a la respuesta."
+   },
+   "inputs": []
+  }
+ ]
+}

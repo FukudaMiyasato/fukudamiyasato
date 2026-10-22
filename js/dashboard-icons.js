@@ -107,6 +107,29 @@ export const TOOL_ICONS = {
     <path d="M4.2 20.5c.4-4.2 3.6-6.8 7.8-6.8s7.4 2.6 7.8 6.8z" fill="currentColor"/>
   </svg>`,
 
+  // profesionales: persona con lupa
+  pros: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="9" cy="7.5" r="3.5" fill="currentColor"/>
+    <path d="M2.5 19.8c.4-3.8 3-6.1 6.5-6.1 1.5 0 2.8.4 3.8 1.1-.6.9-.9 1.9-.9 3 0 .7.1 1.4.4 2z" fill="currentColor"/>
+    <circle cx="16.8" cy="16.6" r="3.2" fill="none" stroke="#7fd1c9" stroke-width="1.8"/><path d="M19.2 19l2.3 2.3" stroke="#7fd1c9" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>`,
+
+  // researcher (en la lista de profesionales)
+  researcher: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="10.5" cy="10.5" r="6" stroke="#7fd1c9" stroke-width="2"/><path d="M15 15l5 5" stroke="#7fd1c9" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M8 10.5h5M10.5 8v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`,
+
+  // texto: una T
+  label: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 6.5V5h14v1.5"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>`,
+
+  // grupo: marco punteado con una etiqueta
+  group: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <rect x="3" y="5.5" width="18" height="14.5" rx="3" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2.5"/>
+    <rect x="3" y="2.8" width="9" height="4.6" rx="1.6" fill="currentColor"/>
+    <rect x="7" y="10.5" width="4.5" height="5.5" rx="1.2" fill="currentColor" opacity=".6"/><rect x="13" y="10.5" width="4.5" height="5.5" rx="1.2" fill="currentColor" opacity=".6"/>
+  </svg>`,
+
   // flecha: puntero para seleccionar
   arrow: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M6 3.5l12.2 9.1-5.6.9 3.2 6.1-2.6 1.3-3.2-6.2-4 3.9z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>

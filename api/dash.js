@@ -9,6 +9,11 @@
    Solo amos:
      GET    ?d=<id>&members=1      → chismosos y si tienen este dashboard activo
      POST   { name, image? }                        → crea un dashboard
+     POST   ?d=<id>&import=1 { widgets: [{ id, type, x, y, w, h, data, inputs }] }
+                                                    → agrega widgets de una plantilla o de otro
+                                                      dashboard (exportado): se validan como
+                                                      cualquier widget, se ponen a la derecha de lo
+                                                      que ya hay y se reconectan entre sí
      PATCH  ?d=<id>  { name?, image? }              → renombra / cambia el ícono (image: null lo
                                                       quita)
      DELETE ?d=<id>                                 → borra el dashboard y sus widgets
@@ -35,9 +40,15 @@
      POST   ?d=<id>&widget=user { data, layout }
                                                     → usuario (sin IA): tipo + archivos de contexto
      POST   ?d=<id>&widget=nebula { data, layout }  → nebulosa de IA (sin IA por ahora)
-     POST   ?d=<id>&widget=expert { data, layout }  → profesional: si se conecta a una pregunta,
+     POST   ?d=<id>&widget=expert { data, layout }  → celebridad: si se conecta a una pregunta,
                                                       la IA responde con su mirada (data.voices)
      POST   ?d=<id>&widget=journey { data, layout } → panel User journey, vacío
+     POST   ?d=<id>&widget=pro { data, layout }     → profesional (por ahora, Researcher)
+     POST   ?d=<id>&research=<proId> { question, slots: [{ x, y, w, h }] }
+                                                    → el Researcher busca en la web y deja hasta 5
+                                                      hallazgos con fuentes, conectados a él, en los
+                                                      lugares libres que manda el navegador; cuesta
+                                                      tokens ("research")
      POST   ?d=<id>&journey=<widgetId> { goal }     → la IA arma el journey con los usuarios
                                                       conectados (varios = uno promedio; solo se
                                                       le conectan usuarios); cuesta tokens ("journey")
@@ -57,7 +68,7 @@ import {
   listWidgets, createWidget, updateWidget, deleteWidget,
   getMarks, addFlag, setDivider, deleteMark, addSpent, spentOf,
 } from './_lib/dashboards.js';
-import { askVisual, askShort, askFollow, askJourney, AIError } from './_lib/ai.js';
+import { askVisual, askShort, askFollow, askJourney, askResearch, AIError } from './_lib/ai.js';
 import { getConfig, priceOf, prices } from './_lib/config.js';
 import { unlimited, balanceOf, charge, refund } from './_lib/tokens.js';
 
@@ -143,7 +154,7 @@ function cleanUser(d) {
   };
 }
 
-/* ---------- profesional ---------- */
+/* ---------- celebridad (widget "expert") ---------- */
 
 /** Un experto: nombre, rol y cómo piensa (prompt). El preset solo elige su dibujo. */
 function cleanExpert(d) {
@@ -152,15 +163,15 @@ function cleanExpert(d) {
   return {
     kind: 'expert',
     preset: /^[a-z]{2,20}$/.test(String(d.preset)) ? String(d.preset) : 'custom',
-    name: String(d.name ?? '').trim().slice(0, 40) || 'Profesional',
-    role: String(d.role ?? '').trim().slice(0, 40) || 'Profesional',
+    name: String(d.name ?? '').trim().slice(0, 40) || 'Celebridad',
+    role: String(d.role ?? '').trim().slice(0, 40) || 'Celebridad',
     prompt: String(d.prompt ?? '').slice(0, 2000),
     sex: d.sex === 'm' ? 'm' : 'f',
     age: Number.isFinite(age) ? Math.min(90, Math.max(18, age)) : 35,
   };
 }
 
-/** Los profesionales conectados no son contexto: le dan su mirada a la IA. */
+/** Las celebridades conectadas no son contexto: le dan su mirada a la IA. */
 function voicesOf(list) {
   const experts = list.filter((w) => w.data?.kind === 'expert');
   return {
@@ -198,6 +209,71 @@ const userContext = (d) => (d.context || []).map((f) => (f.kind === 'text' && f.
   ? `Texto «${f.name}»:\n${f.text.slice(0, 6000)}`
   : `Audio «${f.name}» (sin transcribir)`)).join('\n\n');
 
+/* ---------- profesionales (Researcher) y sus hallazgos ---------- */
+const PRO_ROLES = ['researcher'];
+
+function cleanPro(d) {
+  if (!d || typeof d !== 'object') return null;
+  return {
+    kind: 'pro',
+    role: PRO_ROLES.includes(d.role) ? d.role : 'researcher',
+    name: txt(d.name, 40) || 'Researcher',
+    thought: txt(d.thought, 160),
+    history: (Array.isArray(d.history) ? d.history : []).slice(-12).map((h) => ({ q: txt(h?.q, 300), n: Math.max(0, Math.min(5, Math.round(Number(h?.n) || 0))) })).filter((h) => h.q),
+  };
+}
+
+function cleanFinding(d) {
+  if (!d || typeof d !== 'object') return null;
+  return {
+    kind: 'finding',
+    title: txt(d.title, 60) || 'Hallazgo',
+    summary: txt(d.summary, 700),
+    question: txt(d.question, 300),
+    by: txt(d.by, 40),
+    confidence: ['alta', 'media', 'baja'].includes(d.confidence) ? d.confidence : 'media',
+    sources: (Array.isArray(d.sources) ? d.sources : []).slice(0, 4)
+      .map((s) => ({ url: String(s?.url ?? '').slice(0, 500), title: txt(s?.title, 140) }))
+      .filter((s) => /^https?:\/\//.test(s.url)),
+  };
+}
+
+/* ---------- respuestas de IA (tabla con IA, pregunta): para importar ---------- */
+const CHART_TYPES = ['bar', 'line', 'pie'];
+function cleanAnswer(d) {
+  if (!d || typeof d !== 'object') return null;
+  const base = {
+    title: txt(d.title, 80) || 'Respuesta', prompt: txt(d.prompt, 2000), source: txt(d.source, 120),
+    ...(Array.isArray(d.voices) && d.voices.length ? { voices: d.voices.slice(0, 6).map((v) => txt(v, 40)) } : {}),
+  };
+  if (d.kind === 'number' || d.kind === 'text') {
+    const value = txt(d.value, 800);
+    return value ? { ...base, kind: d.kind, value, detail: txt(d.detail, 300) } : null;
+  }
+  if (d.kind === 'chart') {
+    const n = Math.min(d.labels?.length || 0, d.values?.length || 0, 40);
+    const values = (d.values || []).slice(0, n).map(Number);
+    if (!n || values.some((v) => !Number.isFinite(v))) return null;
+    return { ...base, kind: 'chart', chartType: CHART_TYPES.includes(d.chartType) ? d.chartType : 'bar', labels: d.labels.slice(0, n).map((l) => txt(l, 60)), values, unit: txt(d.unit, 20), detail: txt(d.detail, 300) };
+  }
+  if (d.kind === 'table') {
+    const columns = (Array.isArray(d.columns) ? d.columns : []).slice(0, 20).map((c) => txt(c, 300));
+    if (!columns.length) return null;
+    const rows = (Array.isArray(d.rows) ? d.rows : []).slice(0, 200).map((r) => columns.map((_, i) => txt(r?.[i], 300)));
+    return { ...base, kind: 'table', columns, rows };
+  }
+  return null;
+}
+
+/* ---------- texto y grupo ---------- */
+const LABEL_STYLES = ['title', 'subtitle', 'body'];
+const cleanLabel = (d) => (d && typeof d === 'object'
+  ? { kind: 'label', text: String(d.text ?? '').slice(0, 600) || ' ', style: LABEL_STYLES.includes(d.style) ? d.style : 'title' }
+  : null);
+const cleanGroup = (d) => (d && typeof d === 'object'
+  ? { kind: 'group', title: txt(d.title, 60) || 'Grupo', color: /^#[0-9a-f]{6}$/i.test(d.color) ? d.color : '#ff3b4f' }
+  : null);
+
 /* ---------- archivo ---------- */
 const MAX_FILE_TEXT = 240_000;
 const FILE_TYPES = ['csv', 'xlsx', 'json', 'text'];
@@ -222,7 +298,7 @@ function cleanFile(d) {
 /* ---------- nebulosa de IA ---------- */
 const cleanNebula = () => ({ kind: 'nebula', title: 'Nebulosa de IA' });
 
-const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, file: cleanFile, nebula: cleanNebula };
+const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, file: cleanFile, pro: cleanPro, finding: cleanFinding, label: cleanLabel, group: cleanGroup, nebula: cleanNebula };
 
 /** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
 function cleanInputs(v, widgets, selfId) {
@@ -274,7 +350,15 @@ function contextFrom(list) {
         ...(d.stages || []).map((x, i) => `${i + 1}. ${x.name} — hace: ${x.doing}; piensa: ${x.thinking}; siente: ${x.emotion} (${x.feeling}); dolor: ${x.pain}; oportunidad: ${x.opportunity}`),
       ].filter(Boolean).join('\n') || 'User journey vacío';
     } else if (d.kind === 'expert') {
-      body = `Profesional: ${d.name} (${d.role}). ${d.prompt}`;
+      body = `Celebridad: ${d.name} (${d.role}). ${d.prompt}`;
+    } else if (d.kind === 'label') {
+      body = d.text;
+    } else if (d.kind === 'group') {
+      body = `Grupo «${d.title}»`;
+    } else if (d.kind === 'finding') {
+      body = `${d.summary}\nFuentes: ${(d.sources || []).map((x) => x.url).join(' · ')}`;
+    } else if (d.kind === 'pro') {
+      body = `${d.name}: ${d.thought || ''}`;
     } else if (d.kind === 'file') {
       body = (d.files || []).map((f) => `Archivo «${f.name}» (${f.type === 'xlsx' ? 'Excel, como CSV' : f.type}${f.rows != null ? `, ${f.rows} filas` : ''}${f.cut ? ', recortado' : ''}):\n\`\`\`\n${f.text}\n\`\`\``).join('\n\n') || 'Archivo vacío';
     } else if (d.kind === 'nebula') {
@@ -465,7 +549,78 @@ export default async function handler(req, res) {
       return res.status(200).json({ data, tokens: unlimited(user) ? null : await balanceOf(user.email), spent });
     }
 
-    /* ---------- widgets sin IA: línea de tiempo, usuario, profesional, paneles y nebulosa ---------- */
+    /* ---------- importar widgets (plantilla o exportado) ---------- */
+    if (req.method === 'POST' && dash && req.query?.import) {
+      const items = (Array.isArray(req.body?.widgets) ? req.body.widgets : []).slice(0, 200);
+      const clean = items.map((w) => {
+        const type = String(w?.type || '');
+        const data = type === 'table' || type === 'ask' ? cleanAnswer(w?.data) : CLEANERS[type]?.(w?.data);
+        return data ? { key: String(w.id ?? ''), type, layout: cleanLayout(w), data, inputs: Array.isArray(w.inputs) ? w.inputs.map(String) : [] } : null;
+      }).filter(Boolean);
+      if (!clean.length) return res.status(400).json({ error: 'El archivo no tiene widgets válidos.' });
+      // a la derecha de lo que ya hay, para no pisar nada
+      const existing = await listWidgets(dash.id);
+      const minX = Math.min(...clean.map((w) => w.layout.x));
+      const dx = existing.length ? Math.max(...existing.map((w) => w.x + w.w)) + 6 - minX : 0;
+      const ids = new Map();
+      for (const w of clean) w.layout.x = Math.min(500, w.layout.x + dx);
+      // primero sin conexiones (para conocer los ids nuevos), después se reconectan
+      for (const w of clean) ids.set(w.key, (await createWidget(dash.id, w.type, w.layout, w.data, [])).id);
+      for (const w of clean) {
+        const inputs = w.inputs.map((k) => ids.get(k)).filter(Boolean);
+        if (inputs.length) await updateWidget(dash.id, ids.get(w.key), { inputs });
+      }
+      return res.status(201).json({ created: clean.length });
+    }
+
+    /* ---------- Researcher: investigar y dejar hallazgos ---------- */
+    if (req.method === 'POST' && dash && req.query?.research) {
+      const all = await listWidgets(dash.id);
+      const pro = all.find((w) => w.id === String(req.query.research) && w.type === 'pro');
+      if (!pro) return res.status(404).json({ error: 'Profesional no encontrado.' });
+      const question = txt(req.body?.question, 300);
+      if (!question) return res.status(422).json({ error: 'Escribe una pregunta.' });
+      const slots = (Array.isArray(req.body?.slots) ? req.body.slots : []).slice(0, 5).map(cleanLayout);
+      if (!slots.length) return res.status(400).json({ error: 'No hay lugar en el lienzo.' });
+
+      const cost = priceOf(await getConfig(), 'research');
+      const price = unlimited(user) ? 0 : cost;
+      if (price && !(await charge(user.email, price))) {
+        return res.status(402).json({
+          error: `No te quedan tokens: investigar cuesta ${price.toLocaleString('es-PE')}.`,
+          tokens: await balanceOf(user.email), price,
+        });
+      }
+      // lo conectado al Researcher le dice de qué trata el proyecto
+      const context = contextFrom(all.filter((w) => (pro.inputs || []).includes(w.id)));
+      let out;
+      try {
+        out = await askResearch({ question, context });
+      } catch (err) {
+        if (price) await refund(user.email, price);
+        if (err instanceof AIError) return res.status(422).json({ error: err.message });
+        throw err;
+      }
+
+      const created = [];
+      for (const [i, it] of out.items.slice(0, slots.length).entries()) {
+        const data = cleanFinding({ ...it, question, by: pro.data.name, confidence: out.confidence });
+        created.push(await createWidget(dash.id, 'finding', slots[i], data, [pro.id]));
+      }
+      const proData = cleanPro({
+        ...pro.data,
+        thought: out.thought || pro.data.thought,
+        history: [...(pro.data.history || []), { q: question, n: created.length }],
+      });
+      await updateWidget(dash.id, pro.id, { data: proData });
+      const spent = await addSpent(dash.id, cost);
+      return res.status(201).json({
+        widgets: created.map(publicWidget), pro: proData, mode: out.mode,
+        tokens: unlimited(user) ? null : await balanceOf(user.email), spent,
+      });
+    }
+
+    /* ---------- widgets sin IA: línea de tiempo, usuario, celebridad, profesionales, paneles y nebulosa ---------- */
     if (req.method === 'POST' && dash && CLEANERS[tool]) {
       const data = CLEANERS[tool](req.body?.data);
       if (!data) return res.status(400).json({ error: 'Datos del widget inválidos.' });

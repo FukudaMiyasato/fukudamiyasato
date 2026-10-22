@@ -362,3 +362,146 @@ export async function askJourney({ goal = '', users = [], context = '', voices =
   const entries = (out.entries || []).slice(0, 6).map((e) => ({ name: str(e.name, 40), channel: str(e.channel, 30), detail: str(e.detail, 140) })).filter((e) => e.name);
   return { title: str(out.title || 'User journey', 60), persona: str(out.persona, 200), entries, stages };
 }
+
+/* ============================================================
+   Profesionales: el Researcher investiga en la web
+   ------------------------------------------------------------
+   Flujo en dos pasos, para que lo que devuelve tenga respaldo:
+     1. Investigar — Responses API con la herramienta web_search: el modelo
+        decide qué buscar (puede hacer varias búsquedas), lee los resultados
+        y escribe notas citando cada dato. Las citas llegan como anotaciones
+        url_citation: esas son las únicas fuentes válidas.
+     2. Ordenar — con salida estructurada, pasa las notas a hallazgos (1 si
+        la pregunta pide una explicación; hasta 5 si pide varias cosas:
+        soluciones parecidas, competidores, ejemplos…). Cada hallazgo debe
+        apuntar a fuentes de la lista numerada del paso 1; los que no tienen
+        fuente se descartan. Nada se agrega que no esté en las notas.
+   Variables: OPENAI_RESEARCH_MODEL (default gpt-4.1).
+   ============================================================ */
+
+const MAX_FINDINGS = 5;
+const RESEARCH_TIMEOUT_MS = 42_000; // la función tiene 60 s: deja tiempo para ordenar y guardar
+
+const SYSTEM_WEB_RESEARCH = `Eres un researcher senior (investigación de usuarios, mercado y producto). Investiga la
+pregunta en la web antes de responder: haz las búsquedas que hagan falta (en español y en inglés si ayuda).
+- Prioriza fuentes primarias y confiables: sitios oficiales de productos y empresas, estudios, papers,
+  informes de la industria, medios reconocidos. Prefiere lo reciente y di el año de los datos.
+- Cita cada dato con su fuente. No inventes nada: si no encuentras algo, dilo.
+- Si la pregunta pide varias cosas (soluciones parecidas, competidores, ejemplos, estudios…), encuentra hasta
+  ${MAX_FINDINGS}, las más relevantes, y para cada una explica qué es, cómo funciona y por qué importa.
+- Si pide una explicación, responde con profundidad: contexto, evidencia, matices y qué falta saber.
+Escribe notas en el idioma de la pregunta.`;
+
+/** Paso 1: búsqueda web con citas. Devuelve { notes, sources: [{ url, title }] }. */
+async function webResearch(question, context, meter) {
+  const key = String(process.env.OPENAI_API_KEY || '').trim();
+  if (!key) throw new Error('No hay API key de OpenAI: carga OPENAI_API_KEY en Vercel.');
+  const input = (context ? `Contexto del tablero (para entender de qué trata el proyecto):\n${String(context).slice(0, 20_000)}\n\n` : '')
+    + `Pregunta: ${question}`;
+
+  const call = async (toolType, choice) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), RESEARCH_TIMEOUT_MS);
+    try {
+      return await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: process.env.OPENAI_RESEARCH_MODEL || 'gpt-4.1',
+          instructions: SYSTEM_WEB_RESEARCH,
+          input,
+          tools: [{ type: toolType }],
+          tool_choice: choice,
+        }),
+      });
+    } catch (err) {
+      if (err.name === 'AbortError') throw new AIError('La búsqueda tardó demasiado. Prueba con una pregunta más concreta.');
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  // siempre busca (required); si la cuenta o el modelo no lo aceptan, la versión anterior de la herramienta
+  let res = await call('web_search', 'required');
+  if (res.status === 400) res = await call('web_search_preview', 'auto');
+  if (!res.ok) {
+    const err = (await res.text()).slice(0, 500);
+    console.error('[ai] research:', res.status, err);
+    throw new Error(/insufficient_quota|billing/i.test(err) ? 'La API key de OpenAI no tiene saldo.' : `OpenAI respondió ${res.status} al buscar.`);
+  }
+  const json = await res.json();
+  if (meter) meter.tokens = (meter.tokens || 0) + (json.usage?.total_tokens || 0);
+
+  let notes = '';
+  const sources = [];
+  for (const item of json.output || []) {
+    if (item.type !== 'message') continue;
+    for (const c of item.content || []) {
+      if (c.type !== 'output_text') continue;
+      notes += c.text;
+      for (const a of c.annotations || []) {
+        if (a.type !== 'url_citation' || !/^https?:\/\//.test(a.url || '')) continue;
+        const url = a.url.replace(/[?&]utm_source=openai\b/, '').replace(/\?$/, '');
+        if (!sources.some((s) => s.url === url)) sources.push({ url, title: str(a.title || new URL(url).hostname, 140) });
+      }
+    }
+  }
+  return { notes: notes.slice(0, 40_000), sources: sources.slice(0, 30) };
+}
+
+const SYSTEM_RESEARCH_STRUCT = `Ordenas las notas de una investigación en hallazgos para un tablero. Usa SOLO lo que dicen las
+notas: no agregues datos, nombres ni cifras que no estén ahí.
+- "mode": "list" si la pregunta pide varias cosas (soluciones, ejemplos, competidores, estudios, opciones…);
+  "answer" si pide una explicación o un dato.
+- "items": con "list", uno por cosa encontrada, máximo ${MAX_FINDINGS}, los más relevantes primero. Con "answer", uno solo.
+  "title": nombre corto (máx. 60 caracteres). "summary": 2 a 4 frases con lo importante (qué es, cómo funciona,
+  por qué importa, cifras con su año). "sources": números de la lista de fuentes que respaldan ese hallazgo
+  (al menos uno; solo números que existan).
+- "thought": una frase corta, en primera persona, con lo que te deja pensando la investigación (para el tablero).
+- "confidence": "alta" si varias fuentes confiables coinciden, "media" si hay pocas o parciales, "baja" si casi no hay.
+Responde ok=false (con el motivo en "error") si las notas no responden la pregunta.`;
+
+const RESEARCH_SCHEMA = {
+  name: 'hallazgos',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['ok', 'error', 'mode', 'thought', 'confidence', 'items'],
+    properties: {
+      ok: { type: 'boolean' },
+      error: { type: 'string' },
+      mode: { type: 'string', enum: ['list', 'answer'] },
+      thought: { type: 'string' },
+      confidence: { type: 'string', enum: ['alta', 'media', 'baja'] },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object', additionalProperties: false, required: ['title', 'summary', 'sources'],
+          properties: { title: { type: 'string' }, summary: { type: 'string' }, sources: { type: 'array', items: { type: 'integer' } } },
+        },
+      },
+    },
+  },
+};
+
+/** Investiga y devuelve { mode, thought, confidence, items: [{ title, summary, sources: [{ url, title }] }] }. */
+export async function askResearch({ question, context = '', meter = null }) {
+  const { notes, sources } = await webResearch(question, context, meter);
+  if (!notes.trim() || !sources.length) throw new AIError('No encontré fuentes confiables para responder eso.');
+
+  const list = sources.map((s, i) => `[${i + 1}] ${s.title} — ${s.url}`).join('\n');
+  const out = await callOpenAI(SYSTEM_RESEARCH_STRUCT, `Pregunta: ${question}\n\nNotas:\n${notes}\n\nFuentes:\n${list}`, RESEARCH_SCHEMA, { meter });
+  if (!out.ok) throw new AIError(out.error || 'La investigación no respondió la pregunta.');
+
+  const items = (out.items || []).slice(0, out.mode === 'list' ? MAX_FINDINGS : 1).map((it) => ({
+    title: str(it.title, 60),
+    summary: str(it.summary, 700),
+    // solo fuentes que existen: un hallazgo sin respaldo no pasa
+    sources: [...new Set(it.sources || [])].map((n) => sources[n - 1]).filter(Boolean).slice(0, 4),
+  })).filter((it) => it.title && it.summary && it.sources.length);
+  if (!items.length) throw new AIError('Lo que encontré no tenía fuentes que lo respalden.');
+  return { mode: out.mode, thought: str(out.thought, 160), confidence: out.confidence, items };
+}

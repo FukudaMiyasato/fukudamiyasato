@@ -54,6 +54,8 @@ import {
   AGE_MAX, MAX_CONTEXT, MAX_TEXT,
 } from './persona.js';
 import { emptyJourney, journeySize, journeyHTML } from './journey.js';
+import { LABEL_STYLES, GROUP_COLORS, newLabel, labelSize, newGroup, groupSize, labelHTML, groupHTML } from './blocks.js';
+import { PROS, proOf, newPro, proSize, findingSize, proHTML, findingHTML, proAvatar } from './pro.js';
 import { emptyFile, fileWidgetSize, fileHTML, readUploads, textLeft, MAX_FILES, ACCEPT } from './file.js';
 import { EXPERTS, expertOf, fromPreset, defaultExpert, expertSize, expertHTML, expertAvatar } from './expert.js';
 
@@ -208,7 +210,9 @@ linksSvg.addEventListener('pointerdown', (e) => {
    ============================================================ */
 
 const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-const collides = (rect, skipId) => widgets.some((o) => o.id !== skipId && overlaps(rect, o));
+const isGroup = (w) => w?.data?.kind === 'group';
+// los grupos no chocan: están detrás y los widgets van dentro de ellos
+const collides = (rect, skipId) => widgets.some((o) => o.id !== skipId && !isGroup(o) && overlaps(rect, o));
 
 function place(wd) {
   Object.assign(wd.el.style, {
@@ -302,6 +306,10 @@ function doneHTML(wd) {
   if (d.kind === 'expert') return expertHTML(d);
   if (d.kind === 'journey') return journeyHTML(d, { linked: linkedUsers(wd), generating: wd.generating });
   if (d.kind === 'file') return fileHTML(d, { canEdit });
+  if (d.kind === 'label') return labelHTML(d);
+  if (d.kind === 'group') return groupHTML(d);
+  if (d.kind === 'pro') return proHTML(d, { busy: wd.researching });
+  if (d.kind === 'finding') return findingHTML(d);
   if (d.kind === 'nebula') return nebulaHTML(wd);
   return `
     <header class="whead" title="${esc(d.prompt || '')}">
@@ -315,14 +323,14 @@ function doneHTML(wd) {
 /** Arma (o rearma, al cambiar de estado) el contenido del widget. */
 function render(wd) {
   const el = wd.el;
-  el.className = `widget is-${wd.state}${wd === selected ? ' is-selected' : ''}`;
+  el.className = `widget is-${wd.state}${wd === selected ? ' is-selected' : ''}${isGroup(wd) ? ' is-group' : ''}${wd.data?.kind === 'label' ? ' is-label' : ''}`;
   el.dataset.id = wd.id;
   const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
   el.innerHTML = `<div class="wbox">
-    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'file' ? ' wcard--file' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}">${inner}</div>
+    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'file' ? ' wcard--file' : ''}${wd.data?.kind === 'pro' ? ' wcard--user wcard--pro' : ''}${wd.data?.kind === 'finding' ? ' wcard--finding' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}${wd.data?.kind === 'label' ? ' wcard--label' : ''}${isGroup(wd) ? ' wcard--group' : ''}">${inner}</div>
     ${canEdit ? `
-      <button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>
-      ${wd.state === 'done' ? `<button class="wport wport--out" type="button" data-tip-ai="follow" data-tip-label="Preguntar sobre esto (arrastra para conectar)" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
+      ${isGroup(wd) ? '' : '<button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>'}
+      ${wd.state === 'done' && !isGroup(wd) ? `<button class="wport wport--out" type="button" data-tip-ai="follow" data-tip-label="Preguntar sobre esto (arrastra para conectar)" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>` : ''}
       ${wd.data?.kind === 'timeline' ? '' : '<span class="whandle" aria-hidden="true"></span>'}
       ${wd.state === 'done' ? `<button class="wx" type="button" aria-label="Borrar «${esc(wd.data?.title || 'widget')}»">
@@ -334,7 +342,7 @@ function render(wd) {
   if (chart) new ResizeObserver(() => drawChart(chart, wd.data)).observe(chart);
 
   if (!canEdit) return;
-  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser, .wexpert, .wneb')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
+  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser, .wexpert, .wpro, .wneb, .wlabel, .wgroup-head')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
   el.querySelector('.whandle')?.addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
   el.querySelector('.wport--out')?.addEventListener('pointerdown', (e) => startLink(e, wd));
   el.querySelector('.wx')?.addEventListener('click', () => removeWidget(wd));
@@ -441,7 +449,8 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && jiggling
 
 function startEdit(e, wd, mode) {
   if (wd.state === 'thinking' || e.target.closest('button, input, textarea, label')) return;
-  if (mode === 'move' && multi.size > 1 && multi.has(wd)) return startGroupMove(e, [...multi]);
+  if (mode === 'move' && multi.size > 1 && multi.has(wd)) return startGroupMove(e, withContents([...multi]));
+  if (mode === 'move' && isGroup(wd)) return startGroupMove(e, withContents([wd]));
   e.preventDefault();
   e.stopPropagation();
   const target = e.currentTarget;
@@ -479,7 +488,7 @@ function startEdit(e, wd, mode) {
       left: `${next.x * GRID + 5}px`, top: `${next.y * GRID + 5}px`,
       width: `${next.w * GRID - 10}px`, height: `${next.h * GRID - 10}px`,
     });
-    ghost.classList.toggle('is-bad', collides(next, wd.id));
+    ghost.classList.toggle('is-bad', !isGroup(wd) && collides(next, wd.id));
     requestDraw(); // las líneas siguen al widget
   };
 
@@ -492,7 +501,7 @@ function startEdit(e, wd, mode) {
     ghost.remove();
     wd.el.classList.remove('is-dragging');
     const changed = next.x !== start.x || next.y !== start.y || next.w !== start.w || next.h !== start.h;
-    if (changed && !collides(next, wd.id)) {
+    if (changed && (isGroup(wd) || !collides(next, wd.id))) {
       Object.assign(wd, next);
       saveLayout(wd);
     }
@@ -505,6 +514,12 @@ function startEdit(e, wd, mode) {
   target.addEventListener('pointercancel', onUp);
 }
 
+/** Lo que está entero dentro de un grupo. */
+const insideOf = (g) => widgets.filter((w) => w !== g && w.state === 'done'
+  && w.x >= g.x && w.y >= g.y && w.x + w.w <= g.x + g.w && w.y + w.h <= g.y + g.h);
+/** Los grupos de la lista arrastran a sus widgets. */
+const withContents = (list) => [...new Set(list.flatMap((w) => (isGroup(w) ? [w, ...insideOf(w)] : [w])))];
+
 /** Mueve varios widgets juntos (selección múltiple). Si alguno chocaría con
     otro que no se está moviendo, vuelven todos a su lugar. */
 function startGroupMove(e, group) {
@@ -515,7 +530,7 @@ function startGroupMove(e, group) {
   const px = e.clientX, py = e.clientY;
   const starts = group.map((w) => ({ w, x: w.x, y: w.y }));
   const ids = new Set(group.map((w) => w.id));
-  const free = (r) => !widgets.some((o) => !ids.has(o.id) && overlaps(r, o));
+  const free = (r, w) => isGroup(w) || !widgets.some((o) => !ids.has(o.id) && !isGroup(o) && overlaps(r, o));
   const ghosts = group.map(() => Object.assign(document.createElement('div'), { className: 'ghost' }));
   let off = { x: 0, y: 0 }, dragging = false;
 
@@ -529,7 +544,7 @@ function startGroupMove(e, group) {
     }
     const dx = sx / zoom, dy = sy / zoom;
     off = { x: Math.round(dx / GRID), y: Math.round(dy / GRID) };
-    const bad = starts.some((s) => !free({ x: s.x + off.x, y: s.y + off.y, w: s.w.w, h: s.w.h }));
+    const bad = starts.some((s) => !free({ x: s.x + off.x, y: s.y + off.y, w: s.w.w, h: s.w.h }, s.w));
     starts.forEach((s, i) => {
       s.w.el.style.left = `${s.x * GRID + dx}px`;
       s.w.el.style.top = `${s.y * GRID + dy}px`;
@@ -547,7 +562,7 @@ function startGroupMove(e, group) {
     target.removeEventListener('pointercancel', onUp);
     if (!dragging) return;
     ghosts.forEach((g) => g.remove());
-    const ok = (off.x || off.y) && starts.every((s) => free({ x: s.x + off.x, y: s.y + off.y, w: s.w.w, h: s.w.h }));
+    const ok = (off.x || off.y) && starts.every((s) => free({ x: s.x + off.x, y: s.y + off.y, w: s.w.w, h: s.w.h }, s.w));
     for (const s of starts) {
       s.w.el.classList.remove('is-dragging');
       if (ok) { s.w.x = s.x + off.x; s.w.y = s.y + off.y; saveLayout(s.w); }
@@ -565,7 +580,7 @@ function startGroupMove(e, group) {
    ============================================================ */
 
 /** ¿Se puede conectar src a t? Al user journey solo le llegan usuarios. */
-const canLink = (src, t) => t.data?.kind !== 'journey' || src.data?.kind === 'user';
+const canLink = (src, t) => !isGroup(t) && (t.data?.kind !== 'journey' || src.data?.kind === 'user');
 
 function startLink(e, src) {
   e.preventDefault();
@@ -648,7 +663,7 @@ function refreshContextNote(wd) {
   const ctx = wd.inputs.filter((i) => !isExpert(i));
   const n = ctx.length;
   if (n) parts.push(n === 1 ? `Contexto: «${title(ctx[0])}»` : `Contexto: ${n} widgets conectados`);
-  // los profesionales no son contexto: le dan su mirada a la respuesta
+  // las celebridades no son contexto: le dan su mirada a la respuesta
   const voices = [...(wd.about || []), ...wd.inputs].filter(isExpert).map(title);
   if (voices.length) parts.push(`Con la mirada de ${voices.join(' y ')}`);
   note.hidden = !parts.length;
@@ -822,6 +837,10 @@ function sizeFor(d) {
   if (d.kind === 'expert') return expertSize();
   if (d.kind === 'journey') return journeySize(d);
   if (d.kind === 'file') return fileWidgetSize();
+  if (d.kind === 'pro') return proSize();
+  if (d.kind === 'finding') return findingSize();
+  if (d.kind === 'label') return labelSize(d.style);
+  if (d.kind === 'group') return groupSize();
   if (d.kind === 'nebula') return NEBULA_SIZE;
   if (d.kind === 'number') return { w: 7, h: 6 };
   if (d.kind === 'text') {
@@ -1029,7 +1048,9 @@ function startMarquee(e) {
     });
     const a = toCell(b.left + Math.min(x0, x1), b.top + Math.min(y0, y1));
     const z = toCell(b.left + Math.max(x0, x1), b.top + Math.max(y0, y1));
-    const hit = widgets.filter((w) => w.state === 'done' && w.x < z.x && w.x + w.w > a.x && w.y < z.y && w.y + w.h > a.y);
+    const hit = widgets.filter((w) => w.state === 'done' && (isGroup(w)
+      ? w.x >= a.x && w.y >= a.y && w.x + w.w <= z.x && w.y + w.h <= z.y
+      : w.x < z.x && w.x + w.w > a.x && w.y < z.y && w.y + w.h > a.y));
     selectMany([...new Set([...base, ...hit])]);
   };
   const onUp = () => {
@@ -1077,6 +1098,12 @@ function renderMultiInfo(box) {
   hint.textContent = 'Arrastra cualquiera para moverlos juntos. Shift + clic suma o quita uno.';
   list.append(hint);
   if (canEdit) {
+    const grp = document.createElement('button');
+    grp.type = 'button';
+    grp.className = 'btn sel-group';
+    grp.textContent = 'Agrupar';
+    grp.addEventListener('click', () => groupSelection([...multi]));
+    list.append(grp);
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'btn sel-del';
@@ -1120,7 +1147,7 @@ $('info-x').addEventListener('click', () => select(null));
 /* ---------- bloque de información del seleccionado ---------- */
 
 const KIND_LABEL = { table: 'Tabla', chart: 'Gráfico', number: 'Número', text: 'Texto' };
-const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Profesional', journey: 'User journey', file: 'Archivo', nebula: 'Nebulosa de IA' };
+const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Celebridad', journey: 'User journey', file: 'Archivo', pro: 'Profesional', finding: 'Hallazgo', label: 'Texto', group: 'Grupo', nebula: 'Nebulosa de IA' };
 
 /** Muestra el bloque; la animación de entrada solo cuando cambia de widget
     (editarlo no lo "recarga"). */
@@ -1144,6 +1171,10 @@ function renderInfo() {
   if (d.kind === 'expert') return renderExpertInfo(box);
   if (d.kind === 'journey') return renderJourneyInfo(box);
   if (d.kind === 'file') return renderFileInfo(box);
+  if (d.kind === 'label') return renderLabelInfo(box);
+  if (d.kind === 'group') return renderGroupInfo(box);
+  if (d.kind === 'pro') return renderProInfo(box);
+  if (d.kind === 'finding') return renderFindingInfo(box);
   const rows = [];
   const add = (label, value) => { if (value) rows.push(`<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`); };
   add('Pregunta', d.prompt);
@@ -1341,6 +1372,233 @@ const createUser = () => createPlain('user', defaultUser(), userSize());
 const createExpert = () => createPlain('expert', defaultExpert(), expertSize());
 const createJourney = () => createPlain('journey', emptyJourney(), journeySize({}));
 const createFile = () => createPlain('file', emptyFile(), fileWidgetSize());
+const createPro = (role) => createPlain('pro', newPro(role), proSize());
+const createLabel = () => createPlain('label', newLabel(), labelSize('title'));
+const createGroup = () => createPlain('group', newGroup(), groupSize());
+
+/** «Agrupar»: un marco alrededor de lo seleccionado (con un poco de aire). */
+async function groupSelection(list) {
+  list = list.filter((w) => !isGroup(w));
+  if (!list.length) return;
+  const x = Math.min(...list.map((w) => w.x)) - 1, y = Math.min(...list.map((w) => w.y)) - 2;
+  const layout = { x, y, w: Math.max(...list.map((w) => w.x + w.w)) + 1 - x, h: Math.max(...list.map((w) => w.y + w.h)) + 1 - y };
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&widget=group`, { method: 'POST', body: JSON.stringify({ data: newGroup(), layout }) });
+  if (!r.ok) return alert(r.data.error || 'No se pudo agrupar.');
+  const g = { ...r.data.widget, state: 'done', inputs: [] };
+  widgets.push(g);
+  mount(g, { isNew: true });
+  select(g);
+}
+
+/* ---------- Texto y Grupo: se editan en su bloque ---------- */
+
+function renderLabelInfo(box) {
+  const wd = selected, d = wd.data;
+  $('info-kind').textContent = 'Texto';
+  $('info-title').hidden = true;
+  const list = $('info-list');
+  list.innerHTML = '';
+  if (!canEdit) return showInfo(box);
+  const ta = document.createElement('textarea');
+  ta.className = 'jr-goal';
+  ta.rows = 4;
+  ta.maxLength = 600;
+  ta.value = d.text;
+  ta.addEventListener('input', () => { d.text = ta.value || ' '; saveData(wd); });
+  list.append(ta);
+  const seg = document.createElement('div');
+  seg.className = 'us-sex lb-styles';
+  seg.innerHTML = LABEL_STYLES.map((st) => `<button type="button" data-style="${st.id}">${st.name}</button>`).join('');
+  const paint = () => seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.style === d.style)));
+  seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { d.style = b.dataset.style; paint(); saveData(wd); }));
+  paint();
+  list.append(seg);
+  showInfo(box);
+  setTimeout(() => ta.focus({ preventScroll: true }), 60);
+}
+
+function renderGroupInfo(box) {
+  const wd = selected, d = wd.data;
+  $('info-kind').textContent = 'Grupo';
+  $('info-title').hidden = true;
+  const list = $('info-list');
+  list.innerHTML = '';
+  const n = insideOf(wd).length;
+  if (canEdit) {
+    const f = document.createElement('label');
+    f.className = 'ex-field';
+    f.innerHTML = '<span>Nombre</span><input maxlength="60">';
+    const input = f.querySelector('input');
+    input.value = d.title;
+    input.addEventListener('input', () => { d.title = input.value.trim() || 'Grupo'; saveData(wd); });
+    list.append(f);
+    const colors = document.createElement('div');
+    colors.className = 'gr-colors';
+    colors.innerHTML = GROUP_COLORS.map((c) => `<button type="button" data-c="${c}" style="--c:${c}" aria-label="Color ${c}"></button>`).join('');
+    const paint = () => colors.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.dataset.c === d.color));
+    colors.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { d.color = b.dataset.c; paint(); saveData(wd); }));
+    paint();
+    list.append(colors);
+  }
+  const p = document.createElement('p');
+  p.className = 'sel-hint';
+  p.textContent = `${n} widget${n === 1 ? '' : 's'} adentro. Arrastra su nombre para mover el grupo con todo lo que tiene; desde la esquina lo agrandas.`;
+  list.append(p);
+  showInfo(box);
+}
+
+/* ============================================================
+   Profesionales: el Researcher investiga y deja hallazgos
+   ============================================================ */
+
+/** n lugares libres en una columna a la derecha de src: se corre hacia la
+    derecha hasta que la columna entera entra sin chocar (así los hallazgos
+    quedan juntos y en orden). */
+function slotsNear(src, n, size) {
+  const y0 = src.y; // el primero a la altura del profesional (casi nunca llegan los 5)
+  for (let r = 0; r < 80; r++) {
+    const x = src.x + src.w + 3 + r * 2;
+    const col = Array.from({ length: n }, (_, i) => ({ x, y: y0 + i * (size.h + 1), ...size }));
+    if (!col.some((c) => collides(c))) return col;
+  }
+  return Array.from({ length: n }, (_, i) => freeSpot(size.w, size.h, { x: src.x + src.w + 3, y: src.y + i * (size.h + 1) }));
+}
+
+const RESEARCH_STEPS = ['Buscando en la web…', 'Leyendo fuentes…', 'Contrastando datos…', 'Ordenando hallazgos…'];
+
+async function research(wd, question, btn, status) {
+  if (!canAfford('research')) return flashBroke('research');
+  question = question.trim();
+  if (!question) { status.textContent = 'Escribe una pregunta.'; return; }
+  const slots = slotsNear(wd, 5, findingSize());
+  wd.researching = true;
+  btn.disabled = true;
+  wd.el.classList.add('is-glowing');
+  render(wd);
+  let step = 0;
+  status.classList.remove('is-err');
+  status.textContent = RESEARCH_STEPS[0];
+  const ticker = setInterval(() => { step = Math.min(step + 1, RESEARCH_STEPS.length - 1); status.textContent = RESEARCH_STEPS[step]; }, 6000);
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&research=${encodeURIComponent(wd.id)}`, {
+    method: 'POST', body: JSON.stringify({ question, slots }),
+  });
+  clearInterval(ticker);
+  wd.researching = false;
+  btn.disabled = false;
+  wd.el.classList.remove('is-glowing');
+  if (r.data.tokens !== undefined) setTokens(r.data.tokens);
+  if (r.data.spent !== undefined) setSpent(r.data.spent);
+  if (!r.ok) {
+    render(wd);
+    status.classList.add('is-err');
+    status.textContent = r.data.error || 'No se pudo investigar.';
+    return;
+  }
+  wd.data = r.data.pro;
+  render(wd);
+  for (const w of r.data.widgets) {
+    const nw = { ...w, state: 'done', inputs: w.inputs || [] };
+    widgets.push(nw);
+    mount(nw, { isNew: true });
+  }
+  refreshEmpty();
+  requestDraw();
+  const n = r.data.widgets.length;
+  if (selected === wd) renderInfo();
+  const s = $('info-list').querySelector('.pro-status');
+  if (s) s.textContent = n === 1 ? 'Listo: dejé un hallazgo en el mapa.' : `Listo: dejé ${n} hallazgos en el mapa.`;
+  if (n) focusAt(...centerOf([wd, ...r.data.widgets]));
+}
+
+/** Centro (en celdas) de varios widgets, para enfocarlos juntos. */
+function centerOf(list) {
+  const minX = Math.min(...list.map((o) => o.x)), maxX = Math.max(...list.map((o) => o.x + o.w));
+  const minY = Math.min(...list.map((o) => o.y)), maxY = Math.max(...list.map((o) => o.y + o.h));
+  return [(minX + maxX) / 2, (minY + maxY) / 2];
+}
+
+function renderProInfo(box) {
+  const wd = selected;
+  const d = wd.data;
+  const p = proOf(d.role);
+  $('info-kind').textContent = `Profesional · ${p.name}`;
+  $('info-title').hidden = true;
+  const list = $('info-list');
+  list.innerHTML = '';
+
+  const top = document.createElement('div');
+  top.className = 'pro-top';
+  top.innerHTML = `<span class="us-av"></span><div><b></b><p></p></div>`;
+  top.querySelector('.us-av').innerHTML = proAvatar(d);
+  top.querySelector('b').textContent = d.name;
+  top.querySelector('p').textContent = d.thought ? `«${d.thought}»` : p.note;
+  list.append(top);
+
+  if (canEdit) {
+    const form = document.createElement('form');
+    form.className = 'pro-ask';
+    form.innerHTML = `<textarea rows="3" maxlength="300" placeholder="Ej.: ¿Qué soluciones parecidas existen para dividir gastos entre amigos?" aria-label="Pregunta"></textarea>
+      <button type="submit" class="btn">Investigar${prices.research ? `<small title="Estimado de tokens">≈ ${nfTok.format(prices.research)} tk</small>` : ''}</button>
+      <p class="pro-status" role="status"></p>`;
+    const ta = form.querySelector('textarea'), btn = form.querySelector('button'), status = form.querySelector('.pro-status');
+    if (wd.researching) { btn.disabled = true; status.textContent = 'Investigando…'; }
+    form.addEventListener('submit', (e) => { e.preventDefault(); research(wd, ta.value, btn, status); });
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) form.requestSubmit(); });
+    list.append(form);
+    const hint = document.createElement('p');
+    hint.className = 'ex-hint';
+    hint.textContent = 'Busca en la web y cita sus fuentes. Si preguntas por varias cosas (soluciones, competidores, ejemplos) deja hasta 5 hallazgos; si no, uno con la respuesta. Conéctale widgets para que sepa de qué trata el proyecto.';
+    list.append(hint);
+    setTimeout(() => ta.focus({ preventScroll: true }), 60);
+  }
+
+  if (d.history?.length) {
+    const h = document.createElement('p');
+    h.className = 'tl-head pro-hist-head';
+    h.textContent = 'Ya investigó';
+    list.append(h);
+    const ul = document.createElement('ul');
+    ul.className = 'sel-list';
+    for (const it of [...d.history].reverse()) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span></span><small></small>';
+      li.querySelector('span').textContent = it.q;
+      li.querySelector('small').textContent = `${it.n} hallazgo${it.n === 1 ? '' : 's'}`;
+      ul.append(li);
+    }
+    list.append(ul);
+  }
+  showInfo(box);
+}
+
+function renderFindingInfo(box) {
+  const d = selected.data;
+  $('info-kind').textContent = `Hallazgo · ${d.by || 'Researcher'}`;
+  $('info-title').hidden = false;
+  $('info-title').textContent = d.title;
+  const list = $('info-list');
+  list.innerHTML = '';
+  const add = (label, node) => {
+    const dt = document.createElement('dt'); dt.textContent = label;
+    const dd = document.createElement('dd'); dd.append(node);
+    list.append(dt, dd);
+  };
+  add('Pregunta', document.createTextNode(d.question || '—'));
+  add('Resumen', document.createTextNode(d.summary));
+  add('Confianza', document.createTextNode(d.confidence));
+  const ul = document.createElement('ul');
+  ul.className = 'pro-src';
+  for (const s of d.sources || []) {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = s.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.textContent = s.title || s.url;
+    li.append(a);
+    ul.append(li);
+  }
+  add('Fuentes', ul);
+  showInfo(box);
+}
 
 /* ============================================================
    Archivo: solo guarda información; con su + se le pregunta a la IA
@@ -1556,13 +1814,13 @@ function saveData(wd, failMsg = 'No se pudo guardar.') {
 }
 
 /* ============================================================
-   Profesional: elige un experto (o arma uno) y cómo piensa
+   Celebridad: elige una celebridad (o arma una) y cómo piensa
    ============================================================ */
 
 function renderExpertInfo(box) {
   const wd = selected;
   const d = wd.data;
-  $('info-kind').textContent = 'Profesional';
+  $('info-kind').textContent = 'Celebridad';
   $('info-title').hidden = true;
   const list = $('info-list');
   list.innerHTML = '';
@@ -1594,7 +1852,7 @@ function renderExpertInfo(box) {
   pick.querySelectorAll('.tl-arrow').forEach((b) => b.addEventListener('click', () => {
     const i = EXPERTS.findIndex((e) => e.id === d.preset);
     wd.data = fromPreset(EXPERTS[(i + Number(b.dataset.step) + EXPERTS.length) % EXPERTS.length].id);
-    saveData(wd, 'No se pudo guardar el profesional.');
+    saveData(wd, 'No se pudo guardar la celebridad.');
     renderInfo(); // cambian todos los campos
   }));
 
@@ -1610,11 +1868,11 @@ function renderExpertInfo(box) {
     const i = document.createElement('input');
     i.maxLength = max;
     i.value = value;
-    i.addEventListener('input', () => { onInput(i.value); saveData(wd, 'No se pudo guardar el profesional.'); });
+    i.addEventListener('input', () => { onInput(i.value); saveData(wd, 'No se pudo guardar la celebridad.'); });
     return i;
   };
-  field('Nombre', input(d.name, 40, (v) => { d.name = v.trim() || 'Profesional'; }));
-  field('Rol', input(d.role, 40, (v) => { d.role = v.trim() || 'Profesional'; }));
+  field('Nombre', input(d.name, 40, (v) => { d.name = v.trim() || 'Celebridad'; }));
+  field('Rol', input(d.role, 40, (v) => { d.role = v.trim() || 'Celebridad'; }));
 
   if (d.preset === 'custom') {
     const sex = document.createElement('div');
@@ -1638,12 +1896,12 @@ function renderExpertInfo(box) {
   prompt.maxLength = 2000;
   prompt.placeholder = 'Ej.: Piensa como una diseñadora de servicios: empieza por el problema, cuestiona supuestos y propone prototipos rápidos.';
   prompt.value = d.prompt;
-  prompt.addEventListener('input', () => { d.prompt = prompt.value; saveData(wd, 'No se pudo guardar el profesional.'); });
+  prompt.addEventListener('input', () => { d.prompt = prompt.value; saveData(wd, 'No se pudo guardar la celebridad.'); });
   field('Cómo piensa y actúa', prompt);
 
   const hint = document.createElement('p');
   hint.className = 'ex-hint';
-  hint.textContent = 'Conéctalo a una pregunta, una tabla o un panel (o usa su +): la IA responde con esta mirada.';
+  hint.textContent = 'Conéctala a una pregunta o a una tabla (o usa su +): la IA responde con esta mirada.';
   list.append(hint);
   showInfo(box);
 }
@@ -1899,11 +2157,16 @@ const TOOLS = [
   { key: 'ask', label: 'Pregúntale a la IA', open: () => createDraft('ask') },
   { key: 'timeline', label: 'Línea de tiempo', open: () => createTimeline() },
   { key: 'user', label: 'Usuario', open: () => createUser() },
-  { key: 'expert', label: 'Profesional', open: () => createExpert() },
+  { key: 'expert', label: 'Celebridad', open: () => createExpert() },
   { key: 'file', label: 'Archivo', open: () => createFile() },
-  { key: 'panels', label: 'Paneles', menu: true },
+  { key: 'label', label: 'Texto', open: () => createLabel() },
+  { key: 'group', label: 'Grupo', open: () => createGroup() },
+  { key: 'pros', label: 'Profesionales', menu: 'pros' },
+  { key: 'panels', label: 'Paneles', menu: 'panels' },
   { key: 'nebula', label: 'Nebulosa de IA', open: () => createPlain('nebula', { kind: 'nebula', title: 'Nebulosa de IA' }, NEBULA_SIZE) },
 ];
+// profesionales: trabajan con la IA (el Researcher busca en la web)
+const PRO_ITEMS = PROS.map((p) => ({ key: p.role, label: p.name, note: p.note, price: 'research', open: () => createPro(p.role) }));
 // paneles: widgets más complejos (se abren desde su propio menú)
 const PANELS = [
   { key: 'journey', label: 'User journey', note: 'Puntos de entrada y emociones de los usuarios conectados', open: () => createJourney() },
@@ -1936,7 +2199,7 @@ function renderDock() {
     dock.append(modes, sep0);
   }
   for (const t of canEdit ? TOOLS : VIEWER_TOOLS) {
-    if (t.menu) { dock.append(panelsMenu()); continue; }
+    if (t.menu) { dock.append(dockMenu(t.menu)); continue; }
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'tool';
@@ -1977,23 +2240,33 @@ function renderDock() {
   refreshKit();
 }
 
-/** Botón Paneles: abre la lista de paneles (con nombre y para qué sirve). */
-function panelsMenu() {
+/** Botón del dock que abre una lista con nombre y para qué sirve cada cosa
+    (Profesionales, Paneles). El estimado de tokens va a la derecha. */
+const DOCK_MENUS = {
+  pros: { label: 'Profesionales', icon: 'pros', items: () => PRO_ITEMS },
+  panels: { label: 'Paneles', icon: 'panels', items: () => PANELS },
+};
+function dockMenu(key) {
+  const m = DOCK_MENUS[key];
+  const items = m.items();
   const wrap = document.createElement('div');
-  wrap.className = 'kit panels';
+  wrap.className = `kit dock-menu dock-menu--${key}`;
   wrap.innerHTML = `
-    <button class="tool" id="panels-btn" type="button" title="Paneles" aria-label="Paneles" aria-haspopup="true" aria-expanded="false" aria-controls="panels-menu">${TOOL_ICONS.panels}</button>
-    <div class="kit-menu panels-menu" id="panels-menu" role="menu" hidden>
-      <p class="panels-title">Paneles</p>
-      ${PANELS.map((p) => `<button class="panel-item" type="button" role="menuitem" data-panel="${p.key}">
-        <span class="panel-ico">${TOOL_ICONS[p.key]}</span><span><b>${esc(p.label)}</b><small>${esc(p.note)}</small></span>
-        ${prices[p.key] ? `<em title="Estimado de tokens">≈ ${nfTok.format(prices[p.key])} tk</em>` : ''}</button>`).join('')}
+    <button class="tool" type="button" title="${m.label}" aria-label="${m.label}" aria-haspopup="true" aria-expanded="false">${TOOL_ICONS[m.icon]}</button>
+    <div class="kit-menu panels-menu" role="menu" hidden>
+      <p class="panels-title">${m.label}</p>
+      ${items.map((p) => {
+        const price = prices[p.price || p.key];
+        return `<button class="panel-item" type="button" role="menuitem" data-item="${p.key}">
+        <span class="panel-ico">${TOOL_ICONS[p.key] || TOOL_ICONS[m.icon]}</span><span><b>${esc(p.label)}</b><small>${esc(p.note)}</small></span>
+        ${price ? `<em title="Estimado de tokens${p.price ? ' por pregunta' : ''}">≈ ${nfTok.format(price)} tk</em>` : ''}</button>`;
+      }).join('')}
     </div>`;
-  const btn = wrap.querySelector('#panels-btn'), menu = wrap.querySelector('#panels-menu');
+  const btn = wrap.querySelector('.tool'), menu = wrap.querySelector('.kit-menu');
   const toggle = (open) => { menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); };
   btn.addEventListener('click', () => toggle(menu.hidden));
-  for (const p of PANELS) wrap.querySelector(`[data-panel="${p.key}"]`).addEventListener('click', () => { toggle(false); p.open(); });
-  document.addEventListener('pointerdown', (e) => { if (!e.target.closest?.('.panels')) toggle(false); });
+  for (const p of items) wrap.querySelector(`[data-item="${p.key}"]`).addEventListener('click', () => { toggle(false); p.open(); });
+  document.addEventListener('pointerdown', (e) => { if (!wrap.contains(e.target)) toggle(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
   return wrap;
 }
@@ -2580,6 +2853,69 @@ $('de-form').addEventListener('submit', async (e) => {
   dashInfo = r.data.dashboard;
   paintDashHead();
   closeEditDash();
+});
+
+/* ---------- exportar / importar / plantillas ---------- */
+
+/** Descarga los widgets como JSON (se pueden importar en otro dashboard). */
+$('dash-export').addEventListener('click', () => {
+  toggleDashMenu(false);
+  const out = {
+    version: 1,
+    name: dashInfo.name,
+    widgets: widgets.filter((w) => w.state === 'done')
+      .map((w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [] })),
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+  a.download = `${(dashInfo.name || 'dashboard').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+async function importWidgets(json, label) {
+  const list = Array.isArray(json?.widgets) ? json.widgets : [];
+  if (!list.length) return alert('Ese archivo no tiene widgets.');
+  if (!confirm(`¿Agregar ${list.length} widgets de «${label}» a este dashboard? Van a la derecha de lo que ya hay.`)) return;
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&import=1`, { method: 'POST', body: JSON.stringify({ widgets: list }) });
+  if (!r.ok) return alert(r.data.error || 'No se pudo importar.');
+  location.reload(); // carga todo con sus posiciones y conexiones
+}
+
+$('dash-import').addEventListener('click', () => {
+  toggleDashMenu(false);
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
+  input.addEventListener('change', async () => {
+    const f = input.files[0];
+    if (!f) return;
+    try { await importWidgets(JSON.parse(await f.text()), f.name); } catch { alert('No se pudo leer el archivo (debe ser un JSON exportado).'); }
+  });
+  input.click();
+});
+
+/** Plantillas del sitio (/templates/index.json): presentaciones listas para cargar. */
+$('dash-templates').addEventListener('click', async () => {
+  toggleDashMenu(false);
+  let list = [];
+  try { list = await (await fetch('/templates/index.json', { cache: 'no-store' })).json(); } catch { /* sin plantillas */ }
+  if (!list.length) return alert('Todavía no hay plantillas.');
+  const layer = document.createElement('div');
+  layer.className = 'modal-layer';
+  layer.innerHTML = `<div class="modal tp-modal" role="dialog" aria-label="Plantillas">
+    <h2 class="cn-title">Plantillas</h2>
+    <p class="cn-body">Se agregan a la derecha de lo que ya hay en este dashboard.</p>
+    <div class="tp-list">${list.map((t, i) => `<button type="button" class="panel-item tp-item" data-i="${i}"><span><b>${esc(t.name)}</b><small>${esc(t.note || '')}</small></span><em>${t.count || ''}</em></button>`).join('')}</div>
+    <div class="m-actions"><button class="link-btn" type="button" data-close>Cerrar</button></div>
+  </div>`;
+  const close = () => layer.remove();
+  layer.addEventListener('pointerdown', (e) => { if (e.target === layer) close(); });
+  layer.querySelector('[data-close]').addEventListener('click', close);
+  layer.querySelectorAll('.tp-item').forEach((b) => b.addEventListener('click', async () => {
+    const t = list[Number(b.dataset.i)];
+    close();
+    try { await importWidgets(await (await fetch(`/templates/${t.file}`, { cache: 'no-store' })).json(), t.name); } catch { alert('No se pudo cargar la plantilla.'); }
+  }));
+  document.body.append(layer);
 });
 
 /* eliminar */

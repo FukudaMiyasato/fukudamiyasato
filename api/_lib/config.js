@@ -6,7 +6,7 @@
                         negativo = al revés: el centro se achica)
      surcharge  0…500   % de sobrecargo: lo que el usuario ve y paga es
                         el costo de la herramienta + este porcentaje
-     costs      { table, ask, follow, journey }  tokens que cuesta cada herramienta
+     costs      { table, ask, follow, journey, research }  tokens que cuesta cada herramienta
                         de IA (se pueden medir con una llamada real)
      usdPen     S/ por US$ (tipo de cambio)
      usdPerM    US$ por millón de tokens de OpenAI (precio promedio)
@@ -24,12 +24,13 @@ export const TOOLS = {
   ask: { label: 'Pregúntale a la IA', note: 'La estrella: un párrafo como máximo' },
   follow: { label: 'Pregunta desde un conector', note: 'El + de un widget: usa lo conectado como contexto' },
   journey: { label: 'Panel User journey', note: 'Genera el journey de los usuarios conectados' },
+  research: { label: 'Researcher', note: 'Investiga en la web y devuelve hallazgos con fuentes' },
 };
 
 export const DEFAULTS = {
   fisheye: 7,
   surcharge: 10,
-  costs: { table: 2500, ask: 900, follow: 1500, journey: 4000 },
+  costs: { table: 2500, ask: 900, follow: 1500, journey: 4000, research: 12000 },
   usdPen: 3.75,
   usdPerM: 5,
 };

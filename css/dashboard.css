@@ -1204,7 +1204,7 @@ body:not(.can-edit) .wuser { cursor: default; }
 .tip-ai.is-broke small { color: var(--red-hot); opacity: .85; }
 
 /* ============================================================
-   Profesional: como el usuario, con maletín y borde dorado
+   Celebridad: como el usuario, con maletín y borde dorado
    ============================================================ */
 .wexpert {
   position: relative;
@@ -1447,3 +1447,134 @@ body:not(.can-edit) .wexpert { cursor: default; }
 
 /* tokens gastados en este dashboard, bajo el título (amos) */
 .dash-spent { display: block; margin-top: 2px; font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Profesional (Researcher): globo con su pensamiento + avatar
+   ============================================================ */
+.wcard--pro { border-color: rgba(127, 209, 201, .35); background: linear-gradient(170deg, #17262a, #17171c 62%); }
+.wpro {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 10px 10px 12px;
+  cursor: move;
+}
+body:not(.can-edit) .wpro { cursor: default; }
+.wpro-badge { position: absolute; top: 8px; left: 8px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 8px; background: rgba(127, 209, 201, .16); color: #7fd1c9; }
+.wpro-badge svg { width: 14px; height: 14px; }
+.wpro-thought {
+  position: relative;
+  max-width: 92%;
+  margin: 0 0 6px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: #f4f1ea;
+  color: #22222a;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wpro-thought::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 12px; height: 12px; background: #f4f1ea; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
+.wpro-thought.is-busy { display: flex; gap: 4px; justify-content: center; padding: 10px 14px; }
+.wpro-thought.is-busy i { width: 6px; height: 6px; border-radius: 50%; background: #2f6f73; animation: think 1s ease-in-out infinite; }
+.wpro-thought.is-busy i:nth-child(2) { animation-delay: .15s; }
+.wpro-thought.is-busy i:nth-child(3) { animation-delay: .3s; }
+@keyframes think { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+.wpro .wuser-av { width: 62%; flex: 1; }
+.wpro b { font-size: 14px; font-weight: 900; text-transform: uppercase; color: #fff; }
+.wpro small { font-size: 11px; color: #7fd1c9; font-weight: 600; }
+
+/* hallazgos: título, resumen y fuentes */
+.wcard--finding { border-color: rgba(127, 209, 201, .25); }
+.wfind-ico { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 7px; background: rgba(127, 209, 201, .14); color: #7fd1c9; }
+.wfind-ico svg { width: 13px; height: 13px; }
+.wfind-conf { padding: 2px 7px; border-radius: 99px; font-weight: 700; }
+.wfind-conf--alta { background: rgba(62, 207, 142, .16); color: #7fe3b0 !important; }
+.wfind-conf--media { background: rgba(255, 209, 102, .14); color: #ffd98a !important; }
+.wfind-conf--baja { background: rgba(255, 90, 106, .14); color: #ff9aa5 !important; }
+.wfind-body { padding: 10px 14px 18px; display: grid; gap: 10px; align-content: start; }
+.wfind-sum { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-dim); }
+.wfind-src { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.wfind-src a { display: inline-block; padding: 3px 9px; border-radius: 99px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line-soft); color: #9fdcd5; font-size: 11px; text-decoration: none; }
+.wfind-src a:hover, .wfind-src a.is-hover { border-color: #7fd1c9; color: #fff; }
+
+/* bloque del profesional */
+.pro-top { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: center; margin: 4px 0 12px; }
+.pro-top .us-av { width: 76px; height: 76px; }
+.pro-top b { font-size: 15px; color: #22222a; }
+.pro-top p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.45; color: #2f6f73; font-style: italic; }
+.pro-ask { display: grid; gap: 8px; }
+.pro-ask textarea { width: 100%; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(0, 0, 0, .12); background: rgba(255, 255, 255, .7); color: #22222a; font: inherit; font-size: 13px; line-height: 1.45; resize: vertical; outline: none; }
+.pro-ask textarea:focus { border-color: #2f6f73; }
+.pro-ask .btn { justify-content: center; }
+.pro-ask .btn small { margin-left: 8px; opacity: .8; font-size: 11px; }
+.pro-status { margin: 0; min-height: 1em; font-size: 12px; color: #2f6f73; }
+.pro-status:empty { display: none; }
+.pro-status.is-err { color: var(--red); }
+.pro-hist-head { margin-top: 16px; }
+.pro-src { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pro-src a { color: #2f6f73; font-size: 12.5px; word-break: break-word; }
+
+/* ============================================================
+   Texto: sin tarjeta, solo la letra
+   ============================================================ */
+.widget { z-index: 1; }
+.wcard--label { background: transparent; border-color: transparent; box-shadow: none; }
+.widget.is-selected .wcard--label { border-color: var(--red-hot); box-shadow: 0 0 0 1px rgba(255, 31, 61, .4); }
+.wlabel { flex: 1; min-height: 0; display: flex; align-items: center; padding: 4px 8px; overflow: hidden; color: #f2f2f4; cursor: move; overflow-wrap: anywhere; }
+body:not(.can-edit) .wlabel { cursor: default; }
+.wlabel--title { font-size: 34px; font-weight: 900; line-height: 1.05; letter-spacing: -.01em; }
+.wlabel--subtitle { font-size: 19px; font-weight: 700; line-height: 1.2; color: #e4e4ea; }
+.wlabel--body { align-items: flex-start; font-size: 14px; line-height: 1.55; color: var(--text-dim); }
+.lb-styles { grid-template-columns: repeat(3, 1fr); }
+
+/* ============================================================
+   Grupo: marco detrás de los widgets; solo su nombre se toca
+   ============================================================ */
+.widget.is-group { z-index: 0; pointer-events: none; }
+.widget.is-group .whandle, .widget.is-group .wx { pointer-events: auto; }
+.wcard--group { background: transparent; border-color: transparent; box-shadow: none; overflow: visible; }
+.wgroup { position: absolute; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--g) 6%, transparent); border: 1.5px dashed color-mix(in srgb, var(--g) 50%, transparent); }
+.wgroup-head {
+  position: absolute;
+  top: -14px;
+  left: 14px;
+  max-width: calc(100% - 28px);
+  padding: 5px 12px;
+  border-radius: 9px;
+  background: var(--g);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+  cursor: move;
+  box-shadow: 0 6px 16px -8px #000;
+}
+body:not(.can-edit) .wgroup-head { cursor: default; }
+.widget.is-group.is-selected .wcard--group { box-shadow: none; }
+.widget.is-group.is-selected .wgroup { border-style: solid; border-color: var(--g); }
+.gr-colors { display: flex; gap: 8px; margin: 2px 0 10px; }
+.gr-colors button { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; background: var(--c); cursor: pointer; }
+.gr-colors button.is-on { border-color: #22222a; box-shadow: 0 0 0 2px #fff inset; }
+.sel-group { width: 100%; margin-top: 12px; justify-content: center; background: #22222a; }
+
+/* plantillas */
+.tp-modal { width: min(460px, 100%); gap: 10px; padding: 24px; }
+.tp-list { display: grid; gap: 6px; margin-top: 4px; }
+.tp-item { grid-template-columns: minmax(0, 1fr) auto; background: rgba(255, 255, 255, .04); border: 1px solid var(--line-soft); }
+.tp-item b { font-size: 14px; }
+.tp-item em { font-style: normal; font-size: 11px; color: var(--text-faint); }

@@ -1,5 +1,5 @@
 /* ============================================================
-   expert.js — widget "profesional"
+   expert.js — widget "celebridad"
    ------------------------------------------------------------
    Un experto con su forma de pensar: { kind: 'expert', preset, name,
    role, prompt, sex, age }. Si se conecta a una pregunta (o se usa su
@@ -47,7 +47,7 @@ export const EXPERTS = [
     prompt: 'Piensa como Marty Cagan: equipos de producto empoderados que resuelven problemas, no fábricas de features. Evalúa los cuatro riesgos (valor, usabilidad, factibilidad y viabilidad), propone discovery rápido con prototipos y pon el foco en resultados medibles.',
   },
   {
-    id: 'custom', name: 'Profesional', role: 'Diseñadora', sex: 'f', age: 32,
+    id: 'custom', name: 'Celebridad', role: 'Diseñadora', sex: 'f', age: 32,
     look: { outfit: ['#3a3f4b', '#f4f1ec', 'open'] },
     prompt: '',
   },
@@ -75,7 +75,7 @@ export const EXPERT_BADGE = `<svg viewBox="0 0 24 24" fill="none" stroke="curren
 export function expertHTML(d) {
   return `
     <div class="wexpert" role="img" aria-label="${esc(d.name)}, ${esc(d.role)}">
-      <span class="wexpert-badge" title="Profesional">${EXPERT_BADGE}</span>
+      <span class="wexpert-badge" title="Celebridad">${EXPERT_BADGE}</span>
       <span class="wuser-av">${expertAvatar(d)}</span>
       <b>${esc(d.name)}</b>
       <small>${esc(d.role)}</small>
