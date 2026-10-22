@@ -8,6 +8,8 @@
    Solo amos:
      GET    ?d=<id>&members=1      → chismosos y si tienen este dashboard activo
      POST   { name, image? }                        → crea un dashboard
+     PATCH  ?d=<id>  { name?, image? }              → renombra / cambia el ícono (image: null lo
+                                                      quita). No los fijos
      DELETE ?d=<id>                                 → borra el dashboard (no los fijos)
      POST   ?d=<id>&widget=table
             { prompt, csv?, filename?, inputs?, layout }
@@ -44,7 +46,7 @@
 
 import { currentUser, canSeeDashboard, forgetDashboard, isAmo, listPerms } from './_lib/auth.js';
 import {
-  listDashboards, publicDash, createDashboard, deleteDashboard,
+  listDashboards, publicDash, createDashboard, updateDashboard, deleteDashboard,
   listWidgets, createWidget, updateWidget, deleteWidget,
   getMarks, addFlag, setDivider, deleteMark,
 } from './_lib/dashboards.js';
@@ -302,6 +304,25 @@ export default async function handler(req, res) {
       if (!data) return res.status(400).json({ error: 'Datos del widget inválidos.' });
       const widget = await createWidget(dash.id, tool, cleanLayout(req.body?.layout), data);
       return res.status(201).json({ widget: publicWidget(widget) });
+    }
+
+    /* ---------- editar el dashboard: nombre e ícono ---------- */
+    if (req.method === 'PATCH' && dash && !req.body?.widget) {
+      if (dash.builtin) return res.status(400).json({ error: 'Este dashboard es fijo y no se puede editar.' });
+      const patch = {};
+      if (req.body?.name != null) {
+        patch.name = String(req.body.name).trim().slice(0, 60);
+        if (!patch.name) return res.status(400).json({ error: 'Ponle un título.' });
+      }
+      if (req.body && 'image' in req.body) {
+        const image = req.body.image ? String(req.body.image) : null;
+        if (image && (!IMAGE_RE.test(image) || image.length > MAX_IMAGE_CHARS)) {
+          return res.status(400).json({ error: 'El ícono debe ser una imagen PNG, JPG o WebP chica.' });
+        }
+        patch.image = image;
+      }
+      await updateDashboard(dash.id, patch);
+      return res.status(200).json({ dashboard: publicDash({ ...dash, ...patch }) });
     }
 
     /* ---------- mover / redimensionar / conectar ---------- */

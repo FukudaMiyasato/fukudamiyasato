@@ -47,6 +47,27 @@ export function dashIconHTML(d) {
   return `<span class="mono" aria-hidden="true">${escHTML(initials(d.name))}</span>`;
 }
 
+/** Recorta la imagen al centro y la baja a 128×128 para guardarla chica. */
+export function toIcon(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const S = 128, c = document.createElement('canvas');
+      c.width = c.height = S;
+      const side = Math.min(img.naturalWidth, img.naturalHeight) || S;
+      const sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
+      c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, S, S);
+      URL.revokeObjectURL(url);
+      let out = c.toDataURL('image/png');
+      if (out.length > 100_000) out = c.toDataURL('image/webp', 0.85);
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
+    img.src = url;
+  });
+}
+
 /* ---------- herramientas del dock (admin) ---------- */
 
 export const TOOL_ICONS = {

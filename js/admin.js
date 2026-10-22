@@ -10,7 +10,7 @@
      chismoso con más   → lista para elegir
    ============================================================ */
 
-import { dashIconHTML } from './dashboard-icons.js';
+import { dashIconHTML, toIcon } from './dashboard-icons.js';
 import { drawDots, fitCanvas, buildLensFilter } from './fisheye.js';
 import { youtubeId, youtubeThumb } from './youtube.js';
 import { DEFAULT_DURATION, TAGS } from './site-defaults.js';
@@ -410,27 +410,6 @@ $('nd-cancel').addEventListener('click', closeNewDash);
 $('nd-layer').addEventListener('pointerdown', (e) => { if (e.target === $('nd-layer')) closeNewDash(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('nd-layer').hidden) closeNewDash(); });
 $('nd-title').addEventListener('input', paintNdIcon);
-
-/** Recorta la imagen al centro y la baja a 128×128 para guardarla chica. */
-function toIcon(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const S = 128, c = document.createElement('canvas');
-      c.width = c.height = S;
-      const side = Math.min(img.naturalWidth, img.naturalHeight) || S;
-      const sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
-      c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, S, S);
-      URL.revokeObjectURL(url);
-      let out = c.toDataURL('image/png');
-      if (out.length > 100_000) out = c.toDataURL('image/webp', 0.85);
-      resolve(out);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen.')); };
-    img.src = url;
-  });
-}
 
 $('nd-file').addEventListener('change', async (e) => {
   const file = e.target.files[0];

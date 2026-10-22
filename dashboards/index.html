@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/base.css">
 <link rel="stylesheet" href="/css/admin.css">
+<link rel="stylesheet" href="/css/modal.css">
 <link rel="stylesheet" href="/css/dashboard.css">
 </head>
 <!-- Una sola página para todos los dashboards: /dashboards/?d=<id> -->
@@ -49,12 +50,25 @@
           <!-- tokens que le quedan (amos; el amo supremo no tiene límite) -->
           <span class="tokens" id="dash-tokens" hidden title="Tokens que te quedan para la IA"></span>
           <small data-user-email></small>
-          <button class="icon-btn" id="dash-delete" type="button" aria-label="Eliminar dashboard" title="Eliminar dashboard" hidden>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/></svg>
-          </button>
           <button class="icon-btn" data-logout type="button" aria-label="Cerrar sesión" title="Cerrar sesión">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
           </button>
+          <!-- ⋯ (amos): editar o eliminar el dashboard -->
+          <div class="dash-menu" id="dash-menu" hidden>
+            <button class="icon-btn" id="dash-menu-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="dash-menu-pop" aria-label="Opciones del dashboard" title="Opciones">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>
+            </button>
+            <div class="dash-menu-pop" id="dash-menu-pop" role="menu" hidden>
+              <button type="button" role="menuitem" id="dash-edit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+                Editar
+              </button>
+              <button type="button" role="menuitem" class="is-danger" id="dash-delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/></svg>
+                Eliminar
+              </button>
+            </div>
+          </div>
         </div>
         <div class="members" id="members" hidden>
           <button class="members-btn" id="members-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="members-panel">
@@ -123,6 +137,24 @@
 </div>
 
 <div class="tip" id="tip" role="tooltip" hidden></div>
+
+<!-- editar dashboard: título + ícono (mismo modal que «Nuevo dashboard» del panel) -->
+<div class="modal-layer" id="de-layer" hidden>
+  <form class="modal nd-modal" id="de-form" autocomplete="off" novalidate>
+    <label class="nd-icon" id="de-icon" for="de-file" title="Ícono (opcional)">
+      <span class="nd-icon-img" id="de-icon-img"></span>
+      <small id="de-icon-note">Subir ícono</small>
+    </label>
+    <input type="file" id="de-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+    <button class="link-btn de-clear" type="button" id="de-clear" hidden>Quitar ícono</button>
+    <input class="nd-title" id="de-title" maxlength="60" placeholder="Título del dashboard" aria-label="Título">
+    <p class="m-err" id="de-err" role="alert"></p>
+    <div class="m-actions">
+      <button class="link-btn" type="button" id="de-cancel">Cancelar</button>
+      <button class="btn" type="submit" id="de-save">Guardar</button>
+    </div>
+  </form>
+</div>
 
 <script type="module" src="/js/dashboard.js"></script>
 </body>

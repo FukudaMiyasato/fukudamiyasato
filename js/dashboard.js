@@ -42,7 +42,7 @@
    Los permisos reales los aplica /api/dash en el servidor.
    ============================================================ */
 
-import { dashIconHTML, TOOL_ICONS, ATTACHED_ICON } from './dashboard-icons.js';
+import { dashIconHTML, toIcon, TOOL_ICONS, ATTACHED_ICON } from './dashboard-icons.js';
 import { parseCSV } from './csv.js';
 import { drawDots, fitCanvas, buildLensFilter, unwarp } from './fisheye.js';
 import {
@@ -1771,8 +1771,95 @@ document.addEventListener('pointerdown', (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('members-panel').hidden) toggleMembers(false); });
 
+/* ============================================================
+   ⋯ (amos): editar o eliminar el dashboard
+   ============================================================ */
+
+let dashInfo = null; // { id, name, image, icon, builtin } del dashboard abierto
+
+function toggleDashMenu(open) {
+  $('dash-menu-pop').hidden = !open;
+  $('dash-menu-btn').setAttribute('aria-expanded', String(open));
+  if (open) $('dash-edit').focus();
+}
+$('dash-menu-btn').addEventListener('click', (e) => { e.stopPropagation(); toggleDashMenu($('dash-menu-pop').hidden); });
+document.addEventListener('pointerdown', (e) => {
+  if (!$('dash-menu-pop').hidden && !e.target.closest('.dash-menu')) toggleDashMenu(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('dash-menu-pop').hidden) { toggleDashMenu(false); $('dash-menu-btn').focus(); }
+});
+
+/** Pinta título e ícono en la cabecera (al cargar y después de editar). */
+function paintDashHead() {
+  document.title = `${dashInfo.name} — fukudamiyasato`;
+  $('dash-title').textContent = dashInfo.name;
+  $('dash-ico').innerHTML = dashIconHTML(dashInfo);
+}
+
+/* editar: título + ícono */
+let deImage = null;
+
+function paintDeIcon() {
+  $('de-icon-img').innerHTML = dashIconHTML({ name: $('de-title').value || '+', image: deImage });
+  $('de-icon').classList.toggle('has-image', Boolean(deImage));
+  $('de-icon-note').textContent = deImage ? 'Cambiar' : 'Subir ícono';
+  $('de-clear').hidden = !deImage;
+}
+
+function openEditDash() {
+  toggleDashMenu(false);
+  deImage = dashInfo.image || null;
+  $('de-title').value = dashInfo.name;
+  $('de-err').textContent = '';
+  $('de-file').value = '';
+  $('de-form').className = 'modal nd-modal';
+  paintDeIcon();
+  $('de-layer').hidden = false;
+  setTimeout(() => $('de-title').select(), 50);
+}
+const closeEditDash = () => { $('de-layer').hidden = true; };
+
+$('dash-edit').addEventListener('click', openEditDash);
+$('de-cancel').addEventListener('click', closeEditDash);
+$('de-layer').addEventListener('pointerdown', (e) => { if (e.target === $('de-layer')) closeEditDash(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('de-layer').hidden) closeEditDash(); });
+$('de-title').addEventListener('input', paintDeIcon);
+$('de-clear').addEventListener('click', () => { deImage = null; $('de-file').value = ''; paintDeIcon(); });
+$('de-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    deImage = await toIcon(file);
+    $('de-err').textContent = '';
+  } catch (err) {
+    $('de-err').textContent = err.message;
+  }
+  paintDeIcon();
+});
+
+$('de-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('de-title').value.trim();
+  const form = $('de-form');
+  if (!name) {
+    $('de-err').textContent = 'Ponle un título.';
+    form.classList.remove('is-shaking'); void form.offsetWidth; form.classList.add('is-shaking');
+    return;
+  }
+  $('de-save').disabled = true;
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ name, image: deImage }) });
+  $('de-save').disabled = false;
+  if (!r.ok) { $('de-err').textContent = r.data.error || 'No se pudo guardar.'; return; }
+  dashInfo = r.data.dashboard;
+  paintDashHead();
+  closeEditDash();
+});
+
+/* eliminar */
 $('dash-delete').addEventListener('click', async () => {
-  if (!confirm(`¿Eliminar el dashboard «${$('dash-title').textContent}» y todos sus widgets? No se puede deshacer.`)) return;
+  toggleDashMenu(false);
+  if (!confirm(`¿Eliminar el dashboard «${dashInfo.name}» y todos sus widgets? No se puede deshacer.`)) return;
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!r.ok) return alert(r.data.error || 'No se pudo eliminar.');
   location.href = '/admin/';
@@ -1800,15 +1887,14 @@ $('dash-delete').addEventListener('click', async () => {
   prices = data.prices || {};
   fisheye = (data.config?.fisheye ?? 7) / 100;
   document.body.classList.toggle('can-edit', canEdit);
-  document.title = `${data.dashboard.name} — fukudamiyasato`;
-  $('dash-title').textContent = data.dashboard.name;
-  $('dash-ico').innerHTML = dashIconHTML(data.dashboard);
+  dashInfo = data.dashboard;
+  paintDashHead();
   document.querySelectorAll('[data-user-email]').forEach((el) => { el.textContent = user.email; });
   // con un solo dashboard no hay a dónde volver: /admin/ lo mandaría aquí mismo
   $('dash-back').hidden = !(canEdit || user.dashboards.length > 1);
   if (canEdit) setupMembers(data.members || 0);
 
-  $('dash-delete').hidden = !canEdit || data.dashboard.builtin;
+  $('dash-menu').hidden = !canEdit || data.dashboard.builtin;
 
   show('dash');
   renderDock();

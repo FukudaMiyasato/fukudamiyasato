@@ -59,6 +59,16 @@ export async function createDashboard(name, image) {
   return { ...dash, builtin: false, url: urlFor(id) };
 }
 
+/** Cambia nombre y/o ícono (image: data URL o null para quitarlo). false si no existe. */
+export async function updateDashboard(id, patch) {
+  const list = await getJSON(DASH_KEY, []);
+  const d = list.find((x) => x.id === id);
+  if (!d) return false;
+  Object.assign(d, patch);
+  await setJSON(DASH_KEY, list);
+  return true;
+}
+
 export async function deleteDashboard(d) {
   await del(widgetsKey(d.id));
   await del(marksKey(d.id));

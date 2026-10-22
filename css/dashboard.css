@@ -256,6 +256,42 @@
 .board-side .icon-btn { width: 28px; height: 28px; }
 .board-side .icon-btn svg { width: 15px; height: 15px; }
 
+/* ---------- ⋯ editar / eliminar (amos) ---------- */
+.dash-menu { position: relative; }
+.dash-menu-btn[aria-expanded="true"], #dash-menu-btn[aria-expanded="true"] { color: #fff; background: var(--panel-2); }
+.dash-menu-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 170px;
+  display: grid;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(22, 22, 27, .98);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 50px -20px #000;
+  animation: m-in .2s var(--ease) both;
+}
+.dash-menu-pop button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-menu-pop button svg { width: 16px; height: 16px; color: var(--text-faint); }
+.dash-menu-pop button:hover, .dash-menu-pop button:focus-visible { background: var(--panel-2); outline: none; }
+.dash-menu-pop .is-danger, .dash-menu-pop .is-danger svg { color: var(--red-hot); }
+.de-clear { font-size: 11.5px; margin-top: -6px; }
+
 /* ---------- integrantes (amos) ---------- */
 .members { position: relative; }
 .members-btn {
