@@ -111,8 +111,9 @@ export function journeyHTML(d, { linked = [], generating = false, tops = [], che
     <span class="jr-face" style="left:${pts[i][0]}%;top:${pts[i][1]}%">${faceSVG(s.feeling)}<small>${esc(s.emotion)}</small></span>`).join('');
 
   const sols = (d.solutions || []).filter((x) => tops.includes(x.id));
-  const lit = new Set(sols.flatMap((x) => x.impacts.map((i) => i.stage)));
-  const litCls = (i) => (lit.has(i) ? ' is-lit' : '');
+  // cada etapa: los colores de las soluciones que la tocan (cada solución tiene su brillo)
+  const litBy = (i) => sols.filter((x) => x.impacts.some((m) => m.stage === i)).map((x) => x.color || '#ffd166');
+  const litCls = (i) => (litBy(i).length ? ` is-lit" style="--sc:${litBy(i)[0]}` : '');
   // cada celda sabe su etapa y su fila: ahí se pueden soltar post-its
   const row = (label, key, cls = '') => `
     <div class="jr-label">${label}</div>
@@ -120,11 +121,12 @@ export function journeyHTML(d, { linked = [], generating = false, tops = [], che
   // por cada solución: cómo impacta y qué podría fallar, solo en sus etapas
   const solRows = sols.map((x) => {
     const at = (i) => x.impacts.find((m) => m.stage === i);
+    const c = x.color || '#ffd166';
     return `
-    <div class="jr-label jr-sol-label" title="${esc(x.title)}">💡 ${esc(x.title)}</div>
-    ${d.stages.map((_, i) => (at(i) ? `<div class="jr-cell jr-sol is-lit">${esc(at(i).impact)}</div>` : '<div class="jr-cell jr-void"></div>')).join('')}
-    <div class="jr-label jr-sol-label">Qué podría fallar</div>
-    ${d.stages.map((_, i) => (at(i) ? `<div class="jr-cell jr-risk is-lit">${esc(at(i).risk)}</div>` : '<div class="jr-cell jr-void"></div>')).join('')}`;
+    <div class="jr-label jr-sol-label" style="--sc:${c}" title="${esc(x.title)}"><i class="jr-dot"></i>${esc(x.title)}</div>
+    ${d.stages.map((_, i) => (at(i) ? `<div class="jr-cell jr-sol is-lit" style="--sc:${c}">${esc(at(i).impact)}</div>` : '<div class="jr-cell jr-void"></div>')).join('')}
+    <div class="jr-label jr-sol-label" style="--sc:${c}">Qué podría fallar</div>
+    ${d.stages.map((_, i) => (at(i) ? `<div class="jr-cell jr-risk is-lit" style="--sc:${c}">${esc(at(i).risk)}</div>` : '<div class="jr-cell jr-void"></div>')).join('')}`;
   }).join('');
 
   return `${head}
@@ -134,7 +136,7 @@ export function journeyHTML(d, { linked = [], generating = false, tops = [], che
         <h4>Journey${d.persona ? ` <small>· ${esc(d.persona)}</small>` : ''}</h4>
         <div class="jr-grid" style="--n:${n}">
           <div class="jr-label"></div>
-          ${d.stages.map((s, i) => `<div class="jr-stage${litCls(i)}"><i>${i + 1}</i>${esc(s.name)}</div>`).join('')}
+          ${d.stages.map((s, i) => `<div class="jr-stage${litCls(i)}"><i>${i + 1}</i>${esc(s.name)}${litBy(i).length > 1 ? `<span class="jr-dots">${litBy(i).map((c) => `<b style="background:${c}"></b>`).join('')}</span>` : ''}</div>`).join('')}
           ${row('Hace', 'doing')}
           <div class="jr-label">Siente</div>
           <div class="jr-curve">

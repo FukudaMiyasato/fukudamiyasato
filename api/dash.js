@@ -44,7 +44,10 @@
                                                       la IA responde con su mirada (data.voices)
      POST   ?d=<id>&widget=journey { data, layout } → panel User journey, vacío
      POST   ?d=<id>&widget=pro { data, layout }     → profesional (por ahora, Researcher)
-     POST   ?d=<id>&research=<proId> { question, slots: [{ x, y, w, h }] }
+     POST   ?d=<id>&research=<proId> { question | similar: widgetId, filters?, slots: [{ x, y, w, h }] }
+                                                    → similar: busca soluciones parecidas a ese widget
+                                                      (conectado al Researcher), con filtros opcionales.
+                                                      Lo ya investigado se repite sin tokens (cached)
                                                     → el Researcher busca en la web y deja hasta 5
                                                       hallazgos con fuentes, conectados a él, en los
                                                       lugares libres que manda el navegador; cuesta
@@ -58,8 +61,8 @@
                                                       conectada (tops) con su impacto y qué podría
                                                       fallar por etapa; no → { compatible: false, reason }
                                                       y no queda conectada; cuesta tokens ("fit").
-                                                      Una solución a la vez: la nueva reemplaza a la
-                                                      anterior (replaced). Cada resultado se guarda
+                                                      Hasta 3 soluciones, cada una con su color; la
+                                                      cuarta suelta a la más antigua (replaced). Cada resultado se guarda
                                                       (fitCache): si el journey y la solución no
                                                       cambiaron, se repite sin gastar tokens (cached)
      POST   ?d=<id>&mark=flag { x, y }              → bandera (color al azar, sin repetir; máx. 8)
@@ -196,6 +199,8 @@ function voicesOf(list) {
 /* ---------- panel user journey ---------- */
 const txt = (v, max) => String(v ?? '').trim().slice(0, max);
 const JOURNEY_ROWS = ['doing', 'thinking', 'pain', 'opportunity'];
+const MAX_SOLUTIONS = 3;
+const SOL_COLORS = ['#ffd166', '#4dd4ff', '#ff6ad5']; // un brillo distinto por solución
 
 /** Resultado de la IA para una solución, como se guarda. */
 const cleanFit = (f) => ({
@@ -249,8 +254,9 @@ function cleanJourney(d) {
     // resultados guardados de cada solución analizada (clave: journey + solución)
     fitCache: cleanFitCache(d.fitCache),
     // soluciones conectadas arriba que encajan: dónde impactan y qué podría fallar
-    solutions: arr(d.solutions, 6).map((s) => ({
+    solutions: arr(d.solutions, MAX_SOLUTIONS).map((s) => ({
       id: txt(s?.id, 40), title: txt(s?.title, 60) || 'Solución',
+      color: SOL_COLORS.includes(s?.color) ? s.color : SOL_COLORS[0],
       impacts: arr(s?.impacts, 8).map((i) => ({ stage: Math.max(0, Math.round(Number(i?.stage) || 0)), impact: txt(i?.impact, 220), risk: txt(i?.risk, 220) })),
     })).filter((s) => s.id && s.impacts.length),
   };
@@ -264,16 +270,44 @@ const userContext = (d) => (d.context || []).map((f) => (f.kind === 'text' && f.
 /* ---------- profesionales (Researcher) y sus hallazgos ---------- */
 const PRO_ROLES = ['researcher'];
 
+/** Resultado de una investigación, como se guarda (para repetirla sin tokens). */
+const cleanResearch = (r) => ({
+  mode: r?.mode === 'answer' ? 'answer' : 'list',
+  thought: txt(r?.thought, 160),
+  confidence: ['alta', 'media', 'baja'].includes(r?.confidence) ? r.confidence : 'media',
+  items: (Array.isArray(r?.items) ? r.items : []).slice(0, 5).map((it) => ({
+    title: txt(it?.title, 60), summary: txt(it?.summary, 700),
+    sources: (Array.isArray(it?.sources) ? it.sources : []).slice(0, 4)
+      .map((x) => ({ url: String(x?.url ?? '').slice(0, 500), title: txt(x?.title, 140) })).filter((x) => /^https?:\/\//.test(x.url)),
+  })).filter((it) => it.title && it.sources.length),
+});
+
 function cleanPro(d) {
   if (!d || typeof d !== 'object') return null;
+  const cache = d.cache && typeof d.cache === 'object' ? d.cache : {};
   return {
     kind: 'pro',
     role: PRO_ROLES.includes(d.role) ? d.role : 'researcher',
     name: txt(d.name, 40) || 'Researcher',
     thought: txt(d.thought, 160),
     history: (Array.isArray(d.history) ? d.history : []).slice(-12).map((h) => ({ q: txt(h?.q, 300), n: Math.max(0, Math.min(5, Math.round(Number(h?.n) || 0))) })).filter((h) => h.q),
+    // investigaciones ya hechas: misma pregunta (o misma solución + filtros) → mismo resultado, sin tokens
+    cache: Object.fromEntries(Object.entries(cache).filter(([k]) => /^[0-9a-f]{40}$/.test(k)).slice(-10).map(([k, v]) => [k, cleanResearch(v)])),
   };
 }
+
+/** Pregunta del Researcher para buscar soluciones parecidas a un widget. */
+function similarQuestion(sol, filters) {
+  const d = sol.data || {};
+  const title = d.title || d.name || 'esta solución';
+  const what = String(d.value || d.summary || d.text || '').slice(0, 900);
+  return `¿Qué soluciones parecidas a «${title}» existen de verdad (programas, productos, campañas o estudios)?`
+    + (what ? ` En qué consiste: ${what}` : '') + (filters ? ` Filtros: ${filters}.` : '');
+}
+/** Clave de una investigación: lo que se preguntó (o la solución y sus filtros). */
+const researchKey = (question, sol, filters) => crypto.createHash('sha1')
+  .update(sol ? `similar|${contextFrom([sol])}|${String(filters || '').trim().toLowerCase()}` : `q|${question.trim().toLowerCase()}`)
+  .digest('hex');
 
 function cleanFinding(d) {
   if (!d || typeof d !== 'object') return null;
@@ -621,7 +655,8 @@ export default async function handler(req, res) {
           key: String(w.id ?? ''), type, layout: cleanLayout(w), data,
           inputs: Array.isArray(w.inputs) ? w.inputs.map(String) : [], tops: Array.isArray(w.tops) ? w.tops.map(String) : [],
           // plantillas: resultados ya calculados de soluciones (para conectarlas sin gastar tokens)
-          presets: type === 'journey' && Array.isArray(w.data?.fitPresets) ? w.data.fitPresets.slice(0, 8) : [],
+          presets: (type === 'journey' && Array.isArray(w.data?.fitPresets) ? w.data.fitPresets
+            : type === 'pro' && Array.isArray(w.data?.researchPresets) ? w.data.researchPresets : []).slice(0, 8),
         } : null;
       }).filter(Boolean);
       if (!clean.length) return res.status(400).json({ error: 'El archivo no tiene widgets válidos.' });
@@ -642,6 +677,14 @@ export default async function handler(req, res) {
           for (const p of w.presets) {
             const sol = clean.find((x) => x.key === String(p?.sol));
             if (sol) w.data.fitCache = { ...w.data.fitCache, [fitKey(w.data, { type: sol.type, data: sol.data })]: cleanFit(p) };
+          }
+          await updateWidget(dash.id, ids.get(w.key), { data: w.data });
+        }
+        if (w.type === 'pro' && w.presets.length) {
+          for (const p of w.presets) {
+            const sol = clean.find((x) => x.key === String(p?.similar));
+            const key = sol ? researchKey('', { type: sol.type, data: sol.data }, p.filters) : p?.question ? researchKey(String(p.question), null) : null;
+            if (key) w.data.cache = { ...w.data.cache, [key]: cleanResearch(p.result) };
           }
           await updateWidget(dash.id, ids.get(w.key), { data: w.data });
         }
@@ -687,12 +730,16 @@ export default async function handler(req, res) {
         await updateWidget(dash.id, panel.id, { data });
         return res.status(200).json({ compatible: false, reason: out.reason, tops: panel.tops || [], cached, tokens, spent });
       }
-      // una solución a la vez: la nueva reemplaza a la anterior
-      const replaced = (panel.tops || []).filter((i) => i !== sol.id);
+      // hasta 3: la cuarta suelta a la más antigua
+      let tops = (panel.tops || []).filter((i) => i !== sol.id);
+      const replaced = tops.length >= MAX_SOLUTIONS ? tops.slice(0, tops.length - MAX_SOLUTIONS + 1) : [];
+      tops = [...tops.filter((i) => !replaced.includes(i)), sol.id];
+      const kept = (panel.data.solutions || []).filter((x) => tops.includes(x.id) && x.id !== sol.id);
+      const color = SOL_COLORS.find((c) => !kept.some((x) => x.color === c)) || SOL_COLORS[0];
       const title = sol.data?.title || sol.data?.name || sol.data?.text || 'Solución';
-      const data = cleanJourney({ ...panel.data, fitCache, solutions: [{ id: sol.id, title, impacts: out.impacts }] });
-      await updateWidget(dash.id, panel.id, { data, tops: [sol.id] });
-      return res.status(200).json({ compatible: true, data, tops: [sol.id], replaced, cached, tokens, spent });
+      const data = cleanJourney({ ...panel.data, fitCache, solutions: [...kept, { id: sol.id, title, color, impacts: out.impacts }] });
+      await updateWidget(dash.id, panel.id, { data, tops });
+      return res.status(200).json({ compatible: true, data, tops, replaced, cached, tokens, spent });
     }
 
     /* ---------- Researcher: investigar y dejar hallazgos ---------- */
@@ -700,44 +747,54 @@ export default async function handler(req, res) {
       const all = await listWidgets(dash.id);
       const pro = all.find((w) => w.id === String(req.query.research) && w.type === 'pro');
       if (!pro) return res.status(404).json({ error: 'Profesional no encontrado.' });
-      const question = txt(req.body?.question, 300);
+      const filters = txt(req.body?.filters, 300);
+      const similar = req.body?.similar ? all.find((w) => w.id === String(req.body.similar) && (pro.inputs || []).includes(w.id)) : null;
+      if (req.body?.similar && !similar) return res.status(400).json({ error: 'Esa solución no está conectada al Researcher.' });
+      const question = similar ? similarQuestion(similar, filters) : txt(req.body?.question, 300);
       if (!question) return res.status(422).json({ error: 'Escribe una pregunta.' });
+      const shown = similar ? `Soluciones parecidas a «${similar.data?.title || similar.data?.name || 'la solución'}»${filters ? ` (${filters})` : ''}` : question;
       const slots = (Array.isArray(req.body?.slots) ? req.body.slots : []).slice(0, 5).map(cleanLayout);
       if (!slots.length) return res.status(400).json({ error: 'No hay lugar en el lienzo.' });
 
-      const cost = priceOf(await getConfig(), 'research');
-      const price = unlimited(user) ? 0 : cost;
-      if (price && !(await charge(user.email, price))) {
-        return res.status(402).json({
-          error: `No te quedan tokens: investigar cuesta ${price.toLocaleString('es-PE')}.`,
-          tokens: await balanceOf(user.email), price,
-        });
-      }
-      // lo conectado al Researcher le dice de qué trata el proyecto
-      const context = contextFrom(all.filter((w) => (pro.inputs || []).includes(w.id)));
-      let out;
-      try {
-        out = await askResearch({ question, context });
-      } catch (err) {
-        if (price) await refund(user.email, price);
-        if (err instanceof AIError) return res.status(422).json({ error: err.message });
-        throw err;
+      const key = researchKey(question, similar, filters);
+      let out = pro.data.cache?.[key];
+      const cached = Boolean(out?.items?.length);
+      let spent;
+      if (!cached) {
+        const cost = priceOf(await getConfig(), 'research');
+        const price = unlimited(user) ? 0 : cost;
+        if (price && !(await charge(user.email, price))) {
+          return res.status(402).json({
+            error: `No te quedan tokens: investigar cuesta ${price.toLocaleString('es-PE')}.`,
+            tokens: await balanceOf(user.email), price,
+          });
+        }
+        // lo conectado al Researcher le dice de qué trata el proyecto
+        const context = contextFrom(all.filter((w) => (pro.inputs || []).includes(w.id)));
+        try {
+          out = cleanResearch(await askResearch({ question, context }));
+        } catch (err) {
+          if (price) await refund(user.email, price);
+          if (err instanceof AIError) return res.status(422).json({ error: err.message });
+          throw err;
+        }
+        spent = await addSpent(dash.id, cost);
       }
 
       const created = [];
       for (const [i, it] of out.items.slice(0, slots.length).entries()) {
-        const data = cleanFinding({ ...it, question, by: pro.data.name, confidence: out.confidence });
+        const data = cleanFinding({ ...it, question: shown, by: pro.data.name, confidence: out.confidence });
         created.push(await createWidget(dash.id, 'finding', slots[i], data, [pro.id]));
       }
       const proData = cleanPro({
         ...pro.data,
         thought: out.thought || pro.data.thought,
-        history: [...(pro.data.history || []), { q: question, n: created.length }],
+        history: [...(pro.data.history || []), { q: shown, n: created.length }],
+        cache: { ...(pro.data.cache || {}), [key]: out },
       });
       await updateWidget(dash.id, pro.id, { data: proData });
-      const spent = await addSpent(dash.id, cost);
       return res.status(201).json({
-        widgets: created.map(publicWidget), pro: proData, mode: out.mode,
+        widgets: created.map(publicWidget), pro: proData, mode: out.mode, cached,
         tokens: unlimited(user) ? null : await balanceOf(user.email), spent,
       });
     }

@@ -534,9 +534,9 @@
    "id": "g-sol",
    "type": "group",
    "x": 74,
-   "y": -17,
-   "w": 48,
-   "h": 12,
+   "y": -22,
+   "w": 66,
+   "h": 17,
    "data": {
     "kind": "group",
     "title": "Soluciones para probar en el journey",
@@ -545,29 +545,26 @@
    "inputs": []
   },
   {
-   "id": "sol-mkt",
-   "type": "ask",
+   "id": "t-sol",
+   "type": "label",
    "x": 75,
-   "y": -14,
-   "w": 15,
-   "h": 8,
+   "y": -19,
+   "w": 64,
+   "h": 3,
    "data": {
-    "kind": "text",
-    "title": "Campaña «Hierro en tu plato»",
-    "value": "Marketing en el mercado: las caseritas son embajadoras, los puestos llevan el sello «rico en hierro» y venden un combo de S/ 5 (bazo, lentejas y espinaca). En TikTok, ellas mismas enseñan recetas de 15 minutos; en la radio local suena el jingle de la campaña.",
-    "detail": "Solución de ejemplo (ficticia).",
-    "prompt": "",
-    "source": ""
+    "kind": "label",
+    "style": "body",
+    "text": "Arrastra el + de una solución al punto amarillo de arriba del journey. Caben 3 a la vez, cada una con su color; con la cuarta, se suelta la más antigua."
    },
    "inputs": []
   },
   {
    "id": "sol-wa",
    "type": "ask",
-   "x": 91,
-   "y": -14,
+   "x": 75,
+   "y": -15,
    "w": 15,
-   "h": 8,
+   "h": 9,
    "data": {
     "kind": "text",
     "title": "Madres líderes + recordatorios por WhatsApp",
@@ -579,18 +576,280 @@
    "inputs": []
   },
   {
-   "id": "t-sol",
-   "type": "label",
-   "x": 107,
-   "y": -14,
-   "w": 14,
-   "h": 8,
+   "id": "sol-salt",
+   "type": "ask",
+   "x": 91,
+   "y": -15,
+   "w": 15,
+   "h": 9,
    "data": {
-    "kind": "label",
-    "style": "body",
-    "text": "Arrastra el + de una solución hasta el punto amarillo de arriba del journey. Si encaja, se alumbran las etapas donde impacta; conecta la otra y la primera se suelta."
+    "kind": "text",
+    "title": "Sal con hierro en comedores y Vaso de Leche",
+    "value": "Los comedores populares y el Vaso de Leche cocinan con sal doblemente fortificada (hierro y yodo). El hierro llega en el plato de siempre, sin que la madre tenga que dar una dosis aparte.",
+    "detail": "Inspirada en la sal fortificada de Bihar (India) del benchmark.",
+    "prompt": "",
+    "source": ""
    },
    "inputs": []
+  },
+  {
+   "id": "sol-app",
+   "type": "ask",
+   "x": 107,
+   "y": -15,
+   "w": 15,
+   "h": 9,
+   "data": {
+    "kind": "text",
+    "title": "App «Mi Hierro»: calendario de dosis",
+    "value": "Una app liviana donde la madre marca cada dosis con una foto del plato, ve su racha de días y lleva el calendario al control para que el personal de salud vea el avance real.",
+    "detail": "Solución de ejemplo (ficticia).",
+    "prompt": "",
+    "source": ""
+   },
+   "inputs": []
+  },
+  {
+   "id": "sol-mkt",
+   "type": "ask",
+   "x": 123,
+   "y": -15,
+   "w": 15,
+   "h": 9,
+   "data": {
+    "kind": "text",
+    "title": "Campaña «Hierro en tu plato»",
+    "value": "Marketing en el mercado: las caseritas son embajadoras, los puestos llevan el sello «rico en hierro» y venden un combo de S/ 5 (bazo, lentejas y espinaca). En TikTok, ellas mismas enseñan recetas de 15 minutos; en la radio local suena el jingle de la campaña.",
+    "detail": "Solución de ejemplo (ficticia).",
+    "prompt": "",
+    "source": ""
+   },
+   "inputs": []
+  },
+  {
+   "id": "g-res",
+   "type": "group",
+   "x": 142,
+   "y": -22,
+   "w": 23,
+   "h": 56,
+   "data": {
+    "kind": "group",
+    "title": "Researcher: parecidas a la campaña",
+    "color": "#4dd4ff"
+   },
+   "inputs": []
+  },
+  {
+   "id": "pro-sim",
+   "type": "pro",
+   "x": 143,
+   "y": -15,
+   "w": 7,
+   "h": 7,
+   "data": {
+    "kind": "pro",
+    "role": "researcher",
+    "name": "Researcher",
+    "thought": "Las campañas funcionan cuando repiten el mensaje en varios canales y le hablan a quien compra.",
+    "history": [
+     {
+      "q": "Soluciones parecidas a «Campaña «Hierro en tu plato»»",
+      "n": 5
+     }
+    ],
+    "researchPresets": [
+     {
+      "similar": "sol-mkt",
+      "filters": "",
+      "result": {
+       "mode": "list",
+       "confidence": "media",
+       "thought": "Las campañas funcionan cuando repiten el mensaje en varios canales y le hablan a quien compra.",
+       "items": [
+        {
+         "title": "Alive & Thrive (Bangladesh)",
+         "summary": "Consejería en controles de salud más los mismos mensajes en TV, radio, comunidad e impresos. Mejoró la diversidad de la dieta y el consumo de alimentos ricos en hierro (2010-2014); no cambió claramente el crecimiento.",
+         "sources": [
+          {
+           "url": "https://colab.ws/articles/10.3945%2Fjn.116.232314",
+           "title": "Alive & Thrive: consejería + medios + comunidad — colab.ws"
+          }
+         ]
+        },
+        {
+         "title": "Alive & Thrive con marca (Vietnam)",
+         "summary": "Consejería con marca, protocolos y personal capacitado, más campaña nacional en medios. Funcionó en las usuarias frecuentes, pero muchas familias no fueron: la marca sola no garantiza la visita.",
+         "sources": [
+          {
+           "url": "https://ichgcp.net/da/clinical-trials-registry/publications/248759-social-franchising-and-a-nationwide-mass-media-campaign-increased-the-prevalence-of-adequate",
+           "title": "Alive & Thrive mediante franquicia social — ichgcp.net"
+          }
+         ]
+        },
+        {
+         "title": "Suaahara (Nepal)",
+         "summary": "Radio, voluntarias comunitarias, huertos y visitas al hogar repitiendo el mismo mensaje durante 10 años. Mejoró prácticas de alimentación infantil porque cambió normas, no solo conocimiento.",
+         "sources": [
+          {
+           "url": "https://scholarcommons.sc.edu/sph_health_promotion_education_behavior_facpub/539/",
+           "title": "Suaahara: intervención multisectorial — scholarcommons.sc.edu"
+          }
+         ]
+        },
+        {
+         "title": "FIT Game (Estados Unidos)",
+         "summary": "Una historia por capítulos en el comedor escolar: el grupo desbloquea episodios si come frutas y verduras. Subió el consumo y parte del efecto siguió después del juego.",
+         "sources": [
+          {
+           "url": "https://www.mdpi.com/2072-6643/13/8/2646/xml",
+           "title": "FIT Game — mdpi.com"
+          }
+         ]
+        },
+        {
+         "title": "Food Dudes (Reino Unido)",
+         "summary": "Superhéroes y premios para que los niños prueben verduras. Funcionó en el colegio, pero no cambió lo que compraban los padres: una campaña tiene que hablarle a quien compra.",
+         "sources": [
+          {
+           "url": "https://eprints.worc.ac.uk/2912/1/Taylor%20et%20al_WRaP.pdf",
+           "title": "Food Dudes — eprints.worc.ac.uk"
+          }
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "inputs": [
+    "sol-mkt"
+   ]
+  },
+  {
+   "id": "sim0",
+   "type": "finding",
+   "x": 151,
+   "y": -15,
+   "w": 13,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Alive & Thrive (Bangladesh)",
+    "summary": "Consejería en controles de salud más los mismos mensajes en TV, radio, comunidad e impresos. Mejoró la diversidad de la dieta y el consumo de alimentos ricos en hierro (2010-2014); no cambió claramente el crecimiento.",
+    "question": "Soluciones parecidas a «Campaña «Hierro en tu plato»»",
+    "by": "Researcher",
+    "confidence": "media",
+    "sources": [
+     {
+      "url": "https://colab.ws/articles/10.3945%2Fjn.116.232314",
+      "title": "Alive & Thrive: consejería + medios + comunidad — colab.ws"
+     }
+    ]
+   },
+   "inputs": [
+    "pro-sim"
+   ]
+  },
+  {
+   "id": "sim1",
+   "type": "finding",
+   "x": 151,
+   "y": -6,
+   "w": 13,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Alive & Thrive con marca (Vietnam)",
+    "summary": "Consejería con marca, protocolos y personal capacitado, más campaña nacional en medios. Funcionó en las usuarias frecuentes, pero muchas familias no fueron: la marca sola no garantiza la visita.",
+    "question": "Soluciones parecidas a «Campaña «Hierro en tu plato»»",
+    "by": "Researcher",
+    "confidence": "media",
+    "sources": [
+     {
+      "url": "https://ichgcp.net/da/clinical-trials-registry/publications/248759-social-franchising-and-a-nationwide-mass-media-campaign-increased-the-prevalence-of-adequate",
+      "title": "Alive & Thrive mediante franquicia social — ichgcp.net"
+     }
+    ]
+   },
+   "inputs": [
+    "pro-sim"
+   ]
+  },
+  {
+   "id": "sim2",
+   "type": "finding",
+   "x": 151,
+   "y": 3,
+   "w": 13,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Suaahara (Nepal)",
+    "summary": "Radio, voluntarias comunitarias, huertos y visitas al hogar repitiendo el mismo mensaje durante 10 años. Mejoró prácticas de alimentación infantil porque cambió normas, no solo conocimiento.",
+    "question": "Soluciones parecidas a «Campaña «Hierro en tu plato»»",
+    "by": "Researcher",
+    "confidence": "media",
+    "sources": [
+     {
+      "url": "https://scholarcommons.sc.edu/sph_health_promotion_education_behavior_facpub/539/",
+      "title": "Suaahara: intervención multisectorial — scholarcommons.sc.edu"
+     }
+    ]
+   },
+   "inputs": [
+    "pro-sim"
+   ]
+  },
+  {
+   "id": "sim3",
+   "type": "finding",
+   "x": 151,
+   "y": 12,
+   "w": 13,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "FIT Game (Estados Unidos)",
+    "summary": "Una historia por capítulos en el comedor escolar: el grupo desbloquea episodios si come frutas y verduras. Subió el consumo y parte del efecto siguió después del juego.",
+    "question": "Soluciones parecidas a «Campaña «Hierro en tu plato»»",
+    "by": "Researcher",
+    "confidence": "media",
+    "sources": [
+     {
+      "url": "https://www.mdpi.com/2072-6643/13/8/2646/xml",
+      "title": "FIT Game — mdpi.com"
+     }
+    ]
+   },
+   "inputs": [
+    "pro-sim"
+   ]
+  },
+  {
+   "id": "sim4",
+   "type": "finding",
+   "x": 151,
+   "y": 21,
+   "w": 13,
+   "h": 8,
+   "data": {
+    "kind": "finding",
+    "title": "Food Dudes (Reino Unido)",
+    "summary": "Superhéroes y premios para que los niños prueben verduras. Funcionó en el colegio, pero no cambió lo que compraban los padres: una campaña tiene que hablarle a quien compra.",
+    "question": "Soluciones parecidas a «Campaña «Hierro en tu plato»»",
+    "by": "Researcher",
+    "confidence": "media",
+    "sources": [
+     {
+      "url": "https://eprints.worc.ac.uk/2912/1/Taylor%20et%20al_WRaP.pdf",
+      "title": "Food Dudes — eprints.worc.ac.uk"
+     }
+    ]
+   },
+   "inputs": [
+    "pro-sim"
+   ]
   },
   {
    "id": "g3",
@@ -710,6 +969,50 @@
         "stage": 5,
         "impact": "La madre líder sostiene la rutina cuando la semana se complica.",
         "risk": "Que la madre líder se canse sin incentivo y el grupo se apague."
+       }
+      ]
+     },
+     {
+      "sol": "sol-salt",
+      "compatible": true,
+      "reason": "Pone el hierro dentro de la comida de todos: quita pasos en la cocina y en el plato.",
+      "impacts": [
+       {
+        "stage": 2,
+        "impact": "No hay que cocinar aparte: el plato de siempre ya trae hierro.",
+        "risk": "Que la familia note un cambio de sabor o color y deje de usar la sal."
+       },
+       {
+        "stage": 3,
+        "impact": "El niño come hierro sin dosis visible, así que hay menos rechazo.",
+        "risk": "Que la porción del niño sea muy chica para cubrir lo que necesita."
+       },
+       {
+        "stage": 6,
+        "impact": "La hemoglobina puede subir sin esfuerzo extra de la madre.",
+        "risk": "Que nadie mida el antes y el después y no se sepa si funcionó."
+       }
+      ]
+     },
+     {
+      "sol": "sol-app",
+      "compatible": true,
+      "reason": "Hace visible el progreso que hoy es invisible entre un control y otro.",
+      "impacts": [
+       {
+        "stage": 3,
+        "impact": "Marca cada dosis con una foto y ve su racha de días.",
+        "risk": "Celular compartido o sin datos: la app no está a la hora de comer."
+       },
+       {
+        "stage": 4,
+        "impact": "Lleva el calendario al control y el personal ve el avance real.",
+        "risk": "Que el personal de salud no tenga tiempo de mirarlo."
+       },
+       {
+        "stage": 6,
+        "impact": "Ve el avance acumulado y lo celebra con la familia.",
+        "risk": "Que deje la app a las dos semanas, cuando pasa la novedad."
        }
       ]
      }

@@ -199,11 +199,12 @@ function drawLinks() {
       const s = byId(srcId);
       if (!s) continue;
       const a = portPoint(s, 'out'), z = portPoint(t, 'top');
-      html += `<g class="link link--top" data-from="${esc(s.id)}" data-to="${esc(t.id)}" data-kind="top">
+      const sc = t.data?.solutions?.find((x) => x.id === s.id)?.color || '#ffd166';
+      html += `<g class="link link--top" style="--sc:${sc}" data-from="${esc(s.id)}" data-to="${esc(t.id)}" data-kind="top">
         <path class="link-hit" d="${curve(a, z, true)}"/>
         <path class="link-line" d="${curve(a, z, true)}"/>
       </g>`;
-      ends += `<circle class="link-end link-end--top" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end link-end--top" cx="${z.x}" cy="${z.y}" r="3.5"/>`;
+      ends += `<circle class="link-end link-end--top" style="--sc:${sc}" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end link-end--top" style="--sc:${sc}" cx="${z.x}" cy="${z.y}" r="3.5"/>`;
     }
   }
   if (tempLine) html += `<path class="link-line link-temp${tempLine.snap ? ' is-snapped' : ''}${tempLine.top ? ' link-temp--top' : ''}" d="${curve(tempLine.a, tempLine.z, tempLine.top)}"/>`;
@@ -671,6 +672,7 @@ function startLink(e, src) {
       t.inputs.push(src.id);
       if (t.state === 'done') saveInputs(t);
       refreshContextNote(t);
+      if (t.data?.kind === 'pro') { t.askMode = ''; select(null); select(t); }
     }
     requestDraw(); // sin conectar, la línea desaparece
   };
@@ -1496,12 +1498,13 @@ function notice(title, body) {
 
 /** La línea de una solución que se va: se recoge hacia su origen y suelta chispas
     en el nodo del journey. Va por encima del lienzo (no se deforma con la lente). */
-function detachFx(src, j) {
+function detachFx(src, j, color = '#ffd166') {
   if (!src?.el || !j?.el) return;
   const a = portPoint(src, 'out'), z = portPoint(j, 'top');
   const NS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(NS, 'svg');
   svg.classList.add('fx');
+  svg.style.setProperty('--sc', color);
   svg.setAttribute('viewBox', `0 0 ${board.clientWidth} ${board.clientHeight}`);
   const path = document.createElementNS(NS, 'path');
   path.setAttribute('d', curve(a, z, true));
@@ -1517,7 +1520,7 @@ function detachFx(src, j) {
     c.setAttribute('cx', z.x);
     c.setAttribute('cy', z.y);
     c.setAttribute('r', 1.4 + Math.random() * 2.2);
-    c.setAttribute('fill', i % 3 ? '#ffd166' : '#ffffff');
+    c.setAttribute('fill', i % 3 ? color : '#ffffff');
     svg.append(c);
     const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.6, dist = 26 + Math.random() * 46;
     c.animate([
@@ -1533,9 +1536,10 @@ function detachFx(src, j) {
   setTimeout(() => svg.remove(), 900);
 }
 
-/** Conecta una solución arriba del journey: la IA ve en qué etapas impacta. Una a la
-    vez: si encaja, la anterior se desconecta (con chispas). Si ya se había analizado
-    esa misma solución con el mismo journey, el resultado vuelve sin gastar tokens. */
+/** Conecta una solución arriba del journey: la IA ve en qué etapas impacta. Hasta 3,
+    cada una con su color; con una cuarta, la más antigua se desconecta (con chispas).
+    Si ya se había analizado esa misma solución con el mismo journey, el resultado
+    vuelve sin gastar tokens. */
 async function connectSolution(j, src) {
   if (j.tops.includes(src.id)) return;
   if (!j.data.stages?.length) return notice('Primero genera el journey', 'Las soluciones se cruzan con las etapas: conecta usuarios por la izquierda y genera el journey antes.');
@@ -1557,7 +1561,8 @@ async function connectSolution(j, src) {
     if (!r.ok) return alert(r.data.error || 'No se pudo analizar la solución.');
     return notice('Esta solución no es compatible con el journey del usuario', `Motivo: ${r.data.reason}`);
   }
-  for (const old of r.data.replaced || []) detachFx(byId(old), j);
+  // la más antigua se suelta (con su color) si ya había 3
+  for (const old of r.data.replaced || []) detachFx(byId(old), j, j.data.solutions?.find((x) => x.id === old)?.color);
   j.data = r.data.data;
   j.tops = r.data.tops;
   j.lastCached = r.data.cached;
@@ -1729,10 +1734,10 @@ function slotsNear(src, n, size) {
 
 const RESEARCH_STEPS = ['Buscando en la web…', 'Leyendo fuentes…', 'Contrastando datos…', 'Ordenando hallazgos…'];
 
-async function research(wd, question, btn, status) {
-  if (!canAfford('research')) return flashBroke('research');
-  question = question.trim();
-  if (!question) { status.textContent = 'Escribe una pregunta.'; return; }
+/** `ask`: { question } o { similar: widgetId, filters }. */
+async function research(wd, ask, btn, status) {
+  const question = (ask.question || '').trim();
+  if (!ask.similar && !question) { status.textContent = 'Escribe una pregunta.'; return; }
   const slots = slotsNear(wd, 5, findingSize());
   wd.researching = true;
   btn.disabled = true;
@@ -1743,9 +1748,10 @@ async function research(wd, question, btn, status) {
   status.textContent = RESEARCH_STEPS[0];
   const ticker = setInterval(() => { step = Math.min(step + 1, RESEARCH_STEPS.length - 1); status.textContent = RESEARCH_STEPS[step]; }, 6000);
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}&research=${encodeURIComponent(wd.id)}`, {
-    method: 'POST', body: JSON.stringify({ question, slots }),
+    method: 'POST', body: JSON.stringify({ ...ask, question, slots }),
   });
   clearInterval(ticker);
+  if (r.status === 402) { wd.researching = false; btn.disabled = false; wd.el.classList.remove('is-glowing'); render(wd); return flashBroke('research'); }
   wd.researching = false;
   btn.disabled = false;
   wd.el.classList.remove('is-glowing');
@@ -1769,7 +1775,8 @@ async function research(wd, question, btn, status) {
   const n = r.data.widgets.length;
   if (selected === wd) renderInfo();
   const s = $('info-list').querySelector('.pro-status');
-  if (s) s.textContent = n === 1 ? 'Listo: dejé un hallazgo en el mapa.' : `Listo: dejé ${n} hallazgos en el mapa.`;
+  if (s) s.textContent = (n === 1 ? 'Listo: dejé un hallazgo en el mapa.' : `Listo: dejé ${n} hallazgos en el mapa.`)
+    + (r.data.cached ? ' (ya lo había investigado: sin tokens)' : '');
   if (n) focusAt(...centerOf([wd, ...r.data.widgets]));
 }
 
@@ -1797,15 +1804,42 @@ function renderProInfo(box) {
   top.querySelector('p').textContent = d.thought ? `«${d.thought}»` : p.note;
   list.append(top);
 
-  if (canEdit) {
+  // soluciones conectadas: por defecto, buscar parecidas (los filtros son opcionales)
+  const sols = (wd.inputs || []).map(byId).filter((w) => w && w.state === 'done' && !hasUsers(w) && !isGroup(w));
+  if (canEdit && sols.length && wd.askMode !== 'free') {
+    const form = document.createElement('form');
+    form.className = 'pro-ask pro-similar';
+    form.innerHTML = `<p class="tl-head">Soluciones parecidas a</p>
+      ${sols.length > 1 ? `<select aria-label="Solución">${sols.map((w) => `<option value="${esc(w.id)}">${esc(w.data?.title || w.data?.name || 'Solución')}</option>`).join('')}</select>`
+        : `<b class="pro-sol-name"></b>`}
+      <textarea rows="2" maxlength="300" placeholder="Filtros (opcional): solo Latinoamérica, últimos 5 años, bajo costo…" aria-label="Filtros"></textarea>
+      <button type="submit" class="btn">Buscar parecidas${prices.research ? `<small title="Estimado de tokens">≈ ${nfTok.format(prices.research)} tk</small>` : ''}</button>
+      <button type="button" class="link-btn pro-free">o hazle otra pregunta</button>
+      <p class="pro-status" role="status"></p>`;
+    form.querySelector('.pro-sol-name')?.append(sols[0].data?.title || sols[0].data?.name || 'Solución');
+    const btn = form.querySelector('[type="submit"]'), status = form.querySelector('.pro-status');
+    if (wd.researching) { btn.disabled = true; status.textContent = 'Investigando…'; }
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      research(wd, { similar: form.querySelector('select')?.value || sols[0].id, filters: form.querySelector('textarea').value.trim() }, btn, status);
+    });
+    form.querySelector('.pro-free').addEventListener('click', () => { wd.askMode = 'free'; renderInfo(); });
+    list.append(form);
+    const hint = document.createElement('p');
+    hint.className = 'ex-hint';
+    hint.textContent = 'Busca en la web soluciones reales parecidas a la conectada y deja hasta 5, con sus fuentes. Lo que ya investigó se repite sin gastar tokens.';
+    list.append(hint);
+  } else if (canEdit) {
     const form = document.createElement('form');
     form.className = 'pro-ask';
     form.innerHTML = `<textarea rows="3" maxlength="300" placeholder="Ej.: ¿Qué soluciones parecidas existen para dividir gastos entre amigos?" aria-label="Pregunta"></textarea>
       <button type="submit" class="btn">Investigar${prices.research ? `<small title="Estimado de tokens">≈ ${nfTok.format(prices.research)} tk</small>` : ''}</button>
+      ${sols.length ? '<button type="button" class="link-btn pro-free">volver a soluciones parecidas</button>' : ''}
       <p class="pro-status" role="status"></p>`;
-    const ta = form.querySelector('textarea'), btn = form.querySelector('button'), status = form.querySelector('.pro-status');
+    const ta = form.querySelector('textarea'), btn = form.querySelector('[type="submit"]'), status = form.querySelector('.pro-status');
     if (wd.researching) { btn.disabled = true; status.textContent = 'Investigando…'; }
-    form.addEventListener('submit', (e) => { e.preventDefault(); research(wd, ta.value, btn, status); });
+    form.addEventListener('submit', (e) => { e.preventDefault(); research(wd, { question: ta.value }, btn, status); });
+    form.querySelector('.pro-free')?.addEventListener('click', () => { wd.askMode = ''; renderInfo(); });
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) form.requestSubmit(); });
     list.append(form);
     const hint = document.createElement('p');
