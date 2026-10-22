@@ -98,17 +98,42 @@ function cleanTimeline(d) {
 }
 
 /* ---------- usuario ---------- */
-const PERSONAS = ['default', 'joven', 'papa', 'mama', 'familia', 'nido', 'jubilado'];
+const LEGACY_USER = {
+  default: ['Usuario', 'm', 30], joven: ['Joven', 'm', 22], papa: ['Papá divorciado', 'm', 42],
+  mama: ['Mamá soltera', 'f', 36], familia: ['Familia feliz', 'f', 38], nido: ['Nido vacío', 'f', 58],
+  jubilado: ['Jubilado', 'm', 70],
+};
+const MAX_USER_TEXT = 20_000;   // por texto de contexto
+const MAX_USER_TEXTS = 100_000; // entre todos
 
-/** Datos válidos de un widget de usuario. Del contexto solo se guarda nombre y
-    tamaño de cada archivo (por ahora la subida es simulada). */
+/** Datos válidos de un widget de usuario: nombre, sexo, edad y contexto
+    (textos con su contenido; audios solo nombre y tamaño, por ahora). Los de
+    tipo fijo ({ persona }) se pasan al formato nuevo. */
 function cleanUser(d) {
   if (!d || typeof d !== 'object') return null;
-  const context = (Array.isArray(d.context) ? d.context : []).slice(0, 10).map((f) => ({
-    name: String(f?.name ?? '').trim().slice(0, 120),
-    size: Math.max(0, Math.round(Number(f?.size) || 0)),
-  })).filter((f) => f.name);
-  return { kind: 'user', persona: PERSONAS.includes(d.persona) ? d.persona : 'default', context };
+  const legacy = !d.sex && LEGACY_USER[d.persona];
+  let budget = MAX_USER_TEXTS;
+  const context = (Array.isArray(d.context) ? d.context : []).slice(0, 10).map((f) => {
+    const kind = f?.kind === 'text' ? 'text' : 'audio';
+    const item = {
+      kind,
+      name: String(f?.name ?? '').trim().slice(0, 120),
+      size: Math.max(0, Math.round(Number(f?.size) || 0)),
+    };
+    if (kind === 'text' && typeof f?.text === 'string') {
+      item.text = f.text.slice(0, Math.min(MAX_USER_TEXT, budget));
+      budget -= item.text.length;
+    }
+    return item;
+  }).filter((f) => f.name);
+  const age = Math.round(Number(legacy ? legacy[2] : d.age));
+  return {
+    kind: 'user',
+    name: String(legacy ? legacy[0] : d.name ?? '').trim().slice(0, 40) || 'Usuario',
+    sex: (legacy ? legacy[1] : d.sex) === 'f' ? 'f' : 'm',
+    age: Number.isFinite(age) ? Math.min(90, Math.max(0, age)) : 30,
+    context,
+  };
 }
 
 /* ---------- nebulosa de IA ---------- */
@@ -151,7 +176,12 @@ function contextFrom(list) {
     if (d.kind === 'table') {
       body = [d.columns, ...(d.rows || []).slice(0, 200)].map((r) => r.join(' | ')).join('\n');
     } else if (d.kind === 'user') {
-      body = [`Tipo de usuario: ${d.persona}`, ...(d.context || []).map((f) => `Archivo de contexto: ${f.name}`)].join('\n');
+      body = [
+        d.sex ? `${d.sex === 'f' ? 'Mujer' : 'Hombre'} de ${d.age} años` : `Tipo de usuario: ${d.persona}`,
+        ...(d.context || []).map((f) => (f.kind === 'text' && f.text
+          ? `Texto «${f.name}»:\n${f.text.slice(0, 4000)}`
+          : `Audio de contexto: ${f.name} (sin transcribir)`)),
+      ].join('\n');
     } else if (d.kind === 'timeline') {
       body = d.milestones.map((m) => `${m.date}: ${m.name}`).join('\n');
     } else if (d.kind === 'nebula') {
@@ -161,7 +191,7 @@ function contextFrom(list) {
     } else {
       body = [d.value, d.detail].filter(Boolean).join('\n');
     }
-    return `### ${d.title || 'Widget'}${d.prompt ? `\n(Pregunta original: ${d.prompt})` : ''}\n${body}`;
+    return `### ${d.title || d.name || 'Widget'}${d.prompt ? `\n(Pregunta original: ${d.prompt})` : ''}\n${body}`;
   }).join('\n\n');
 }
 

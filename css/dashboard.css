@@ -1000,7 +1000,7 @@ body:not(.can-edit) .wtl { cursor: default; }
 .tl-plus::after { content: ""; position: absolute; left: 6px; top: -6px; width: 4px; height: 16px; border-radius: 2px; background: #16161b; }
 
 /* ============================================================
-   Usuario: imagen + nombre (el tipo se elige en su bloque)
+   Usuario: avatar de busto + nombre + edad (se edita en su bloque)
    ============================================================ */
 .wuser {
   position: relative;
@@ -1015,8 +1015,14 @@ body:not(.can-edit) .wtl { cursor: default; }
   cursor: move;
 }
 body:not(.can-edit) .wuser { cursor: default; }
-.wuser img { width: 72%; max-height: 72%; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .45)); }
+.wuser-av { width: 78%; flex: 1; min-height: 0; display: grid; place-items: end center; }
+.wuser-av svg { width: 100%; height: 100%; max-height: 100%; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .35)); }
+.wuser small { font-size: 11px; color: rgba(255, 255, 255, .6); }
 .wuser b {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 15px;
   font-weight: 900;
   letter-spacing: .02em;
@@ -1041,17 +1047,107 @@ body:not(.can-edit) .wuser { cursor: default; }
   font-weight: 700;
 }
 
-/* bloque de información: contexto arriba, tipo de usuario debajo (‹ imagen ›) */
-.info-list > .tl-head:first-child { margin-top: 12px; }
-.us-type-head { margin-top: 18px; }
-.us-pick figure { margin: 0; display: grid; justify-items: center; gap: 4px; min-width: 110px; }
-.us-pick img { width: 76px; height: 76px; object-fit: contain; }
-.us-pick figcaption { font-size: 13px; font-weight: 600; color: #22222a; text-align: center; }
+/* bloque de información: avatar, nombre, sexo, edad y contexto */
+.us-top { position: relative; display: grid; justify-items: center; margin: 4px 0 10px; }
+.us-av { width: 120px; height: 120px; border-radius: 50%; overflow: hidden; background: rgba(0, 0, 0, .06); }
+.us-av svg { width: 100%; height: 100%; display: block; }
+.us-dice {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 99px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  background: rgba(255, 255, 255, .7);
+  color: #22222a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.us-dice svg { width: 15px; height: 15px; }
+.us-dice:hover { border-color: var(--red); color: var(--red); }
+.us-dice:active svg { transform: rotate(90deg); transition: transform .2s; }
+.us-name {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  background: rgba(255, 255, 255, .7);
+  color: #22222a;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+.us-name:focus { border-color: var(--red); }
+.us-sex { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 8px 0 12px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, .06); }
+.us-sex button { height: 30px; border: 0; border-radius: 8px; background: none; color: #6c6c78; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.us-sex button[aria-checked="true"] { background: #fff; color: #22222a; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.us-age { display: grid; gap: 6px; margin-bottom: 4px; }
+.us-age-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #6c6c78; }
+.us-age-head b { font-size: 13px; letter-spacing: 0; text-transform: none; color: #22222a; }
+.us-age input {
+  --p: 30%;
+  width: 100%;
+  height: 6px;
+  margin: 6px 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--red) var(--p), rgba(0, 0, 0, .12) var(--p));
+  outline: none;
+  cursor: pointer;
+}
+.us-age input::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 2px solid var(--red); box-shadow: 0 2px 6px rgba(0, 0, 0, .2); }
+.us-age input::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--red); }
+.us-age input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rgba(224, 16, 43, .2); }
+.us-age-ends { display: flex; justify-content: space-between; }
+.us-age-ends small { font-size: 10.5px; color: #8a8a96; }
+.us-who { display: grid; justify-items: center; gap: 2px; margin: 0 0 6px; }
+.us-who b { font-size: 15px; color: #22222a; }
+.us-who small { font-size: 12px; color: #6c6c78; }
+.us-ctx-head { margin-top: 16px; }
+.us-kind {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(224, 16, 43, .1);
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 800;
+}
+.us-note { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 8px; }
+.us-note textarea {
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  background: rgba(255, 255, 255, .7);
+  color: #22222a;
+  font: inherit;
+  font-size: 12.5px;
+  resize: vertical;
+  outline: none;
+}
+.us-note textarea:focus { border-color: var(--red); }
+.us-note-add { align-self: end; height: 32px; padding: 0 12px; border: 0; border-radius: 9px; background: #22222a; color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.us-note-add:hover { background: var(--red); }
+.us-err { margin: 6px 0 0; font-size: 12px; color: var(--red); }
+.us-err:empty { display: none; }
 .us-files { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
 .us-file {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
   padding: 7px 10px;

@@ -49,7 +49,10 @@ import { drawDots, fitCanvas, buildLensFilter, unwarp } from './fisheye.js';
 import {
   FACES, CHARACTERS, todayISO, addDays, defaultTimeline, timelineHTML, timelineSize, daysLeftText,
 } from './timeline.js';
-import { PERSONAS, personaOf, defaultUser, userHTML, userSize, fileSize } from './persona.js';
+import {
+  defaultUser, randomUser, fromLegacy, nameForSex, userHTML, userSize, fileSize, avatarSVG, ageLabel, stageLabel,
+  AGE_MAX, MAX_CONTEXT, MAX_TEXT,
+} from './persona.js';
 
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('d') || '';
@@ -1111,42 +1114,133 @@ function saveUser(wd) {
   }, 250);
 }
 
-/* "Sube" los archivos: una barra de progreso corta y solo se guarda nombre y tamaño. */
-function fakeUpload(wd, files, listEl) {
-  for (const f of [...files].slice(0, 10 - wd.data.context.length)) {
+/* Contexto del usuario: audios y textos. Los textos se leen y se guardan (la
+   IA los usa); los audios por ahora solo nombre y tamaño (subida simulada). */
+const TEXT_EXT = /\.(txt|md|markdown|csv|json|srt|vtt|html?|rtf)$/i;
+const kindOfFile = (f) => (f.type.startsWith('audio/') ? 'audio'
+  : f.type.startsWith('text/') || f.type === 'application/json' || TEXT_EXT.test(f.name) ? 'text' : null);
+
+function addContext(wd, files, listEl, errEl) {
+  const d = wd.data;
+  const rejected = [];
+  for (const f of [...files]) {
+    if (d.context.length + (wd.uploading || 0) >= MAX_CONTEXT) { rejected.push(`${f.name} (máximo ${MAX_CONTEXT})`); continue; }
+    const kind = kindOfFile(f);
+    if (!kind) { rejected.push(f.name); continue; }
     const row = document.createElement('li');
     row.className = 'us-file is-uploading';
-    row.innerHTML = '<span class="us-fname"></span><small></small><span class="us-bar"><i></i></span>';
+    row.innerHTML = `<span class="us-kind">${kind === 'audio' ? '♪' : 'T'}</span><span class="us-fname"></span><small>subiendo…</small><span class="us-bar"><i></i></span>`;
     row.querySelector('.us-fname').textContent = f.name;
-    row.querySelector('small').textContent = 'subiendo…';
     listEl.append(row);
-    const bar = row.querySelector('.us-bar i');
-    requestAnimationFrame(() => { bar.style.width = '100%'; });
+    requestAnimationFrame(() => { row.querySelector('.us-bar i').style.width = '100%'; });
     wd.uploading = (wd.uploading || 0) + 1;
-    setTimeout(() => {
-      wd.data.context.push({ name: f.name.slice(0, 120), size: f.size });
-      row.classList.remove('is-uploading');
-      row.querySelector('small').textContent = fileSize(f.size);
-      // cuando terminan todas, se guarda y se rearma la lista (con sus botones ×)
+    const read = kind === 'text' ? f.text().then((t) => t.slice(0, MAX_TEXT)) : Promise.resolve(null);
+    const wait = new Promise((r) => setTimeout(r, 700 + Math.random() * 400));
+    Promise.all([read, wait]).then(([text]) => {
+      d.context.push({ kind, name: f.name.slice(0, 120), size: f.size, ...(text != null ? { text } : {}) });
+      // cuando terminan todos, se guarda y se rearma la lista (con sus botones ×)
       if (--wd.uploading === 0) {
         saveUser(wd);
         if (selected === wd) renderInfo();
       }
-    }, 900 + Math.random() * 500);
+    }).catch(() => { wd.uploading--; row.remove(); });
   }
+  if (errEl) errEl.textContent = rejected.length ? `Solo audio o texto: no se agregó ${rejected.join(', ')}.` : '';
+}
+
+/** Nota escrita o texto arrastrado (sin archivo). */
+function addNote(wd, text) {
+  const t = String(text || '').trim().slice(0, MAX_TEXT);
+  if (!t || wd.data.context.length >= MAX_CONTEXT) return false;
+  const name = t.split('\n')[0].slice(0, 60) + (t.length > 60 ? '…' : '');
+  wd.data.context.push({ kind: 'text', name, size: new Blob([t]).size, text: t });
+  saveUser(wd);
+  renderInfo();
+  return true;
 }
 
 function renderUserInfo(box) {
   const wd = selected;
+  wd.data = fromLegacy(wd.data); // los de tipo fijo pasan al formato nuevo al abrirlos
   const d = wd.data;
   $('info-kind').textContent = 'Usuario';
-  $('info-title').hidden = true; // el nombre va bajo la imagen, como en la línea de tiempo
+  $('info-title').hidden = true; // el nombre va en su campo
   const list = $('info-list');
   list.innerHTML = '';
 
-  // contexto: archivos
+  // avatar grande + aleatorio
+  const top = document.createElement('div');
+  top.className = 'us-top';
+  top.innerHTML = `<span class="us-av"></span>
+    ${canEdit ? `<button type="button" class="us-dice" title="Usuario al azar" aria-label="Usuario al azar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/></svg>
+      Aleatorio</button>` : ''}`;
+  list.append(top);
+  const paintAvatar = () => { top.querySelector('.us-av').innerHTML = avatarSVG(d); };
+  paintAvatar();
+
+  if (canEdit) {
+    // nombre
+    const name = document.createElement('input');
+    name.className = 'us-name';
+    name.maxLength = 40;
+    name.placeholder = 'Nombre';
+    name.setAttribute('aria-label', 'Nombre del usuario');
+    name.value = d.name;
+    name.addEventListener('input', () => { d.name = name.value.trim().slice(0, 40) || 'Usuario'; saveUser(wd); });
+    list.append(name);
+
+    // sexo
+    const sex = document.createElement('div');
+    sex.className = 'us-sex';
+    sex.setAttribute('role', 'radiogroup');
+    sex.setAttribute('aria-label', 'Sexo');
+    sex.innerHTML = '<button type="button" role="radio" data-sex="m">Hombre</button><button type="button" role="radio" data-sex="f">Mujer</button>';
+    const paintSex = () => sex.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.sex === d.sex)));
+    sex.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+      d.sex = b.dataset.sex;
+      d.name = nameForSex(d.name, d.sex);
+      name.value = d.name;
+      paintSex(); paintAvatar(); paintAge(); saveUser(wd);
+    }));
+    paintSex();
+    list.append(sex);
+
+    // edad: a la derecha envejece, a la izquierda rejuvenece
+    const ageBox = document.createElement('label');
+    ageBox.className = 'us-age';
+    ageBox.innerHTML = `<span class="us-age-head"><span>Edad</span><b></b></span>
+      <input type="range" min="0" max="${AGE_MAX}" step="1" aria-label="Edad">
+      <span class="us-age-ends"><small>Bebé</small><small>Anciano</small></span>`;
+    const range = ageBox.querySelector('input');
+    range.value = d.age;
+    const paintAge = () => {
+      ageBox.querySelector('b').textContent = `${stageLabel(d.sex, d.age)} · ${ageLabel(d.age)}`;
+      range.style.setProperty('--p', `${(d.age / AGE_MAX) * 100}%`);
+    };
+    range.addEventListener('input', () => { d.age = Number(range.value); paintAge(); paintAvatar(); saveUser(wd); });
+    paintAge();
+    list.append(ageBox);
+
+    top.querySelector('.us-dice').addEventListener('click', () => {
+      const r = randomUser(d.context);
+      Object.assign(d, r);
+      name.value = d.name;
+      range.value = d.age;
+      paintSex(); paintAge(); paintAvatar(); saveUser(wd);
+    });
+  } else {
+    const who = document.createElement('p');
+    who.className = 'us-who';
+    who.innerHTML = '<b></b><small></small>';
+    who.querySelector('b').textContent = d.name;
+    who.querySelector('small').textContent = `${stageLabel(d.sex, d.age)} · ${ageLabel(d.age)}`;
+    list.append(who);
+  }
+
+  // contexto: audios y textos
   const ch = document.createElement('p');
-  ch.className = 'tl-head';
+  ch.className = 'tl-head us-ctx-head';
   ch.textContent = 'Contexto';
   list.append(ch);
   const files = document.createElement('ul');
@@ -1154,9 +1248,10 @@ function renderUserInfo(box) {
   for (const f of d.context) {
     const li = document.createElement('li');
     li.className = 'us-file';
-    li.innerHTML = `<span class="us-fname"></span><small>${fileSize(f.size)}</small>
-      ${canEdit ? '<button type="button" class="tl-del" aria-label="Quitar archivo">×</button>' : ''}`;
+    li.innerHTML = `<span class="us-kind">${f.kind === 'audio' ? '♪' : 'T'}</span><span class="us-fname"></span><small>${fileSize(f.size)}</small>
+      ${canEdit ? '<button type="button" class="tl-del" aria-label="Quitar">×</button>' : ''}`;
     li.querySelector('.us-fname').textContent = f.name;
+    if (f.text) li.title = f.text.slice(0, 400);
     li.querySelector('.tl-del')?.addEventListener('click', () => {
       d.context = d.context.filter((x) => x !== f);
       saveUser(wd);
@@ -1166,47 +1261,39 @@ function renderUserInfo(box) {
   }
   list.append(files);
 
-  if (canEdit && d.context.length < 10) {
+  if (canEdit && d.context.length < MAX_CONTEXT) {
+    const err = document.createElement('p');
+    err.className = 'us-err';
     const drop = document.createElement('label');
     drop.className = 'us-drop';
-    drop.innerHTML = `<b>Arrastra o sube un archivo</b><small>Contexto de este usuario</small>
-      <input type="file" multiple hidden>`;
-    drop.querySelector('input').addEventListener('change', (e) => { fakeUpload(wd, e.target.files, files); e.target.value = ''; });
+    drop.innerHTML = `<b>Arrastra audio o texto</b><small>Archivos de audio, .txt, .md, .csv… o texto seleccionado</small>
+      <input type="file" multiple hidden accept="audio/*,text/*,.txt,.md,.csv,.json,.srt,.vtt">`;
+    drop.querySelector('input').addEventListener('change', (e) => { addContext(wd, e.target.files, files, err); e.target.value = ''; });
     drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('is-over'); });
     drop.addEventListener('dragleave', () => drop.classList.remove('is-over'));
-    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('is-over'); fakeUpload(wd, e.dataTransfer.files, files); });
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault();
+      drop.classList.remove('is-over');
+      if (e.dataTransfer.files.length) addContext(wd, e.dataTransfer.files, files, err);
+      else addNote(wd, e.dataTransfer.getData('text/plain'));
+    });
     list.append(drop);
+
+    // o escribirlo a mano
+    const note = document.createElement('form');
+    note.className = 'us-note';
+    note.innerHTML = `<textarea rows="2" maxlength="${MAX_TEXT}" placeholder="O escribe una nota sobre este usuario…" aria-label="Nota"></textarea>
+      <button type="submit" class="us-note-add">Agregar</button>`;
+    const ta = note.querySelector('textarea');
+    note.addEventListener('submit', (e) => { e.preventDefault(); addNote(wd, ta.value); });
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) note.requestSubmit(); });
+    list.append(note, err);
   } else if (!d.context.length) {
     const none = document.createElement('p');
     none.className = 'us-none';
-    none.textContent = 'Sin archivos de contexto.';
+    none.textContent = 'Sin contexto todavía.';
     list.append(none);
   }
-
-
-  // tipo de usuario: ‹ imagen › (igual que el personaje de la línea de tiempo)
-  const th = document.createElement('p');
-  th.className = 'tl-head us-type-head';
-  th.textContent = 'Tipo de usuario';
-  list.append(th);
-  const pick = document.createElement('div');
-  pick.className = 'tl-pick us-pick';
-  pick.innerHTML = `${canEdit ? '<button type="button" class="tl-arrow" data-step="-1" aria-label="Tipo anterior">‹</button>' : ''}
-    <figure><img alt=""><figcaption></figcaption></figure>
-    ${canEdit ? '<button type="button" class="tl-arrow" data-step="1" aria-label="Tipo siguiente">›</button>' : ''}`;
-  const paint = () => {
-    const p = personaOf(d.persona);
-    pick.querySelector('img').src = p.img;
-    pick.querySelector('figcaption').textContent = p.name;
-  };
-  paint();
-  pick.querySelectorAll('.tl-arrow').forEach((btn) => btn.addEventListener('click', () => {
-    const i = PERSONAS.findIndex((p) => p.id === d.persona);
-    d.persona = PERSONAS[(i + Number(btn.dataset.step) + PERSONAS.length) % PERSONAS.length].id;
-    paint(); // mismo panel: solo cambian la imagen y el nombre
-    saveUser(wd);
-  }));
-  list.append(pick);
 
   showInfo(box);
 }
