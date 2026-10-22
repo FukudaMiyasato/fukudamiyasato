@@ -9,7 +9,15 @@
 
    data: { kind: 'journey', title, goal, persona, users: [{ name, sex, age }],
            voices: [nombre], entries: [{ name, channel, detail }],
-           stages: [{ name, doing, thinking, feeling: -2…2, emotion, pain, opportunity }] }
+           stages: [{ name, doing, thinking, feeling: -2…2, emotion, pain, opportunity,
+                      adds: [{ row, text, by: { name, picture } }] }],
+           solutions: [{ id, title, impacts: [{ stage, impact, risk }] }] }
+
+   Dos entradas: la izquierda recibe usuarios (o grupos de usuarios); la de
+   arriba, soluciones. Una solución que encaja alumbra las etapas donde
+   impacta y agrega dos filas: cómo impacta y qué podría fallar.
+   Un post-it soltado sobre una fila queda en esa etapa con el estilo de la
+   fila y la cara de quien lo puso (adds).
    ============================================================ */
 
 import { avatarSVG } from './persona.js';
@@ -43,8 +51,21 @@ export function faceSVG(v) {
 
 const CHANNEL_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h12"/><path d="M13 7l5 5-5 5"/></svg>`;
 
-/** `linked`: usuarios conectados ahora mismo ({ name, sex, age }), para el estado vacío. */
-export function journeyHTML(d, { linked = [], generating = false } = {}) {
+const ROW_CLASS = { doing: '', thinking: 'jr-quote', pain: 'jr-pain', opportunity: 'jr-opp' };
+const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+/** Lo que agregó una persona: con su cara arriba a la derecha. */
+function addHTML(a) {
+  const face = a.by?.picture
+    ? `<img class="jr-by" src="${esc(a.by.picture)}" alt="" referrerpolicy="no-referrer" title="${esc(a.by.name)}">`
+    : `<span class="jr-by jr-by--mono" title="${esc(a.by?.name)}">${esc(initials(a.by?.name))}</span>`;
+  return `<div class="jr-add ${ROW_CLASS[a.row] || ''}">${face}${esc(a.text)}</div>`;
+}
+
+/** `linked`: usuarios conectados ahora mismo ({ name, sex, age }), para el estado vacío.
+    `tops`: ids de las soluciones conectadas arriba (las desconectadas no se muestran).
+    `checking`: se está analizando una solución recién conectada. */
+export function journeyHTML(d, { linked = [], generating = false, tops = [], checking = false } = {}) {
   const users = d.stages?.length ? d.users || [] : linked;
   const avatars = users.slice(0, 4).map((u) => `<span class="jr-av" title="${esc(u.name)}">${avatarSVG(u)}</span>`).join('');
   const sub = d.stages?.length
@@ -89,9 +110,22 @@ export function journeyHTML(d, { linked = [], generating = false } = {}) {
   const faces = d.stages.map((s, i) => `
     <span class="jr-face" style="left:${pts[i][0]}%;top:${pts[i][1]}%">${faceSVG(s.feeling)}<small>${esc(s.emotion)}</small></span>`).join('');
 
+  const sols = (d.solutions || []).filter((x) => tops.includes(x.id));
+  const lit = new Set(sols.flatMap((x) => x.impacts.map((i) => i.stage)));
+  const litCls = (i) => (lit.has(i) ? ' is-lit' : '');
+  // cada celda sabe su etapa y su fila: ahí se pueden soltar post-its
   const row = (label, key, cls = '') => `
     <div class="jr-label">${label}</div>
-    ${d.stages.map((s) => `<div class="jr-cell ${cls}">${esc(s[key])}</div>`).join('')}`;
+    ${d.stages.map((s, i) => `<div class="jr-cell ${cls}${litCls(i)}" data-stage="${i}" data-row="${key}">${esc(s[key])}${(s.adds || []).filter((a) => a.row === key).map(addHTML).join('')}</div>`).join('')}`;
+  // por cada solución: cómo impacta y qué podría fallar, solo en sus etapas
+  const solRows = sols.map((x) => {
+    const at = (i) => x.impacts.find((m) => m.stage === i);
+    return `
+    <div class="jr-label jr-sol-label" title="${esc(x.title)}">💡 ${esc(x.title)}</div>
+    ${d.stages.map((_, i) => (at(i) ? `<div class="jr-cell jr-sol is-lit">${esc(at(i).impact)}</div>` : '<div class="jr-cell jr-void"></div>')).join('')}
+    <div class="jr-label jr-sol-label">Qué podría fallar</div>
+    ${d.stages.map((_, i) => (at(i) ? `<div class="jr-cell jr-risk is-lit">${esc(at(i).risk)}</div>` : '<div class="jr-cell jr-void"></div>')).join('')}`;
+  }).join('');
 
   return `${head}
     <div class="wbody jr-body">
@@ -100,7 +134,7 @@ export function journeyHTML(d, { linked = [], generating = false } = {}) {
         <h4>Journey${d.persona ? ` <small>· ${esc(d.persona)}</small>` : ''}</h4>
         <div class="jr-grid" style="--n:${n}">
           <div class="jr-label"></div>
-          ${d.stages.map((s, i) => `<div class="jr-stage"><i>${i + 1}</i>${esc(s.name)}</div>`).join('')}
+          ${d.stages.map((s, i) => `<div class="jr-stage${litCls(i)}"><i>${i + 1}</i>${esc(s.name)}</div>`).join('')}
           ${row('Hace', 'doing')}
           <div class="jr-label">Siente</div>
           <div class="jr-curve">
@@ -113,7 +147,9 @@ export function journeyHTML(d, { linked = [], generating = false } = {}) {
           ${row('Piensa', 'thinking', 'jr-quote')}
           ${row('Dolor', 'pain', 'jr-pain')}
           ${row('Oportunidad', 'opportunity', 'jr-opp')}
+          ${solRows}
         </div>
+        ${checking ? '<p class="jr-checking"><span class="spinner" aria-hidden="true"></span>Viendo dónde impacta la solución…</p>' : ''}
       </section>
     </div>`;
 }

@@ -505,3 +505,57 @@ export async function askResearch({ question, context = '', meter = null }) {
   if (!items.length) throw new AIError('Lo que encontré no tenía fuentes que lo respalden.');
   return { mode: out.mode, thought: str(out.thought, 160), confidence: out.confidence, items };
 }
+
+/* ============================================================
+   Journey: ¿una solución encaja en las etapas del usuario?
+   ============================================================ */
+
+const SYSTEM_FIT = `Eres diseñadora de servicios. Recibes el user journey de un usuario (etapas con lo que hace, piensa,
+siente, sus dolores y oportunidades) y una solución propuesta. Decide si la solución actúa sobre ese recorrido.
+- "compatible": true si la solución cambia de verdad al menos una etapa (resuelve un dolor, aprovecha una oportunidad,
+  cambia lo que hace o siente). false si no tiene relación con este usuario, su objetivo o sus etapas.
+- "reason": si no es compatible, el motivo en una o dos frases concretas (qué no calza con el usuario o el flujo).
+  Si es compatible, una frase de por qué.
+- "impacts": solo si es compatible. Una entrada por etapa donde impacta (1 a 4 etapas, las más claras).
+  "stage": el número de la etapa (empieza en 1). "impact": cómo cambia esa etapa (máx. 140 caracteres).
+  "risk": qué podría fallar en esa etapa al implementarla, concreto y realista (máx. 140 caracteres).
+Escribe en el idioma del journey.`;
+
+const FIT_SCHEMA = {
+  name: 'encaje',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['compatible', 'reason', 'impacts'],
+    properties: {
+      compatible: { type: 'boolean' },
+      reason: { type: 'string' },
+      impacts: {
+        type: 'array',
+        items: {
+          type: 'object', additionalProperties: false, required: ['stage', 'impact', 'risk'],
+          properties: { stage: { type: 'integer' }, impact: { type: 'string' }, risk: { type: 'string' } },
+        },
+      },
+    },
+  },
+};
+
+/** Devuelve { compatible, reason, impacts: [{ stage (desde 0), impact, risk }] }. */
+export async function askJourneyFit({ journey, solution, meter = null }) {
+  const stages = (journey.stages || []).map((s, i) => `${i + 1}. ${s.name} — hace: ${s.doing}; piensa: ${s.thinking || ''}; siente: ${s.emotion || ''}; dolor: ${s.pain || '—'}; oportunidad: ${s.opportunity || '—'}`).join('\n');
+  const user = [
+    journey.goal ? `Objetivo del journey: ${journey.goal}` : '',
+    journey.persona ? `Usuario: ${journey.persona}` : '',
+    `Etapas:\n${stages}`,
+    `Solución propuesta:\n${String(solution).slice(0, 8000)}`,
+  ].filter(Boolean).join('\n\n');
+  const out = await callOpenAI(SYSTEM_FIT, user, FIT_SCHEMA, { meter });
+  const n = journey.stages?.length || 0;
+  const impacts = (out.impacts || []).map((i) => ({ stage: Math.round(Number(i.stage)) - 1, impact: str(i.impact, 220), risk: str(i.risk, 220) }))
+    .filter((i) => i.stage >= 0 && i.stage < n && i.impact)
+    .slice(0, 4);
+  const compatible = Boolean(out.compatible) && impacts.length > 0;
+  return { compatible, reason: str(out.reason, 400) || (compatible ? '' : 'No se relaciona con ninguna etapa del recorrido.'), impacts };
+}

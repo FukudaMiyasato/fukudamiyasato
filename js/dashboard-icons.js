@@ -120,6 +120,13 @@ export const TOOL_ICONS = {
     <path d="M8 10.5h5M10.5 8v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`,
 
+  // post-it: nota amarilla con la esquina doblada
+  note: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4.5 4.5h15v10.2l-4.8 4.8H4.5z" fill="#ffd84d"/>
+    <path d="M14.7 19.5v-3.6a1.2 1.2 0 0 1 1.2-1.2h3.6z" fill="#c9a32a"/>
+    <path d="M7.5 9h9M7.5 12h6" stroke="#6b5a1a" stroke-width="1.4" stroke-linecap="round"/>
+  </svg>`,
+
   // texto: una T
   label: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 6.5V5h14v1.5"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>`,
 

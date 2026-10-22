@@ -54,7 +54,9 @@ import {
   AGE_MAX, MAX_CONTEXT, MAX_TEXT,
 } from './persona.js';
 import { emptyJourney, journeySize, journeyHTML } from './journey.js';
-import { LABEL_STYLES, GROUP_COLORS, newLabel, labelSize, newGroup, groupSize, labelHTML, groupHTML } from './blocks.js';
+import {
+  LABEL_STYLES, GROUP_COLORS, NOTE_COLORS, newLabel, labelSize, newGroup, groupSize, labelHTML, groupHTML, newNote, noteSize, noteHTML,
+} from './blocks.js';
 import { PROS, proOf, newPro, proSize, findingSize, proHTML, findingHTML, proAvatar } from './pro.js';
 import { emptyFile, fileWidgetSize, fileHTML, readUploads, textLeft, MAX_FILES, ACCEPT } from './file.js';
 import { EXPERTS, expertOf, fromPreset, defaultExpert, expertSize, expertHTML, expertAvatar } from './expert.js';
@@ -126,7 +128,9 @@ const requestDraw = () => { if (!raf) raf = requestAnimationFrame(draw); };
 function draw() {
   raf = 0;
   const { w, h } = fitCanvas(dots);
-  drawDots(ctx, w, h, { panX: pan.x, panY: pan.y, grid: cell(), amount: fisheye });
+  // muy alejado, un punto cada 2 o 4 celdas: si no, la rejilla se vuelve una mancha
+  const g = cell();
+  drawDots(ctx, w, h, { panX: pan.x, panY: pan.y, grid: g < 12 ? g * Math.ceil(12 / g) : g, amount: fisheye });
 
   world.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`;
   if (jiggling) placeDividerX();
@@ -158,11 +162,16 @@ new ResizeObserver(() => { updateLens(); requestDraw(); }).observe(board);
 function portPoint(wd, side) {
   const card = wd.el.querySelector('.wcard').getBoundingClientRect();
   const b = board.getBoundingClientRect();
+  if (side === 'top') return { x: card.left + card.width / 2 - b.left, y: card.top - b.top };
   return { x: (side === 'out' ? card.right : card.left) - b.left, y: card.top + card.height / 2 - b.top };
 }
 
-function curve(a, z) {
+function curve(a, z, top = false) {
   const dx = Math.max(40, Math.abs(z.x - a.x) / 2);
+  if (top) { // entra desde arriba (nodo de soluciones del journey)
+    const dy = Math.max(50, Math.abs(z.y - a.y) / 2);
+    return `M${a.x},${a.y} C${a.x + dx},${a.y} ${z.x},${z.y - dy} ${z.x},${z.y}`;
+  }
   return `M${a.x},${a.y} C${a.x + dx},${a.y} ${z.x - dx},${z.y} ${z.x},${z.y}`;
 }
 
@@ -185,8 +194,19 @@ function drawLinks() {
       </g>`;
       ends += `<circle class="link-end${glow}" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end${glow}" cx="${z.x}" cy="${z.y}" r="3.5"/>`;
     }
+    // soluciones: entran por el nodo de arriba del journey
+    for (const srcId of t.tops || []) {
+      const s = byId(srcId);
+      if (!s) continue;
+      const a = portPoint(s, 'out'), z = portPoint(t, 'top');
+      html += `<g class="link link--top" data-from="${esc(s.id)}" data-to="${esc(t.id)}" data-kind="top">
+        <path class="link-hit" d="${curve(a, z, true)}"/>
+        <path class="link-line" d="${curve(a, z, true)}"/>
+      </g>`;
+      ends += `<circle class="link-end link-end--top" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end link-end--top" cx="${z.x}" cy="${z.y}" r="3.5"/>`;
+    }
   }
-  if (tempLine) html += `<path class="link-line link-temp${tempLine.snap ? ' is-snapped' : ''}" d="${curve(tempLine.a, tempLine.z)}"/>`;
+  if (tempLine) html += `<path class="link-line link-temp${tempLine.snap ? ' is-snapped' : ''}${tempLine.top ? ' link-temp--top' : ''}" d="${curve(tempLine.a, tempLine.z, tempLine.top)}"/>`;
   linksSvg.innerHTML = html;
   linksTop.innerHTML = ends;
 }
@@ -199,6 +219,7 @@ linksSvg.addEventListener('pointerdown', (e) => {
   const t = byId(g.dataset.to);
   if (!t || t.state === 'thinking') return;
   if (!confirm('¿Quitar esta conexión?')) return;
+  if (g.dataset.kind === 'top') { disconnectSolution(t, g.dataset.from); return; }
   t.inputs = t.inputs.filter((i) => i !== g.dataset.from);
   if (t.state === 'done') saveInputs(t);
   refreshContextNote(t);
@@ -304,7 +325,8 @@ function doneHTML(wd) {
   if (d.kind === 'timeline') return timelineHTML(d);
   if (d.kind === 'user') return userHTML(d);
   if (d.kind === 'expert') return expertHTML(d);
-  if (d.kind === 'journey') return journeyHTML(d, { linked: linkedUsers(wd), generating: wd.generating });
+  if (d.kind === 'journey') return journeyHTML(d, { linked: linkedUsers(wd), generating: wd.generating, tops: wd.tops || [], checking: wd.checking });
+  if (d.kind === 'note') return noteHTML(d);
   if (d.kind === 'file') return fileHTML(d, { canEdit });
   if (d.kind === 'label') return labelHTML(d);
   if (d.kind === 'group') return groupHTML(d);
@@ -327,10 +349,11 @@ function render(wd) {
   el.dataset.id = wd.id;
   const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
   el.innerHTML = `<div class="wbox">
-    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'file' ? ' wcard--file' : ''}${wd.data?.kind === 'pro' ? ' wcard--user wcard--pro' : ''}${wd.data?.kind === 'finding' ? ' wcard--finding' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}${wd.data?.kind === 'label' ? ' wcard--label' : ''}${isGroup(wd) ? ' wcard--group' : ''}">${inner}</div>
+    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'file' ? ' wcard--file' : ''}${wd.data?.kind === 'pro' ? ' wcard--user wcard--pro' : ''}${wd.data?.kind === 'finding' ? ' wcard--finding' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}${wd.data?.kind === 'label' ? ' wcard--label' : ''}${isGroup(wd) ? ' wcard--group' : ''}${wd.data?.kind === 'note' ? ' wcard--note' : ''}">${inner}</div>
     ${canEdit ? `
       ${isGroup(wd) ? '' : '<button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>'}
-      ${wd.state === 'done' && !isGroup(wd) ? `<button class="wport wport--out" type="button" data-tip-ai="follow" data-tip-label="Preguntar sobre esto (arrastra para conectar)" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
+      ${wd.data?.kind === 'journey' ? '<button class="wport wport--top" type="button" tabindex="-1" aria-label="Conector de soluciones" title="Soluciones"></button>' : ''}
+      ${wd.state === 'done' ? `<button class="wport wport--out" type="button" data-tip-ai="follow" data-tip-label="Preguntar sobre esto (arrastra para conectar)" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>` : ''}
       ${wd.data?.kind === 'timeline' ? '' : '<span class="whandle" aria-hidden="true"></span>'}
       ${wd.state === 'done' ? `<button class="wx" type="button" aria-label="Borrar «${esc(wd.data?.title || 'widget')}»">
@@ -342,7 +365,7 @@ function render(wd) {
   if (chart) new ResizeObserver(() => drawChart(chart, wd.data)).observe(chart);
 
   if (!canEdit) return;
-  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser, .wexpert, .wpro, .wneb, .wlabel, .wgroup-head')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
+  (el.querySelector('.whead') || el.querySelector('.wtl, .wuser, .wexpert, .wpro, .wneb, .wlabel, .wgroup-head, .wnote')).addEventListener('pointerdown', (e) => startEdit(e, wd, 'move'));
   el.querySelector('.whandle')?.addEventListener('pointerdown', (e) => startEdit(e, wd, 'resize'));
   el.querySelector('.wport--out')?.addEventListener('pointerdown', (e) => startLink(e, wd));
   el.querySelector('.wx')?.addEventListener('click', () => removeWidget(wd));
@@ -353,6 +376,7 @@ function render(wd) {
 function mount(wd, { isNew = false } = {}) {
   wd.el = document.createElement('div');
   wd.inputs ||= [];
+  wd.tops ||= [];
   wd.state ||= 'done';
   render(wd);
   if (isNew) wd.el.classList.add('is-new');
@@ -409,6 +433,7 @@ function unmount(wd, animate = true) {
   if (multi.has(wd)) { multi.delete(wd); if (multi.size < 2) selectMany([...multi]); else renderInfo(); }
   widgets = widgets.filter((x) => x !== wd);
   for (const o of widgets) {
+    if (o.tops?.includes(wd.id)) { o.tops = o.tops.filter((i) => i !== wd.id); render(o); }
     if (o.inputs?.includes(wd.id) || o.about?.includes(wd.id)) {
       o.inputs = o.inputs.filter((i) => i !== wd.id);
       if (o.about) o.about = o.about.filter((i) => i !== wd.id);
@@ -489,17 +514,26 @@ function startEdit(e, wd, mode) {
       width: `${next.w * GRID - 10}px`, height: `${next.h * GRID - 10}px`,
     });
     ghost.classList.toggle('is-bad', !isGroup(wd) && collides(next, wd.id));
+    if (mode === 'move' && wd.data?.kind === 'note') {
+      const cell = journeyCellAt(ev.clientX, ev.clientY, wd);
+      markDropCell(cell);
+      ghost.hidden = Boolean(cell);
+    }
     requestDraw(); // las líneas siguen al widget
   };
 
-  const onUp = () => {
+  const onUp = (ev) => {
     clearTimeout(press);
     target.removeEventListener('pointermove', onMove);
     target.removeEventListener('pointerup', onUp);
     target.removeEventListener('pointercancel', onUp);
+    markDropCell(null);
     if (!dragging) return;
     ghost.remove();
     wd.el.classList.remove('is-dragging');
+    // un post-it soltado sobre una fila del journey se queda adentro
+    const cell = mode === 'move' && wd.data?.kind === 'note' && ev?.clientX != null ? journeyCellAt(ev.clientX, ev.clientY, wd) : null;
+    if (cell) { dropNoteOnJourney(wd, cell); return; }
     const changed = next.x !== start.x || next.y !== start.y || next.w !== start.w || next.h !== start.h;
     if (changed && (isGroup(wd) || !collides(next, wd.id))) {
       Object.assign(wd, next);
@@ -580,7 +614,11 @@ function startGroupMove(e, group) {
    ============================================================ */
 
 /** ¿Se puede conectar src a t? Al user journey solo le llegan usuarios. */
-const canLink = (src, t) => !isGroup(t) && (t.data?.kind !== 'journey' || src.data?.kind === 'user');
+const hasUsers = (w) => w?.data?.kind === 'user' || (isGroup(w) && insideOf(w).some((x) => x.data?.kind === 'user'));
+// al journey por la izquierda solo le llegan usuarios (o grupos de usuarios); a los grupos, nada
+const canLink = (src, t) => !isGroup(t) && (t.data?.kind !== 'journey' || hasUsers(src));
+// por arriba del journey, todo lo que no sea un usuario cuenta como solución
+const canTop = (src, t) => t.data?.kind === 'journey' && !hasUsers(src) && !isGroup(src);
 
 function startLink(e, src) {
   e.preventDefault();
@@ -591,14 +629,18 @@ function startLink(e, src) {
   const x0 = e.clientX, y0 = e.clientY;
   let dragging = false;
 
-  /** El conector de entrada más cercano al puntero (de otro widget, que no esté pensando). */
+  /** El conector de entrada más cercano al puntero (de otro widget, que no esté pensando):
+      { t, side: 'in' | 'top' }. */
   const nearestIn = (px, py) => {
     let best = null, bestD = SNAP_PORT;
     for (const t of widgets) {
-      if (t === src || t.state === 'thinking' || !canLink(src, t)) continue;
-      const p = portPoint(t, 'in');
-      const d = Math.hypot(p.x - px, p.y - py);
-      if (d < bestD) { best = t; bestD = d; }
+      if (t === src || t.state === 'thinking') continue;
+      for (const side of ['in', 'top']) {
+        if (side === 'in' ? !canLink(src, t) : !canTop(src, t)) continue;
+        const p = portPoint(t, side);
+        const d = Math.hypot(p.x - px, p.y - py);
+        if (d < bestD) { best = { t, side }; bestD = d; }
+      }
     }
     return best;
   };
@@ -610,7 +652,7 @@ function startLink(e, src) {
     const px = sp.x - b0.left, py = sp.y - b0.top;
     const hit = nearestIn(px, py);
     markTarget(hit);
-    tempLine = { a: portPoint(src, 'out'), z: hit ? portPoint(hit, 'in') : { x: px, y: py }, snap: Boolean(hit) };
+    tempLine = { a: portPoint(src, 'out'), z: hit ? portPoint(hit.t, hit.side) : { x: px, y: py }, snap: Boolean(hit), top: hit?.side === 'top' };
     requestDraw();
   };
 
@@ -622,7 +664,9 @@ function startLink(e, src) {
     markTarget(null);
     if (!dragging) { createFollow(src); requestDraw(); return; } // clic: pregunta sobre este widget
     const sp = sourcePoint(ev.clientX, ev.clientY);
-    const t = nearestIn(sp.x - b0.left, sp.y - b0.top);
+    const hit = nearestIn(sp.x - b0.left, sp.y - b0.top);
+    if (hit?.side === 'top') { connectSolution(hit.t, src); requestDraw(); return; }
+    const t = hit?.t;
     if (t && !t.inputs.includes(src.id)) {
       t.inputs.push(src.id);
       if (t.state === 'done') saveInputs(t);
@@ -638,8 +682,8 @@ function startLink(e, src) {
 
 /** Resalta el conector de entrada donde caería la línea que se arrastra. */
 let targetPort = null;
-function markTarget(wd) {
-  const port = wd?.el.querySelector('.wport--in') || null;
+function markTarget(hit) {
+  const port = hit ? hit.t.el.querySelector(hit.side === 'top' ? '.wport--top' : '.wport--in') : null;
   if (port === targetPort) return;
   targetPort?.classList.remove('is-target');
   port?.classList.add('is-target');
@@ -840,6 +884,7 @@ function sizeFor(d) {
   if (d.kind === 'pro') return proSize();
   if (d.kind === 'finding') return findingSize();
   if (d.kind === 'label') return labelSize(d.style);
+  if (d.kind === 'note') return noteSize();
   if (d.kind === 'group') return groupSize();
   if (d.kind === 'nebula') return NEBULA_SIZE;
   if (d.kind === 'number') return { w: 7, h: 6 };
@@ -903,8 +948,13 @@ board.addEventListener('pointerdown', (e) => {
   if (jiggling && !e.target.closest('.widget')) stopJiggle();
   // con la flecha, arrastrar sobre el fondo selecciona (la mano, o Espacio apretado, mueve el lienzo)
   if (canEdit && toolMode === 'arrow' && !spaceDown && !e.target.closest('.widget')) return startMarquee(e);
+  startPan(e);
+});
+
+/** Arrastrar el lienzo (mano, Espacio o el botón del medio). */
+function startPan(e) {
   cancelAnimationFrame(panAnim);
-  board.setPointerCapture(e.pointerId);
+  try { board.setPointerCapture(e.pointerId); } catch { /* puntero ya suelto */ }
   board.classList.add('is-panning');
   const start = { px: e.clientX, py: e.clientY, x: pan.x, y: pan.y };
   const onMove = (ev) => {
@@ -921,14 +971,45 @@ board.addEventListener('pointerdown', (e) => {
   board.addEventListener('pointermove', onMove);
   board.addEventListener('pointerup', onUp);
   board.addEventListener('pointercancel', onUp);
-});
+}
+
+/* botón del medio (la rueda apretada): siempre mueve el lienzo, aunque esté sobre
+   un widget. Va en captura para ganarle a todo lo demás. */
+window.addEventListener('pointerdown', (e) => {
+  if (e.button !== 1 || !board.contains(e.target) || e.target.closest('.info-wrap')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  board.classList.add('is-middle');
+  startPan(e);
+  const end = () => { board.classList.remove('is-middle'); window.removeEventListener('pointerup', end, true); };
+  window.addEventListener('pointerup', end, true);
+}, true);
+board.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // sin auto-scroll
+// con lente, el clic secundario sobre una bandera o la raya va a lo que se ve ahí
+board.addEventListener('contextmenu', (e) => {
+  if (!routing || !canEdit) return;
+  const mk = hitAt(e.clientX, e.clientY)?.closest?.('.mark-flag, .mark-divider');
+  if (!mk || mk.contains(e.target)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  mk.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
+}, true);
+board.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
+
+/** ¿La rueda es de un mouse (no un trackpad)? Los mouse mueven de a saltos grandes y enteros. */
+const isMouseWheel = (e) => e.deltaMode === 1 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 40 && Number.isInteger(e.deltaY));
 
 board.addEventListener('wheel', (e) => {
   if (e.target.closest('.info-wrap')) return; // el bloque de información hace su propio scroll
-  if (e.ctrlKey) { // pellizco en el trackpad / Ctrl + rueda: zoom hacia el puntero
+  // pellizco en el trackpad / Ctrl + rueda, o la rueda del mouse sobre una zona libre: zoom hacia el puntero
+  const over = routing ? hitAt(e.clientX, e.clientY) : e.target;
+  const free = !over?.closest?.('.widget:not(.is-group), .mark-flag, .mark-divider');
+  if (e.ctrlKey || (free && isMouseWheel(e))) {
     e.preventDefault();
+    cancelAnimationFrame(panAnim);
     const b = board.getBoundingClientRect();
-    setZoom(zoom * Math.exp(-e.deltaY * 0.01), { x: e.clientX - b.left, y: e.clientY - b.top });
+    const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+    setZoom(zoom * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), { x: e.clientX - b.left, y: e.clientY - b.top });
     return;
   }
   const body = e.target.closest('.wbody, textarea');
@@ -955,7 +1036,8 @@ function frame() {
    ============================================================ */
 
 let selected = null;
-let multi = new Set(); // selección múltiple (2 o más); `selected` es la de uno solo
+let multi = new Set();
+let meUser = null; // quien usa el dashboard (nombre y foto de Google) // selección múltiple (2 o más); `selected` es la de uno solo
 
 function select(wd) {
   if (multi.size) { for (const w of multi) w.el.classList.remove('is-selected'); multi = new Set(); }
@@ -1147,7 +1229,7 @@ $('info-x').addEventListener('click', () => select(null));
 /* ---------- bloque de información del seleccionado ---------- */
 
 const KIND_LABEL = { table: 'Tabla', chart: 'Gráfico', number: 'Número', text: 'Texto' };
-const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Celebridad', journey: 'User journey', file: 'Archivo', pro: 'Profesional', finding: 'Hallazgo', label: 'Texto', group: 'Grupo', nebula: 'Nebulosa de IA' };
+const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Celebridad', journey: 'User journey', file: 'Archivo', pro: 'Profesional', finding: 'Hallazgo', label: 'Texto', group: 'Grupo', note: 'Post-it', nebula: 'Nebulosa de IA' };
 
 /** Muestra el bloque; la animación de entrada solo cuando cambia de widget
     (editarlo no lo "recarga"). */
@@ -1172,6 +1254,7 @@ function renderInfo() {
   if (d.kind === 'journey') return renderJourneyInfo(box);
   if (d.kind === 'file') return renderFileInfo(box);
   if (d.kind === 'label') return renderLabelInfo(box);
+  if (d.kind === 'note') return renderNoteInfo(box);
   if (d.kind === 'group') return renderGroupInfo(box);
   if (d.kind === 'pro') return renderProInfo(box);
   if (d.kind === 'finding') return renderFindingInfo(box);
@@ -1315,10 +1398,10 @@ setInterval(() => {
 }, 60_000);
 
 /* ============================================================
-   Zoom: 0,5× … 2× en escala logarítmica (la esfera al centro = 1×)
+   Zoom: 0,25× … 4× en escala logarítmica (la esfera al centro = 1×)
    ============================================================ */
 
-const Z_MIN = 0.5, Z_MAX = 2, Z_STEP = 0.1; // el paso de −/+ es en posición del control (0…1)
+const Z_MIN = 0.25, Z_MAX = 4, Z_STEP = 0.08; // el paso de −/+ es en posición del control (0…1)
 const zoomRange = $('zoom-range');
 const toZoom = (t) => Z_MIN * (Z_MAX / Z_MIN) ** t;
 const toT = (z) => Math.log(z / Z_MIN) / Math.log(Z_MAX / Z_MIN);
@@ -1374,6 +1457,7 @@ const createJourney = () => createPlain('journey', emptyJourney(), journeySize({
 const createFile = () => createPlain('file', emptyFile(), fileWidgetSize());
 const createPro = (role) => createPlain('pro', newPro(role), proSize());
 const createLabel = () => createPlain('label', newLabel(), labelSize('title'));
+const createNote = () => createPlain('note', newNote(), noteSize());
 const createGroup = () => createPlain('group', newGroup(), groupSize());
 
 /** «Agrupar»: un marco alrededor de lo seleccionado (con un poco de aire). */
@@ -1388,6 +1472,142 @@ async function groupSelection(list) {
   widgets.push(g);
   mount(g, { isNew: true });
   select(g);
+}
+
+/* ============================================================
+   Journey: soluciones por arriba y post-its soltados en sus filas
+   ============================================================ */
+
+/** Aviso con un solo botón (para lo que la IA decide). */
+function notice(title, body) {
+  const layer = document.createElement('div');
+  layer.className = 'modal-layer';
+  layer.innerHTML = `<div class="modal cn-modal" role="alertdialog" aria-label="${esc(title)}">
+    <h2 class="cn-title"></h2><p class="cn-body"></p>
+    <div class="m-actions"><button class="btn" type="button">Entendido</button></div></div>`;
+  layer.querySelector('h2').textContent = title;
+  layer.querySelector('p').textContent = body;
+  const close = () => layer.remove();
+  layer.querySelector('button').addEventListener('click', close);
+  layer.addEventListener('pointerdown', (e) => { if (e.target === layer) close(); });
+  document.body.append(layer);
+  layer.querySelector('button').focus();
+}
+
+/** Conecta una solución arriba del journey: la IA ve en qué etapas impacta. */
+async function connectSolution(j, src) {
+  if (j.tops.includes(src.id)) return;
+  if (!j.data.stages?.length) return notice('Primero genera el journey', 'Las soluciones se cruzan con las etapas: conecta usuarios por la izquierda y genera el journey antes.');
+  if (!canAfford('fit')) return flashBroke('fit');
+  j.tops.push(src.id);
+  j.checking = true;
+  j.el.classList.add('is-glowing');
+  render(j);
+  requestDraw();
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}&fit=${encodeURIComponent(j.id)}&sol=${encodeURIComponent(src.id)}`, { method: 'POST', body: '{}' });
+  j.checking = false;
+  j.el.classList.remove('is-glowing');
+  if (r.data.tokens !== undefined) setTokens(r.data.tokens);
+  if (r.data.spent !== undefined) setSpent(r.data.spent);
+  if (!r.ok || !r.data.compatible) {
+    j.tops = j.tops.filter((i) => i !== src.id);
+    render(j);
+    requestDraw();
+    if (!r.ok) return alert(r.data.error || 'No se pudo analizar la solución.');
+    return notice('Esta solución no es compatible con el journey del usuario', `Motivo: ${r.data.reason}`);
+  }
+  j.data = r.data.data;
+  j.tops = r.data.tops;
+  render(j);
+  growToFit(j);
+  requestDraw();
+  if (selected === j) renderInfo();
+}
+
+/** El journey crece lo justo para que se vea todo (filas de soluciones, post-its) sin scroll. */
+function growToFit(j) {
+  const body = j.el.querySelector('.jr-body');
+  const extra = body ? body.scrollHeight - body.clientHeight : 0;
+  if (extra <= 2) return;
+  const rect = { x: j.x, y: j.y, w: j.w, h: Math.min(60, j.h + Math.ceil(extra / GRID)) };
+  if (collides(rect, j.id)) return; // no pisa a nadie: si no entra, queda con scroll
+  j.h = rect.h;
+  place(j);
+  saveLayout(j);
+}
+
+/** Quita una solución de arriba (y lo que había agregado a las etapas). */
+async function disconnectSolution(j, solId) {
+  j.tops = j.tops.filter((i) => i !== solId);
+  j.data.solutions = (j.data.solutions || []).filter((x) => x.id !== solId);
+  render(j);
+  requestDraw();
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ widget: j.id, tops: j.tops, data: j.data }) });
+  if (!r.ok) alert(r.data.error || 'No se pudo quitar la solución.');
+}
+
+/** La celda del journey (etapa + fila) bajo el puntero, o null. */
+function journeyCellAt(cx, cy, dragged) {
+  const p = sourcePoint(cx, cy);
+  lensEl.classList.add('is-hittable');
+  const cell = document.elementsFromPoint(p.x, p.y).find((n) => n.matches?.('.jr-cell[data-row]') && !dragged.el.contains(n));
+  lensEl.classList.remove('is-hittable');
+  return cell || null;
+}
+let dropCell = null;
+function markDropCell(cell) {
+  if (cell === dropCell) return;
+  dropCell?.classList.remove('is-drop-target');
+  cell?.classList.add('is-drop-target');
+  dropCell = cell;
+}
+
+/** El post-it pasa a ser parte del journey, en esa etapa y con el estilo de esa fila. */
+async function dropNoteOnJourney(note, cell) {
+  const j = widgets.find((w) => w.el.contains(cell));
+  const text = (note.data.text || '').trim();
+  if (!j || !text) { place(note); if (!text) alert('El post-it está vacío: escríbele algo antes.'); return; }
+  const stage = j.data.stages[Number(cell.dataset.stage)];
+  stage.adds = [...(stage.adds || []), { row: cell.dataset.row, text, by: { name: meUser?.name || '', picture: meUser?.picture || '' } }];
+  render(j);
+  growToFit(j);
+  const [r1] = await Promise.all([
+    api(`/api/dash?d=${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ widget: j.id, data: j.data }) }),
+    api(`/api/dash?d=${encodeURIComponent(id)}&widget=${encodeURIComponent(note.id)}`, { method: 'DELETE' }),
+  ]);
+  if (!r1.ok) alert(r1.data.error || 'No se pudo agregar al journey.');
+  unmount(note, false);
+  requestDraw();
+}
+
+function renderNoteInfo(box) {
+  const wd = selected, d = wd.data;
+  $('info-kind').textContent = 'Post-it';
+  $('info-title').hidden = true;
+  const list = $('info-list');
+  list.innerHTML = '';
+  if (!canEdit) return showInfo(box);
+  const ta = document.createElement('textarea');
+  ta.className = 'jr-goal';
+  ta.rows = 4;
+  ta.maxLength = 400;
+  ta.placeholder = 'Escribe una idea…';
+  ta.value = d.text;
+  ta.addEventListener('input', () => { d.text = ta.value; saveData(wd); });
+  list.append(ta);
+  const colors = document.createElement('div');
+  colors.className = 'gr-colors';
+  colors.innerHTML = NOTE_COLORS.map((c) => `<button type="button" data-c="${c}" style="--c:${c}" aria-label="Color"></button>`).join('');
+  const paint = () => colors.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.dataset.c === d.color));
+  colors.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { d.color = b.dataset.c; paint(); saveData(wd); }));
+  paint();
+  list.append(colors);
+  const hint = document.createElement('p');
+  hint.className = 'sel-hint';
+  hint.textContent = 'Suéltalo sobre una fila del user journey (por ejemplo, una oportunidad) y queda dentro de esa etapa, con tu cara.';
+  list.append(hint);
+  showInfo(box);
+  setTimeout(() => ta.focus({ preventScroll: true }), 60);
 }
 
 /* ---------- Texto y Grupo: se editan en su bloque ---------- */
@@ -1705,7 +1925,8 @@ function renderFileInfo(box) {
 }
 
 /** Usuarios conectados a un widget (para los paneles). */
-const linkedUsers = (wd) => (wd.inputs || []).map(byId).filter((w) => w?.data?.kind === 'user').map((w) => fromLegacy(w.data));
+const linkedUsers = (wd) => [...new Set((wd.inputs || []).map(byId).flatMap((w) => (isGroup(w) ? insideOf(w) : [w])))]
+  .filter((w) => w?.data?.kind === 'user').map((w) => fromLegacy(w.data));
 
 /* ============================================================
    Panel User journey: objetivo + generar con los usuarios conectados
@@ -2159,6 +2380,7 @@ const TOOLS = [
   { key: 'user', label: 'Usuario', open: () => createUser() },
   { key: 'expert', label: 'Celebridad', open: () => createExpert() },
   { key: 'file', label: 'Archivo', open: () => createFile() },
+  { key: 'note', label: 'Post-it', open: () => createNote() },
   { key: 'label', label: 'Texto', open: () => createLabel() },
   { key: 'group', label: 'Grupo', open: () => createGroup() },
   { key: 'pros', label: 'Profesionales', menu: 'pros' },
@@ -2330,10 +2552,57 @@ function renderMarks({ fresh } = {}) {
     el.dataset.tip = flagName(f);
     el.innerHTML = TOOL_ICONS.flag + (canEdit ? DEL_BTN(`Quitar ${flagName(f).toLowerCase()}`) : '');
     el.querySelector('.wx')?.addEventListener('click', () => removeMark(f.id));
+    if (canEdit) bindMark(el, f.id);
     marksEl.append(el);
+  }
+  if (canEdit) {
+    const d = marksEl.querySelector('.mark-divider');
+    if (d) bindMark(d, 'divider');
   }
   renderFlagsMenu();
   refreshKit();
+}
+
+/** Bandera o raya: arrastrar la mueve (la raya solo de costado); clic secundario la quita. */
+function bindMark(el, markId) {
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); removeMark(markId); });
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('.wx')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const m = markId === 'divider' ? marks.divider : marks.flags.find((f) => f.id === markId);
+    if (!m) return;
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const x0 = e.clientX, y0 = e.clientY, start = { x: m.x, y: m.y };
+    let moved = false;
+    const onMove = (ev) => {
+      const dx = (ev.clientX - x0) / zoom, dy = (ev.clientY - y0) / zoom;
+      if (!moved && Math.hypot(dx, dy) < 3) return;
+      moved = true;
+      el.classList.add('is-moving');
+      el.style.left = `${start.x * GRID + dx}px`;
+      if (markId !== 'divider') el.style.top = `${start.y * GRID + dy}px`;
+    };
+    const onUp = async (ev) => {
+      target.removeEventListener('pointermove', onMove);
+      target.removeEventListener('pointerup', onUp);
+      target.removeEventListener('pointercancel', onUp);
+      el.classList.remove('is-moving');
+      if (!moved) return;
+      m.x = Math.round(start.x + (ev.clientX - x0) / zoom / GRID);
+      if (markId !== 'divider') m.y = Math.round(start.y + (ev.clientY - y0) / zoom / GRID);
+      renderMarks();
+      requestDraw();
+      const r = await api(`/api/dash?d=${encodeURIComponent(id)}&mark=${encodeURIComponent(markId)}`, {
+        method: 'PATCH', body: JSON.stringify({ x: m.x, y: m.y ?? 0 }),
+      });
+      if (!r.ok) alert(r.data.error || 'No se pudo mover.');
+    };
+    target.addEventListener('pointermove', onMove);
+    target.addEventListener('pointerup', onUp);
+    target.addEventListener('pointercancel', onUp);
+  });
 }
 
 /* el botón rojo de la raya va a la altura del centro de la vista */
@@ -2864,7 +3133,7 @@ $('dash-export').addEventListener('click', () => {
     version: 1,
     name: dashInfo.name,
     widgets: widgets.filter((w) => w.state === 'done')
-      .map((w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [] })),
+      .map((w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [], ...(w.tops?.length ? { tops: w.tops } : {}) })),
   };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
@@ -2940,6 +3209,7 @@ $('dash-delete').addEventListener('click', async () => {
   if (!id) { $('denied-msg').textContent = 'Falta el dashboard en la dirección.'; return show('denied'); }
   const me = await api('/api/auth');
   const user = me.ok ? me.data.user : null;
+  meUser = user;
   if (!user) return location.replace('/admin/');
 
   const { ok, status, data } = await api(`/api/dash?d=${encodeURIComponent(id)}`);
@@ -2966,7 +3236,7 @@ $('dash-delete').addEventListener('click', async () => {
 
   show('dash');
   renderDock();
-  widgets = data.widgets.map((w) => ({ ...w, state: 'done', inputs: w.inputs || [] }));
+  widgets = data.widgets.map((w) => ({ ...w, state: 'done', inputs: w.inputs || [], tops: w.tops || [] }));
   widgets.forEach((wd) => mount(wd));
   marks = { flags: data.marks?.flags || [], divider: data.marks?.divider || null };
   renderMarks();

@@ -50,12 +50,19 @@
                                                       lugares libres que manda el navegador; cuesta
                                                       tokens ("research")
      POST   ?d=<id>&journey=<widgetId> { goal }     → la IA arma el journey con los usuarios
-                                                      conectados (varios = uno promedio; solo se
-                                                      le conectan usuarios); cuesta tokens ("journey")
+                                                      conectados por la izquierda (usuarios o grupos
+                                                      con usuarios; varios = uno promedio); cuesta
+                                                      tokens ("journey")
+     POST   ?d=<id>&fit=<journeyId>&sol=<widgetId>  → nodo superior del journey: la IA ve si esa
+                                                      solución encaja en alguna etapa. Sí → la deja
+                                                      conectada (tops) con su impacto y qué podría
+                                                      fallar por etapa; no → { compatible: false, reason }
+                                                      y no queda conectada; cuesta tokens ("fit")
      POST   ?d=<id>&mark=flag { x, y }              → bandera (color al azar, sin repetir; máx. 8)
      POST   ?d=<id>&mark=divider                    → raya divisoria una columna a la derecha
                                                       de lo más a la derecha (solo una)
      DELETE ?d=<id>&mark=<flagId|divider>           → quita una bandera o la raya
+     PATCH  ?d=<id>&mark=<flagId|divider> { x, y }  → mueve una bandera (la raya, solo x)
      PATCH  ?d=<id>  { widget, x?, y?, w?, h?, inputs?, data? }
                                                     → mueve / redimensiona / conecta;
                                                       `data` solo en líneas de tiempo y usuarios
@@ -66,9 +73,9 @@ import { currentUser, canSeeDashboard, forgetDashboard, isAmo, listPerms } from 
 import {
   listDashboards, publicDash, createDashboard, updateDashboard, deleteDashboard,
   listWidgets, createWidget, updateWidget, deleteWidget,
-  getMarks, addFlag, setDivider, deleteMark, addSpent, spentOf,
+  getMarks, addFlag, setDivider, deleteMark, moveMark, addSpent, spentOf,
 } from './_lib/dashboards.js';
-import { askVisual, askShort, askFollow, askJourney, askResearch, AIError } from './_lib/ai.js';
+import { askVisual, askShort, askFollow, askJourney, askJourneyFit, askResearch, AIError } from './_lib/ai.js';
 import { getConfig, priceOf, prices } from './_lib/config.js';
 import { unlimited, balanceOf, charge, refund } from './_lib/tokens.js';
 
@@ -90,7 +97,7 @@ function cleanLayout(b) {
 const IMAGE_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 const MAX_IMAGE_CHARS = 120_000;
 
-const publicWidget = (w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [] });
+const publicWidget = (w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [], ...(w.tops?.length ? { tops: w.tops } : {}) });
 
 /* ---------- línea de tiempo ---------- */
 const CHARACTERS = ['m', 'f'];
@@ -183,6 +190,14 @@ function voicesOf(list) {
 
 /* ---------- panel user journey ---------- */
 const txt = (v, max) => String(v ?? '').trim().slice(0, max);
+const JOURNEY_ROWS = ['doing', 'thinking', 'pain', 'opportunity'];
+
+/** Lo que está entero dentro de un grupo (como en el lienzo). */
+const insideOf = (g, all) => all.filter((w) => w !== g && w.x >= g.x && w.y >= g.y && w.x + w.w <= g.x + g.w && w.y + w.h <= g.y + g.h);
+/** Usuarios conectados a un widget: directos o dentro de un grupo conectado. */
+const usersOf = (panel, all) => [...new Set(all.filter((w) => (panel.inputs || []).includes(w.id))
+  .flatMap((w) => (w.data?.kind === 'group' ? insideOf(w, all) : [w])))]
+  .filter((w) => w.data?.kind === 'user' && w.data.sex);
 
 /** El panel: objetivo + lo que generó la IA (se guarda tal cual, recortado). */
 function cleanJourney(d) {
@@ -200,7 +215,18 @@ function cleanJourney(d) {
       name: txt(x?.name, 40), doing: txt(x?.doing, 160), thinking: txt(x?.thinking, 160),
       feeling: Math.max(-2, Math.min(2, Math.round(Number(x?.feeling) || 0))),
       emotion: txt(x?.emotion, 30), pain: txt(x?.pain, 160), opportunity: txt(x?.opportunity, 160),
+      // lo que agregó una persona soltando un post-it en una fila
+      adds: arr(x?.adds, 12).map((a) => ({
+        row: JOURNEY_ROWS.includes(a?.row) ? a.row : 'opportunity',
+        text: txt(a?.text, 240),
+        by: { name: txt(a?.by?.name, 60), picture: /^https:\/\//.test(a?.by?.picture || '') ? String(a.by.picture).slice(0, 500) : '' },
+      })).filter((a) => a.text),
     })).filter((x) => x.name),
+    // soluciones conectadas arriba que encajan: dónde impactan y qué podría fallar
+    solutions: arr(d.solutions, 6).map((s) => ({
+      id: txt(s?.id, 40), title: txt(s?.title, 60) || 'Solución',
+      impacts: arr(s?.impacts, 8).map((i) => ({ stage: Math.max(0, Math.round(Number(i?.stage) || 0)), impact: txt(i?.impact, 220), risk: txt(i?.risk, 220) })),
+    })).filter((s) => s.id && s.impacts.length),
   };
 }
 
@@ -265,6 +291,12 @@ function cleanAnswer(d) {
   return null;
 }
 
+/* ---------- post-it ---------- */
+const NOTE_COLORS = ['#ffd84d', '#ff9ec4', '#9be7a2', '#9fd3ff', '#ffb36b'];
+const cleanNote = (d) => (d && typeof d === 'object'
+  ? { kind: 'note', text: String(d.text ?? '').slice(0, 400), color: NOTE_COLORS.includes(d.color) ? d.color : NOTE_COLORS[0] }
+  : null);
+
 /* ---------- texto y grupo ---------- */
 const LABEL_STYLES = ['title', 'subtitle', 'body'];
 const cleanLabel = (d) => (d && typeof d === 'object'
@@ -298,7 +330,7 @@ function cleanFile(d) {
 /* ---------- nebulosa de IA ---------- */
 const cleanNebula = () => ({ kind: 'nebula', title: 'Nebulosa de IA' });
 
-const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, file: cleanFile, pro: cleanPro, finding: cleanFinding, label: cleanLabel, group: cleanGroup, nebula: cleanNebula };
+const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, file: cleanFile, pro: cleanPro, finding: cleanFinding, label: cleanLabel, group: cleanGroup, note: cleanNote, nebula: cleanNebula };
 
 /** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
 function cleanInputs(v, widgets, selfId) {
@@ -351,7 +383,7 @@ function contextFrom(list) {
       ].filter(Boolean).join('\n') || 'User journey vacío';
     } else if (d.kind === 'expert') {
       body = `Celebridad: ${d.name} (${d.role}). ${d.prompt}`;
-    } else if (d.kind === 'label') {
+    } else if (d.kind === 'label' || d.kind === 'note') {
       body = d.text;
     } else if (d.kind === 'group') {
       body = `Grupo «${d.title}»`;
@@ -443,6 +475,11 @@ export default async function handler(req, res) {
       if (!divider) return res.status(409).json({ error: 'Ya hay una raya divisoria.' });
       return res.status(201).json({ divider });
     }
+    if (req.method === 'PATCH' && dash && mark) {
+      const int = (v) => Math.min(500, Math.max(-500, Math.round(Number(v)) || 0));
+      if (!(await moveMark(dash.id, String(mark), int(req.body?.x), int(req.body?.y)))) return res.status(404).json({ error: 'No existe.' });
+      return res.status(200).json({ ok: true });
+    }
     if (req.method === 'DELETE' && dash && mark) {
       if (!(await deleteMark(dash.id, String(mark)))) return res.status(404).json({ error: 'No existe.' });
       return res.status(200).json({ ok: true });
@@ -516,8 +553,7 @@ export default async function handler(req, res) {
       const all = await listWidgets(dash.id);
       const panel = all.find((w) => w.id === String(req.query.journey) && w.type === 'journey');
       if (!panel) return res.status(404).json({ error: 'Panel no encontrado.' });
-      const linked = all.filter((w) => (panel.inputs || []).includes(w.id));
-      const users = linked.filter((w) => w.data?.kind === 'user' && w.data.sex);
+      const users = usersOf(panel, all);
       if (!users.length) return res.status(422).json({ error: 'Conecta al menos un usuario al panel.' });
       const goal = txt(req.body?.goal, 300);
 
@@ -541,7 +577,7 @@ export default async function handler(req, res) {
         throw err;
       }
       const data = cleanJourney({
-        ...out, goal,
+        ...out, goal, solutions: [], // las etapas cambian: las soluciones se vuelven a conectar
         users: users.map((w) => ({ name: w.data.name, sex: w.data.sex, age: w.data.age })),
       });
       await updateWidget(dash.id, panel.id, { data });
@@ -555,7 +591,7 @@ export default async function handler(req, res) {
       const clean = items.map((w) => {
         const type = String(w?.type || '');
         const data = type === 'table' || type === 'ask' ? cleanAnswer(w?.data) : CLEANERS[type]?.(w?.data);
-        return data ? { key: String(w.id ?? ''), type, layout: cleanLayout(w), data, inputs: Array.isArray(w.inputs) ? w.inputs.map(String) : [] } : null;
+        return data ? { key: String(w.id ?? ''), type, layout: cleanLayout(w), data, inputs: Array.isArray(w.inputs) ? w.inputs.map(String) : [], tops: Array.isArray(w.tops) ? w.tops.map(String) : [] } : null;
       }).filter(Boolean);
       if (!clean.length) return res.status(400).json({ error: 'El archivo no tiene widgets válidos.' });
       // a la derecha de lo que ya hay, para no pisar nada
@@ -568,9 +604,53 @@ export default async function handler(req, res) {
       for (const w of clean) ids.set(w.key, (await createWidget(dash.id, w.type, w.layout, w.data, [])).id);
       for (const w of clean) {
         const inputs = w.inputs.map((k) => ids.get(k)).filter(Boolean);
-        if (inputs.length) await updateWidget(dash.id, ids.get(w.key), { inputs });
+        const tops = w.tops.map((k) => ids.get(k)).filter(Boolean);
+        // las soluciones del journey guardan el id del widget: se pasan a los nuevos
+        if (w.type === 'journey' && w.data.solutions?.length) {
+          w.data.solutions = w.data.solutions.map((s) => ({ ...s, id: ids.get(s.id) })).filter((s) => s.id);
+          await updateWidget(dash.id, ids.get(w.key), { data: w.data });
+        }
+        if (inputs.length || tops.length) await updateWidget(dash.id, ids.get(w.key), { inputs, ...(tops.length ? { tops } : {}) });
       }
       return res.status(201).json({ created: clean.length });
+    }
+
+    /* ---------- journey: ¿esta solución encaja? ---------- */
+    if (req.method === 'POST' && dash && req.query?.fit) {
+      const all = await listWidgets(dash.id);
+      const panel = all.find((w) => w.id === String(req.query.fit) && w.type === 'journey');
+      const sol = all.find((w) => w.id === String(req.query.sol || ''));
+      if (!panel || !sol) return res.status(404).json({ error: 'No encontrado.' });
+      if (!panel.data?.stages?.length) return res.status(422).json({ error: 'Primero genera el journey.' });
+      if (['user', 'group'].includes(sol.data?.kind)) return res.status(400).json({ error: 'Arriba solo se conectan soluciones.' });
+
+      const cost = priceOf(await getConfig(), 'fit');
+      const price = unlimited(user) ? 0 : cost;
+      if (price && !(await charge(user.email, price))) {
+        return res.status(402).json({ error: `No te quedan tokens: esto cuesta ${price.toLocaleString('es-PE')}.`, tokens: await balanceOf(user.email), price });
+      }
+      let out;
+      try {
+        out = await askJourneyFit({ journey: panel.data, solution: contextFrom([sol]) });
+      } catch (err) {
+        if (price) await refund(user.email, price);
+        if (err instanceof AIError) return res.status(422).json({ error: err.message });
+        throw err;
+      }
+      const spent = await addSpent(dash.id, cost);
+      const tokens = unlimited(user) ? null : await balanceOf(user.email);
+      const tops = (panel.tops || []).filter((i) => i !== sol.id);
+      if (!out.compatible) {
+        await updateWidget(dash.id, panel.id, { tops });
+        return res.status(200).json({ compatible: false, reason: out.reason, tops, tokens, spent });
+      }
+      const title = sol.data?.title || sol.data?.name || sol.data?.text || 'Solución';
+      const data = cleanJourney({
+        ...panel.data,
+        solutions: [...(panel.data.solutions || []).filter((x) => x.id !== sol.id), { id: sol.id, title, impacts: out.impacts }],
+      });
+      await updateWidget(dash.id, panel.id, { data, tops: [...tops, sol.id] });
+      return res.status(200).json({ compatible: true, data, tops: [...tops, sol.id], tokens, spent });
     }
 
     /* ---------- Researcher: investigar y dejar hallazgos ---------- */
@@ -654,10 +734,14 @@ export default async function handler(req, res) {
       if (!current) return res.status(404).json({ error: 'Widget no encontrado.' });
       const patch = {};
       if (req.body?.x != null) Object.assign(patch, cleanLayout({ ...current, ...req.body }));
+      // nodo superior (solo journey): soluciones; quitar una se hace aquí, conectarla por ?fit=
+      if (req.body?.tops != null && current.type === 'journey') {
+        patch.tops = cleanInputs(req.body.tops, all, wid).filter((i) => !['user', 'group'].includes(all.find((w) => w.id === i)?.data?.kind));
+      }
       if (req.body?.inputs != null) {
         patch.inputs = cleanInputs(req.body.inputs, all, wid);
         // al user journey solo se le conectan usuarios
-        if (current.type === 'journey') patch.inputs = patch.inputs.filter((i) => all.find((w) => w.id === i)?.data?.kind === 'user');
+        if (current.type === 'journey') patch.inputs = patch.inputs.filter((i) => ['user', 'group'].includes(all.find((w) => w.id === i)?.data?.kind));
       }
       if (req.body?.data != null) {
         const clean = CLEANERS[current.type];

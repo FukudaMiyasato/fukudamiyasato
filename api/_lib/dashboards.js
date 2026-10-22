@@ -121,6 +121,7 @@ export async function deleteWidget(dashId, id) {
   if (!list.some((x) => x.id === id)) return false;
   const rest = list.filter((x) => x.id !== id);
   for (const w of rest) if (w.inputs?.includes(id)) w.inputs = w.inputs.filter((i) => i !== id);
+  for (const w of rest) if (w.tops?.includes(id)) w.tops = w.tops.filter((i) => i !== id);
   await setJSON(widgetsKey(dashId), rest);
   return true;
 }
@@ -152,6 +153,21 @@ export async function setDivider(dashId, x) {
   marks.divider = { x };
   await setJSON(marksKey(dashId), marks);
   return marks.divider;
+}
+
+/** Mueve una bandera (x, y) o la raya ('divider', solo x). false si no existe. */
+export async function moveMark(dashId, markId, x, y) {
+  const marks = await getMarks(dashId);
+  if (markId === 'divider') {
+    if (!marks.divider) return false;
+    marks.divider.x = x;
+  } else {
+    const f = marks.flags.find((m) => m.id === markId);
+    if (!f) return false;
+    Object.assign(f, { x, y });
+  }
+  await setJSON(marksKey(dashId), marks);
+  return true;
 }
 
 /** Quita una bandera (por id) o la raya ('divider'). */
