@@ -480,3 +480,9 @@ if (projects.length) {
   seek.hidden = true;
   dither?.setSource(null, { instant: true });
 }
+
+/* ---------- login: con sesión abierta el botón dice «Mis proyectos» ---------- */
+fetch('/api/auth', { credentials: 'same-origin', cache: 'no-store' })
+  .then((r) => (r.ok ? r.json() : null))
+  .then((d) => { if (d?.user) document.getElementById('login-btn').textContent = 'Mis proyectos'; })
+  .catch(() => { /* sin API (python http.server): se queda «Login» */ });

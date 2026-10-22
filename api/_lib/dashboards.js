@@ -2,9 +2,13 @@
    api/_lib/dashboards.js — catálogo de dashboards y sus widgets
    ------------------------------------------------------------
    Se guardan en Redis (api/_lib/store.js):
-     fm:dashboards         [{ id, name, image }]  — los que crean los amos
+     fm:dashboards         [{ id, name, image, route? }]  — los que crean los amos
                            image: ícono subido (data URL chica) o null →
                            el navegador dibuja uno por defecto con las iniciales
+                           route: subdominio propio (otro repo en Vercel), p. ej.
+                           "postits" → https://postits.fukudamiyasato.com/. Sin
+                           route es un lienzo de este sitio (/dashboards/?d=<id>).
+                           En los de route, id = route.
      fm:widgets:<dashId>   [{ id, type, x, y, w, h, data, inputs }]
      fm:marks:<dashId>     { flags: [{ id, x, y, color }], divider: { x } | null }
                            banderas y raya divisoria (no son widgets)
@@ -24,7 +28,24 @@ const BUILTIN = [
   { id: 'proyecto-jazz', name: 'PROYECTO-JAZZ', icon: 'sax' },
 ];
 
-const urlFor = (id) => `/dashboards/?d=${encodeURIComponent(id)}`;
+/** Dominio de los subdominios de proyecto (PROJECTS_DOMAIN). */
+export const PROJECTS_DOMAIN = String(process.env.PROJECTS_DOMAIN || 'fukudamiyasato.com').trim().toLowerCase();
+
+const urlFor = (d) => (d.route
+  ? `https://${d.route}.${PROJECTS_DOMAIN}/`
+  : `/dashboards/?d=${encodeURIComponent(d.id)}`);
+
+/* Subdominios que no pueden ser proyecto. */
+const RESERVED = ['www', 'admin', 'login', 'api', 'app', 'mail', 'dashboards'];
+
+/** Ruta válida como subdominio, o un mensaje de error. */
+export function checkRoute(route) {
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/.test(route)) {
+    return 'La ruta solo puede tener minúsculas, números y guiones (sin empezar ni terminar en guion).';
+  }
+  if (RESERVED.includes(route)) return `«${route}» está reservado.`;
+  return null;
+}
 
 export function slugify(name) {
   return String(name || '')
@@ -42,21 +63,30 @@ export async function listDashboards() {
     if (out.some((x) => x.id === d.id)) continue;
     out.push({ ...d, builtin: false });
   }
-  return out.map((d) => ({ ...d, url: urlFor(d.id) }));
+  return out.map((d) => ({ ...d, url: urlFor(d) }));
 }
 
 export const publicDash = (d) => ({
   id: d.id, name: d.name, icon: d.icon || null, image: d.image || null, url: d.url, builtin: d.builtin,
+  route: d.route || null,
 });
 
-export async function createDashboard(name, image) {
+/** Con `route` crea un proyecto en su subdominio (id = route; null si ya
+    existe). Sin `route`, un lienzo de este sitio con id sacado del nombre. */
+export async function createDashboard(name, image, route) {
   const all = await listDashboards();
-  const base = slugify(name) || 'dashboard';
-  let id = base;
-  for (let i = 2; all.some((d) => d.id === id); i++) id = `${base}-${i}`;
-  const dash = { id, name, image: image || null };
+  let id;
+  if (route) {
+    if (all.some((d) => d.id === route || d.route === route)) return null;
+    id = route;
+  } else {
+    const base = slugify(name) || 'dashboard';
+    id = base;
+    for (let i = 2; all.some((d) => d.id === id); i++) id = `${base}-${i}`;
+  }
+  const dash = { id, name, image: image || null, ...(route ? { route } : {}) };
   await setJSON(DASH_KEY, [...(await getJSON(DASH_KEY, [])), dash]);
-  return { ...dash, builtin: false, url: urlFor(id) };
+  return { ...dash, builtin: false, url: urlFor(dash) };
 }
 
 export async function deleteDashboard(d) {

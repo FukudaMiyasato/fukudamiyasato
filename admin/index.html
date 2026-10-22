@@ -111,7 +111,7 @@
     <section data-panel="dash">
       <header class="admin-head">
         <h1>Dashboards</h1>
-        <p>Los amos ven todos. A los chismosos se les activa cada uno desde el botón «Integrantes» dentro del dashboard.</p>
+        <p>Los amos ven todos. A los chismosos se les activa cada proyecto en Permisos.</p>
       </header>
 
       <div class="dash-grid" id="dash-grid"></div>
@@ -235,7 +235,7 @@
   </main>
 </div>
 
-<!-- nuevo dashboard: título + ícono opcional -->
+<!-- nuevo proyecto: título + ruta (su subdominio) + ícono opcional -->
 <div class="modal-layer" id="nd-layer" hidden>
   <form class="modal nd-modal" id="nd-form" autocomplete="off" novalidate>
     <label class="nd-icon" id="nd-icon" for="nd-file" title="Ícono (opcional)">
@@ -243,7 +243,13 @@
       <small id="nd-icon-note">Subir ícono</small>
     </label>
     <input type="file" id="nd-file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
-    <input class="nd-title" id="nd-title" maxlength="60" placeholder="Título del dashboard" aria-label="Título">
+    <input class="nd-title" id="nd-title" maxlength="60" placeholder="Título del proyecto" aria-label="Título">
+    <label class="nd-route" title="Ruta del proyecto">
+      <span>https://</span>
+      <input id="nd-route" maxlength="48" placeholder="ruta" aria-label="Ruta" spellcheck="false" autocapitalize="off">
+      <span data-projects-domain>.fukudamiyasato.com</span>
+    </label>
+    <small class="nd-note">Solo se crea la ruta y sus permisos: el proyecto lo subes tú a Vercel con ese dominio.</small>
     <p class="m-err" id="nd-err" role="alert"></p>
     <div class="m-actions">
       <button class="link-btn" type="button" id="nd-cancel">Cancelar</button>

@@ -1,7 +1,7 @@
 /* ============================================================
    /api/auth — login con Google
    ------------------------------------------------------------
-   GET     → { clientId, user }   user = { email, name, picture, role, dashboards } | null
+   GET     → { clientId, projectsDomain, user }   user = { email, name, picture, role, dashboards } | null
    POST    { credential }         ID token del botón de Google. Si el correo
                                   tiene rol, deja la cookie de sesión; si no,
                                   403 { error: 'no_access' } y sin cookie.
@@ -13,6 +13,7 @@ import {
   setSessionCookie, clearSessionCookie,
 } from './_lib/auth.js';
 import { hasStore } from './_lib/store.js';
+import { PROJECTS_DOMAIN } from './_lib/dashboards.js';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -32,7 +33,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const user = await currentUser(req);
       if (!user) clearSessionCookie(req, res);
-      return res.status(200).json({ clientId: String(process.env.GOOGLE_CLIENT_ID || '').trim(), user });
+      return res.status(200).json({ clientId: String(process.env.GOOGLE_CLIENT_ID || '').trim(), projectsDomain: PROJECTS_DOMAIN, user });
     }
 
     if (req.method === 'POST') {
