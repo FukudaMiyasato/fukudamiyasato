@@ -2,14 +2,16 @@
    /api/auth — login con Google
    ------------------------------------------------------------
    GET     → { clientId, user }   user = { email, name, picture, role, dashboards } | null
+                                  (a los amos, cada dashboard trae `spent`: tokens gastados)
    POST    { credential }         ID token del botón de Google. Si el correo
                                   tiene rol, deja la cookie de sesión; si no,
                                   403 { error: 'no_access' } y sin cookie.
    DELETE  → cierra la sesión
    ============================================================ */
 
+import { spentOf } from './_lib/dashboards.js';
 import {
-  verifyGoogleToken, currentUser, userFor,
+  verifyGoogleToken, currentUser, userFor, isAmo,
   setSessionCookie, clearSessionCookie,
 } from './_lib/auth.js';
 import { hasStore } from './_lib/store.js';
@@ -32,6 +34,10 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const user = await currentUser(req);
       if (!user) clearSessionCookie(req, res);
+      // los amos ven en el panel cuántos tokens se gastaron en cada dashboard
+      if (user && isAmo(user)) {
+        user.dashboards = await Promise.all(user.dashboards.map(async (d) => ({ ...d, spent: await spentOf(d.id) })));
+      }
       return res.status(200).json({ clientId: String(process.env.GOOGLE_CLIENT_ID || '').trim(), user });
     }
 

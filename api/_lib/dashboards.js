@@ -6,6 +6,8 @@
                            image: ícono subido (data URL chica) o null →
                            el navegador dibuja uno por defecto con las iniciales
      fm:dashboards:removed [id]  — fijos (BUILTIN) que un amo eliminó
+     fm:spent:<dashId>     tokens gastados en ese dashboard (precio de cada uso de IA
+                           que salió bien, también los del amo supremo)
      fm:widgets:<dashId>   [{ id, type, x, y, w, h, data, inputs }]
      fm:marks:<dashId>     { flags: [{ id, x, y, color }], divider: { x } | null }
                            banderas y raya divisoria (no son widgets)
@@ -16,12 +18,17 @@
    manda); al eliminarlo su id va a fm:dashboards:removed.
    ============================================================ */
 
-import { getJSON, setJSON, del, newId } from './store.js';
+import { getJSON, setJSON, del, newId, incrBy, getNum } from './store.js';
 
 const DASH_KEY = 'fm:dashboards';
 const REMOVED_KEY = 'fm:dashboards:removed';
 const widgetsKey = (dashId) => `fm:widgets:${dashId}`;
 const marksKey = (dashId) => `fm:marks:${dashId}`;
+const spentKey = (dashId) => `fm:spent:${dashId}`;
+
+/** Suma al gasto del dashboard y devuelve el total. */
+export const addSpent = (dashId, n) => (n > 0 ? incrBy(spentKey(dashId), n) : spentOf(dashId));
+export const spentOf = (dashId) => getNum(spentKey(dashId));
 
 const BUILTIN = [
   { id: 'proyecto-jazz', name: 'PROYECTO-JAZZ', icon: 'sax' },
@@ -80,6 +87,7 @@ export async function updateDashboard(id, patch) {
 export async function deleteDashboard(d) {
   await del(widgetsKey(d.id));
   await del(marksKey(d.id));
+  await del(spentKey(d.id));
   await setJSON(DASH_KEY, (await getJSON(DASH_KEY, [])).filter((x) => x.id !== d.id));
   if (BUILTIN.some((b) => b.id === d.id)) {
     const removed = await getJSON(REMOVED_KEY, []);

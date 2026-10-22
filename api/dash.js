@@ -2,7 +2,8 @@
    /api/dash — dashboards y los widgets de su lienzo
    ------------------------------------------------------------
    Cualquiera con acceso al dashboard:
-     GET    ?d=<id>                → { dashboard, widgets, canEdit, config, members?, tokens?, prices? }
+     GET    ?d=<id>                → { dashboard, widgets, canEdit, config, members?, tokens?, prices?, spent? }
+                                     spent: tokens gastados en este dashboard (amos)
                                      tokens: saldo (null = sin límite, el amo supremo);
                                      prices: lo que cuesta cada herramienta de IA (con sobrecargo)
    Solo amos:
@@ -54,7 +55,7 @@ import { currentUser, canSeeDashboard, forgetDashboard, isAmo, listPerms } from 
 import {
   listDashboards, publicDash, createDashboard, updateDashboard, deleteDashboard,
   listWidgets, createWidget, updateWidget, deleteWidget,
-  getMarks, addFlag, setDivider, deleteMark,
+  getMarks, addFlag, setDivider, deleteMark, addSpent, spentOf,
 } from './_lib/dashboards.js';
 import { askVisual, askShort, askFollow, askJourney, AIError } from './_lib/ai.js';
 import { getConfig, priceOf, prices } from './_lib/config.js';
@@ -324,6 +325,7 @@ export default async function handler(req, res) {
         tokens: canEdit ? (unlimited(user) ? null : await balanceOf(user.email)) : undefined,
         prices: canEdit ? prices(config) : undefined,
         members: canEdit ? chismosos.filter((p) => p.dashboards.includes(dash.id)).length : undefined,
+        spent: canEdit ? await spentOf(dash.id) : undefined,
       });
     }
 
@@ -378,8 +380,10 @@ export default async function handler(req, res) {
         : all.filter((w) => inputs.includes(w.id)));
       const context = contextFrom(rest);
 
-      // tokens: se reservan antes de llamar a OpenAI (el amo supremo no paga)
-      const price = unlimited(user) ? 0 : priceOf(await getConfig(), tool);
+      // tokens: se reservan antes de llamar a OpenAI (el amo supremo no paga, pero igual
+      // cuenta en el gasto del dashboard)
+      const cost = priceOf(await getConfig(), tool);
+      const price = unlimited(user) ? 0 : cost;
       if (price && !(await charge(user.email, price))) {
         return res.status(402).json({
           error: `No te quedan tokens: esta herramienta cuesta ${price.toLocaleString('es-PE')}.`,
@@ -419,7 +423,8 @@ export default async function handler(req, res) {
       // el + responde texto (se ve como la estrella) o algo visual (como la tabla con IA)
       const type = tool === 'follow' ? (answer.kind === 'text' ? 'ask' : 'table') : tool;
       const widget = await createWidget(dash.id, type, cleanLayout(req.body?.layout), data, inputs);
-      return res.status(201).json({ widget: publicWidget(widget), tokens: unlimited(user) ? null : await balanceOf(user.email) });
+      const spent = await addSpent(dash.id, cost);
+      return res.status(201).json({ widget: publicWidget(widget), tokens: unlimited(user) ? null : await balanceOf(user.email), spent });
     }
 
     /* ---------- panel User journey: generar ---------- */
@@ -432,7 +437,8 @@ export default async function handler(req, res) {
       if (!users.length) return res.status(422).json({ error: 'Conecta al menos un usuario al panel.' });
       const goal = txt(req.body?.goal, 300);
 
-      const price = unlimited(user) ? 0 : priceOf(await getConfig(), 'journey');
+      const cost = priceOf(await getConfig(), 'journey');
+      const price = unlimited(user) ? 0 : cost;
       if (price && !(await charge(user.email, price))) {
         return res.status(402).json({
           error: `No te quedan tokens: el journey cuesta ${price.toLocaleString('es-PE')}.`,
@@ -455,7 +461,8 @@ export default async function handler(req, res) {
         users: users.map((w) => ({ name: w.data.name, sex: w.data.sex, age: w.data.age })),
       });
       await updateWidget(dash.id, panel.id, { data });
-      return res.status(200).json({ data, tokens: unlimited(user) ? null : await balanceOf(user.email) });
+      const spent = await addSpent(dash.id, cost);
+      return res.status(200).json({ data, tokens: unlimited(user) ? null : await balanceOf(user.email), spent });
     }
 
     /* ---------- widgets sin IA: línea de tiempo, usuario, profesional, paneles y nebulosa ---------- */

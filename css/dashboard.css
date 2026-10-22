@@ -1419,3 +1419,31 @@ body:not(.can-edit) .wexpert { cursor: default; }
 .widget.is-drop .wcard { border-color: var(--red-hot); box-shadow: 0 0 0 4px var(--red-glow); }
 .widget.is-drop .wf-drop { border-color: var(--red-hot); color: #f2f2f4; }
 .wf-hint { margin-top: 12px; }
+
+/* ============================================================
+   Flecha y mano · recuadro de selección
+   ============================================================ */
+.board.mode-arrow { cursor: default; }
+.board.mode-arrow.is-panning { cursor: grabbing; }
+.modes { display: flex; gap: 6px; }
+.tool--mode { width: 40px; color: var(--text-dim); background: transparent; border-color: transparent; }
+.tool--mode svg { width: 20px; height: 20px; }
+.tool--mode[aria-pressed="true"] { color: #fff; background: rgba(224, 16, 43, .22); border-color: rgba(255, 31, 61, .5); }
+.tool--mode:hover { transform: none; }
+.marquee {
+  position: absolute;
+  z-index: 5;
+  border: 1.5px solid var(--red-hot);
+  border-radius: 4px;
+  background: rgba(255, 31, 61, .08);
+  pointer-events: none;
+}
+.sel-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; max-height: 220px; overflow: auto; }
+.sel-list li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: 9px; background: rgba(255, 255, 255, .6); font-size: 12.5px; }
+.sel-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #22222a; font-weight: 600; }
+.sel-list small { flex: none; color: #6c6c78; font-size: 11px; }
+.sel-hint { margin: 10px 0 0; font-size: 12px; line-height: 1.45; color: #6c6c78; }
+.sel-del { width: 100%; margin-top: 12px; justify-content: center; }
+
+/* tokens gastados en este dashboard, bajo el título (amos) */
+.dash-spent { display: block; margin-top: 2px; font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }

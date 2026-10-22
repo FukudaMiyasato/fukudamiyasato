@@ -285,7 +285,7 @@ function draftHTML(wd) {
       <p class="m-err" role="alert"></p>
       <div class="m-actions">
         <button class="link-btn m-cancel" type="button">me arrepentí</button>
-        <button class="btn m-ok" type="submit">${esc(m.submit)}${tokens != null && prices[m.endpoint] ? `<small>${nfTok.format(prices[m.endpoint])} tk</small>` : ''}</button>
+        <button class="btn m-ok" type="submit">${esc(m.submit)}${prices[m.endpoint] ? `<small title="Estimado de tokens">≈ ${nfTok.format(prices[m.endpoint])} tk</small>` : ''}</button>
       </div>
     </form>
     <div class="wthinking" aria-live="polite">
@@ -398,6 +398,7 @@ async function saveInputs(wd) {
 /** Quita el widget del lienzo (y las líneas que salían de él). */
 function unmount(wd, animate = true) {
   if (selected === wd) select(null);
+  if (multi.has(wd)) { multi.delete(wd); if (multi.size < 2) selectMany([...multi]); else renderInfo(); }
   widgets = widgets.filter((x) => x !== wd);
   for (const o of widgets) {
     if (o.inputs?.includes(wd.id) || o.about?.includes(wd.id)) {
@@ -440,6 +441,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && jiggling
 
 function startEdit(e, wd, mode) {
   if (wd.state === 'thinking' || e.target.closest('button, input, textarea, label')) return;
+  if (mode === 'move' && multi.size > 1 && multi.has(wd)) return startGroupMove(e, [...multi]);
   e.preventDefault();
   e.stopPropagation();
   const target = e.currentTarget;
@@ -498,6 +500,61 @@ function startEdit(e, wd, mode) {
     requestDraw();
   };
 
+  target.addEventListener('pointermove', onMove);
+  target.addEventListener('pointerup', onUp);
+  target.addEventListener('pointercancel', onUp);
+}
+
+/** Mueve varios widgets juntos (selección múltiple). Si alguno chocaría con
+    otro que no se está moviendo, vuelven todos a su lugar. */
+function startGroupMove(e, group) {
+  e.preventDefault();
+  e.stopPropagation();
+  const target = e.currentTarget;
+  target.setPointerCapture(e.pointerId);
+  const px = e.clientX, py = e.clientY;
+  const starts = group.map((w) => ({ w, x: w.x, y: w.y }));
+  const ids = new Set(group.map((w) => w.id));
+  const free = (r) => !widgets.some((o) => !ids.has(o.id) && overlaps(r, o));
+  const ghosts = group.map(() => Object.assign(document.createElement('div'), { className: 'ghost' }));
+  let off = { x: 0, y: 0 }, dragging = false;
+
+  const onMove = (ev) => {
+    const sx = ev.clientX - px, sy = ev.clientY - py;
+    if (!dragging) {
+      if (Math.hypot(sx, sy) < 4) return;
+      dragging = true;
+      ghosts.forEach((g) => world.append(g));
+      group.forEach((w) => w.el.classList.add('is-dragging'));
+    }
+    const dx = sx / zoom, dy = sy / zoom;
+    off = { x: Math.round(dx / GRID), y: Math.round(dy / GRID) };
+    const bad = starts.some((s) => !free({ x: s.x + off.x, y: s.y + off.y, w: s.w.w, h: s.w.h }));
+    starts.forEach((s, i) => {
+      s.w.el.style.left = `${s.x * GRID + dx}px`;
+      s.w.el.style.top = `${s.y * GRID + dy}px`;
+      Object.assign(ghosts[i].style, {
+        left: `${(s.x + off.x) * GRID + 5}px`, top: `${(s.y + off.y) * GRID + 5}px`,
+        width: `${s.w.w * GRID - 10}px`, height: `${s.w.h * GRID - 10}px`,
+      });
+      ghosts[i].classList.toggle('is-bad', bad);
+    });
+    requestDraw();
+  };
+  const onUp = () => {
+    target.removeEventListener('pointermove', onMove);
+    target.removeEventListener('pointerup', onUp);
+    target.removeEventListener('pointercancel', onUp);
+    if (!dragging) return;
+    ghosts.forEach((g) => g.remove());
+    const ok = (off.x || off.y) && starts.every((s) => free({ x: s.x + off.x, y: s.y + off.y, w: s.w.w, h: s.w.h }));
+    for (const s of starts) {
+      s.w.el.classList.remove('is-dragging');
+      if (ok) { s.w.x = s.x + off.x; s.w.y = s.y + off.y; saveLayout(s.w); }
+      place(s.w);
+    }
+    requestDraw();
+  };
   target.addEventListener('pointermove', onMove);
   target.addEventListener('pointerup', onUp);
   target.addEventListener('pointercancel', onUp);
@@ -728,6 +785,7 @@ async function submit(wd) {
 
   if (!widgets.includes(wd)) return; // lo borraron mientras pensaba
   if (r.data.tokens !== undefined) setTokens(r.data.tokens);
+  if (r.data.spent !== undefined) setSpent(r.data.spent);
   if (r.status === 402) return reject(wd, r.data.error || 'No te quedan tokens.');
   if (r.status === 422) return reject(wd, r.data.error || `${m.fail}.`);
   if (!r.ok) {
@@ -824,6 +882,8 @@ board.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || e.target.closest('.wbody, .wform, .whandle, .wx, .wport, .link-hit, .info-wrap')) return;
   if (canEdit && e.target.closest('.whead')) return;
   if (jiggling && !e.target.closest('.widget')) stopJiggle();
+  // con la flecha, arrastrar sobre el fondo selecciona (la mano, o Espacio apretado, mueve el lienzo)
+  if (canEdit && toolMode === 'arrow' && !spaceDown && !e.target.closest('.widget')) return startMarquee(e);
   cancelAnimationFrame(panAnim);
   board.setPointerCapture(e.pointerId);
   board.classList.add('is-panning');
@@ -876,13 +936,159 @@ function frame() {
    ============================================================ */
 
 let selected = null;
+let multi = new Set(); // selección múltiple (2 o más); `selected` es la de uno solo
 
 function select(wd) {
-  if (selected === wd) return;
+  if (multi.size) { for (const w of multi) w.el.classList.remove('is-selected'); multi = new Set(); }
+  else if (selected === wd) return;
   selected?.el.classList.remove('is-selected');
   selected = wd;
   wd?.el.classList.add('is-selected');
   renderInfo();
+}
+
+/** Selecciona un grupo: con uno solo es la selección de siempre (con su bloque). */
+function selectMany(list) {
+  const set = new Set(list.filter((w) => w.state === 'done' && widgets.includes(w)));
+  if (set.size <= 1) return select([...set][0] || null);
+  selected?.el.classList.remove('is-selected');
+  selected = null;
+  for (const w of multi) if (!set.has(w)) w.el.classList.remove('is-selected');
+  multi = set;
+  for (const w of multi) w.el.classList.add('is-selected');
+  renderInfo();
+}
+
+const selection = () => (multi.size ? [...multi] : selected ? [selected] : []);
+
+/** Shift + clic: suma o quita un widget de la selección. */
+function toggleSelected(wd) {
+  const cur = selection();
+  selectMany(cur.includes(wd) ? cur.filter((w) => w !== wd) : [...cur, wd]);
+}
+
+/* ---------- herramientas: flecha (seleccionar) y mano (mover el lienzo) ---------- */
+
+const MODE_KEY = 'fm-tool-mode';
+let toolMode = 'arrow';
+try { if (localStorage.getItem(MODE_KEY) === 'hand') toolMode = 'hand'; } catch { /* sin almacenamiento */ }
+let spaceDown = false;
+
+function setToolMode(m) {
+  toolMode = m;
+  try { localStorage.setItem(MODE_KEY, m); } catch { /* sin almacenamiento */ }
+  paintToolMode();
+}
+function paintToolMode() {
+  const hand = !canEdit || toolMode === 'hand' || spaceDown;
+  board.classList.toggle('mode-arrow', !hand);
+  document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === toolMode)));
+}
+
+const typing = (e) => e.target.closest?.('input, textarea, select, [contenteditable="true"]');
+document.addEventListener('keydown', (e) => {
+  if (!canEdit || typing(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'v' || e.key === 'V') setToolMode('arrow');
+  else if (e.key === 'h' || e.key === 'H') setToolMode('hand');
+  else if (e.code === 'Space' && !spaceDown) { spaceDown = true; paintToolMode(); e.preventDefault(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selection().length) { e.preventDefault(); removeMany(selection()); }
+});
+document.addEventListener('keydown', (e) => {
+  // Cmd/Ctrl + A: todos
+  if (canEdit && !typing(e) && (e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) { e.preventDefault(); selectMany(widgets); }
+});
+document.addEventListener('keyup', (e) => { if (e.code === 'Space' && spaceDown) { spaceDown = false; paintToolMode(); } });
+window.addEventListener('blur', () => { if (spaceDown) { spaceDown = false; paintToolMode(); } });
+
+/** Recuadro de selección: arrastrar sobre el fondo con la flecha. */
+function startMarquee(e) {
+  e.preventDefault();
+  board.setPointerCapture(e.pointerId);
+  const b = board.getBoundingClientRect();
+  const x0 = e.clientX - b.left, y0 = e.clientY - b.top;
+  const base = e.shiftKey ? selection() : [];
+  const box = document.createElement('div');
+  box.className = 'marquee';
+  let moved = false;
+
+  // del lugar donde se ve (con lente) a celdas del mundo
+  const toCell = (cx, cy) => {
+    const p = sourcePoint(cx, cy);
+    return { x: (p.x - b.left - pan.x) / cell(), y: (p.y - b.top - pan.y) / cell() };
+  };
+  const onMove = (ev) => {
+    const x1 = ev.clientX - b.left, y1 = ev.clientY - b.top;
+    if (!moved) {
+      if (Math.hypot(x1 - x0, y1 - y0) < 4) return;
+      moved = true;
+      board.append(box);
+    }
+    Object.assign(box.style, {
+      left: `${Math.min(x0, x1)}px`, top: `${Math.min(y0, y1)}px`,
+      width: `${Math.abs(x1 - x0)}px`, height: `${Math.abs(y1 - y0)}px`,
+    });
+    const a = toCell(b.left + Math.min(x0, x1), b.top + Math.min(y0, y1));
+    const z = toCell(b.left + Math.max(x0, x1), b.top + Math.max(y0, y1));
+    const hit = widgets.filter((w) => w.state === 'done' && w.x < z.x && w.x + w.w > a.x && w.y < z.y && w.y + w.h > a.y);
+    selectMany([...new Set([...base, ...hit])]);
+  };
+  const onUp = () => {
+    box.remove();
+    board.removeEventListener('pointermove', onMove);
+    board.removeEventListener('pointerup', onUp);
+    board.removeEventListener('pointercancel', onUp);
+  };
+  board.addEventListener('pointermove', onMove);
+  board.addEventListener('pointerup', onUp);
+  board.addEventListener('pointercancel', onUp);
+}
+
+/** Borra varios (Supr / Retroceso, o el botón del bloque). */
+async function removeMany(list) {
+  list = list.filter((w) => w.state === 'done');
+  if (!list.length) return;
+  if (list.length === 1) return removeWidget(list[0]);
+  if (!confirm(`¿Borrar ${list.length} widgets?`)) return;
+  const results = await Promise.all(list.map((w) => api(`/api/dash?d=${encodeURIComponent(id)}&widget=${encodeURIComponent(w.id)}`, { method: 'DELETE' })));
+  select(null);
+  list.forEach((w, i) => { if (results[i].ok) unmount(w); });
+  if (results.some((r) => !r.ok)) alert('Algunos widgets no se pudieron borrar.');
+}
+
+/* bloque de información cuando hay varios seleccionados */
+function renderMultiInfo(box) {
+  $('info-kind').textContent = 'Selección';
+  $('info-title').hidden = false;
+  $('info-title').textContent = `${multi.size} widgets`;
+  const list = $('info-list');
+  list.innerHTML = '';
+  const ul = document.createElement('ul');
+  ul.className = 'sel-list';
+  for (const w of multi) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span></span><small></small>';
+    li.querySelector('span').textContent = w.data?.title || w.data?.name || 'Widget';
+    li.querySelector('small').textContent = TOOL_LABEL[w.type] || '';
+    ul.append(li);
+  }
+  list.append(ul);
+  const hint = document.createElement('p');
+  hint.className = 'sel-hint';
+  hint.textContent = 'Arrastra cualquiera para moverlos juntos. Shift + clic suma o quita uno.';
+  list.append(hint);
+  if (canEdit) {
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn sel-del';
+    del.textContent = `Borrar ${multi.size}`;
+    del.addEventListener('click', () => removeMany([...multi]));
+    list.append(del);
+  }
+  box.hidden = false;
+  if (box.dataset.for !== 'multi') {
+    box.dataset.for = 'multi';
+    box.classList.remove('is-in'); void box.offsetWidth; box.classList.add('is-in');
+  }
 }
 
 /* Cada toque: qué hay debajo (con la lente, lo que se ve ahí), para
@@ -902,11 +1108,13 @@ document.addEventListener('pointerdown', (e) => {
   }
 
   if (el.closest?.('.wport')) return; // conectar no selecciona ni deselecciona
-  if (wd?.state === 'done') select(wd);
-  else if (!el.closest?.('.info-wrap, .dock, .board-top')) select(null);
+  if (wd?.state === 'done') {
+    if (e.shiftKey && canEdit) toggleSelected(wd);
+    else if (!multi.has(wd)) select(wd); // tocar uno del grupo no lo deshace: así se arrastran juntos
+  } else if (!el.closest?.('.info-wrap, .dock, .board-top') && !(e.shiftKey && canEdit)) select(null);
 }, true);
 
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selected && !jiggling) select(null); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && (selected || multi.size) && !jiggling) select(null); });
 $('info-x').addEventListener('click', () => select(null));
 
 /* ---------- bloque de información del seleccionado ---------- */
@@ -927,6 +1135,7 @@ function showInfo(box) {
 
 function renderInfo() {
   const box = $('info');
+  if (!selected && multi.size > 1) return renderMultiInfo(box);
   if (!selected) { box.hidden = true; delete box.dataset.for; return; }
   const d = selected.data || {};
   $('info-title').hidden = false;
@@ -1258,6 +1467,7 @@ async function generateJourney(wd, btn, errEl) {
   wd.el.classList.remove('is-glowing');
   btn.disabled = false;
   if (r.data.tokens !== undefined) setTokens(r.data.tokens);
+  if (r.data.spent !== undefined) setSpent(r.data.spent);
   if (!r.ok) { render(wd); errEl.textContent = r.data.error || 'No se pudo generar el journey.'; return; }
   wd.data = r.data.data;
   // crece para que entren todas las etapas
@@ -1324,7 +1534,7 @@ function renderJourneyInfo(box) {
     btn.type = 'button';
     btn.className = 'btn jr-gen';
     btn.disabled = !users.length || wd.generating;
-    btn.innerHTML = `${d.stages?.length ? 'Volver a generar' : 'Generar journey'}${tokens != null && prices.journey ? `<small>${nfTok.format(prices.journey)} tk</small>` : ''}`;
+    btn.innerHTML = `${d.stages?.length ? 'Volver a generar' : 'Generar journey'}${prices.journey ? `<small title="Estimado de tokens">≈ ${nfTok.format(prices.journey)} tk</small>` : ''}`;
     btn.addEventListener('click', () => generateJourney(wd, btn, err));
     list.append(btn, err);
   }
@@ -1657,11 +1867,20 @@ function refreshTokens() {
     const tool = b.dataset.ai, ok = canAfford(tool), label = b.getAttribute('aria-label');
     b.classList.toggle('is-broke', !ok);
     b.removeAttribute('title'); // el costo lo muestra el tooltip (data-tip-ai)
+    // el estimado se ve siempre, también sin límite de tokens
     let tag = b.querySelector('.tool-price');
-    if (tokens == null) { tag?.remove(); continue; }
+    if (!prices[tool]) { tag?.remove(); continue; }
     if (!tag) { tag = document.createElement('span'); tag.className = 'tool-price'; b.append(tag); }
-    tag.textContent = nfTok.format(prices[tool] || 0);
+    tag.textContent = `≈${nfTok.format(prices[tool])}`;
   }
+}
+
+/** Tokens gastados en este dashboard (solo lo ven los amos). */
+function setSpent(n) {
+  const el = $('dash-spent');
+  el.hidden = false;
+  el.textContent = `${nfTok.format(n || 0)} tokens gastados`;
+  el.title = 'Tokens que se gastaron en este dashboard con las herramientas de IA';
 }
 
 /** Aviso corto cuando no alcanzan los tokens. */
@@ -1701,6 +1920,21 @@ function renderDock() {
   const dock = $('dock');
   dock.hidden = false;
   dock.innerHTML = '';
+  if (canEdit) {
+    // flecha (seleccionar) y mano (mover el lienzo), antes de las herramientas
+    const modes = document.createElement('div');
+    modes.className = 'modes';
+    modes.setAttribute('role', 'group');
+    modes.setAttribute('aria-label', 'Herramienta');
+    modes.innerHTML = `
+      <button class="tool tool--mode" type="button" data-mode="arrow" aria-pressed="false" title="Flecha · seleccionar (V)" aria-label="Flecha: seleccionar">${TOOL_ICONS.arrow}</button>
+      <button class="tool tool--mode" type="button" data-mode="hand" aria-pressed="false" title="Mano · mover el lienzo (H, o mantén Espacio)" aria-label="Mano: mover el lienzo">${TOOL_ICONS.hand}</button>`;
+    modes.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setToolMode(b.dataset.mode)));
+    const sep0 = document.createElement('span');
+    sep0.className = 'dock-sep';
+    sep0.setAttribute('aria-hidden', 'true');
+    dock.append(modes, sep0);
+  }
   for (const t of canEdit ? TOOLS : VIEWER_TOOLS) {
     if (t.menu) { dock.append(panelsMenu()); continue; }
     const b = document.createElement('button');
@@ -1720,6 +1954,7 @@ function renderDock() {
     } else b.addEventListener('click', t.open);
     dock.append(b);
   }
+  paintToolMode();
   if (!canEdit) return;
   refreshTokens();
 
@@ -1752,7 +1987,7 @@ function panelsMenu() {
       <p class="panels-title">Paneles</p>
       ${PANELS.map((p) => `<button class="panel-item" type="button" role="menuitem" data-panel="${p.key}">
         <span class="panel-ico">${TOOL_ICONS[p.key]}</span><span><b>${esc(p.label)}</b><small>${esc(p.note)}</small></span>
-        ${tokens != null && prices[p.key] ? `<em>${nfTok.format(prices[p.key])} tk</em>` : ''}</button>`).join('')}
+        ${prices[p.key] ? `<em title="Estimado de tokens">≈ ${nfTok.format(prices[p.key])} tk</em>` : ''}</button>`).join('')}
     </div>`;
   const btn = wrap.querySelector('#panels-btn'), menu = wrap.querySelector('#panels-menu');
   const toggle = (open) => { menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); };
@@ -2029,10 +2264,10 @@ function aiTip(t) {
   const price = prices[tool] || 0;
   const label = t.dataset.tipLabel || t.getAttribute('aria-label') || '';
   let sub, cls = '';
-  if (tokens == null) sub = 'No tienes límite de tokens';
+  if (tokens == null) sub = 'Estimado · no tienes límite de tokens';
   else if (tokens >= price) sub = `Te quedarían ${nfTok.format(tokens - price)} tokens`;
   else { sub = `Te faltan ${nfTok.format(price - tokens)} tokens · tienes ${nfTok.format(tokens)}`; cls = ' is-broke'; }
-  tipEl.innerHTML = `<span class="tip-ai${cls}"><span class="tip-ai-main"></span><b>${nfTok.format(price)} tokens</b><small></small></span>`;
+  tipEl.innerHTML = `<span class="tip-ai${cls}"><span class="tip-ai-main"></span><b>≈ ${nfTok.format(price)} tokens</b><small></small></span>`;
   tipEl.querySelector('.tip-ai-main').textContent = label;
   tipEl.querySelector('small').textContent = sub;
 }
@@ -2380,6 +2615,7 @@ $('dash-delete').addEventListener('click', async () => {
 
   canEdit = data.canEdit;
   tokens = data.tokens ?? null;
+  if (data.spent !== undefined) setSpent(data.spent);
   prices = data.prices || {};
   fisheye = (data.config?.fisheye ?? 7) / 100;
   document.body.classList.toggle('can-edit', canEdit);

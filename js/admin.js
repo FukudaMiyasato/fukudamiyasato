@@ -51,7 +51,8 @@ function dashLink(d) {
   const a = document.createElement('a');
   a.className = 'dash-card';
   a.href = d.url;
-  a.innerHTML = `<span class="dash-ico">${dashIconHTML(d)}</span><span class="dash-name"></span>`;
+  a.innerHTML = `<span class="dash-ico">${dashIconHTML(d)}</span><span class="dash-name"></span>
+    ${d.spent != null ? `<small class="dash-spent">${Number(d.spent).toLocaleString('es-PE')} tokens gastados</small>` : ''}`;
   a.querySelector('.dash-name').textContent = d.name;
   return a;
 }

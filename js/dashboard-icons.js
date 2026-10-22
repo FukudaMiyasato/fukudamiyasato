@@ -107,6 +107,17 @@ export const TOOL_ICONS = {
     <path d="M4.2 20.5c.4-4.2 3.6-6.8 7.8-6.8s7.4 2.6 7.8 6.8z" fill="currentColor"/>
   </svg>`,
 
+  // flecha: puntero para seleccionar
+  arrow: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M6 3.5l12.2 9.1-5.6.9 3.2 6.1-2.6 1.3-3.2-6.2-4 3.9z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+  </svg>`,
+
+  // mano: mover el lienzo
+  hand: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M8 12.5V6.2a1.5 1.5 0 0 1 3 0V11"/><path d="M11 10.5V4.8a1.5 1.5 0 0 1 3 0v5.7"/><path d="M14 10.5V6.3a1.5 1.5 0 0 1 3 0V14"/>
+    <path d="M8 12.5l-1.4-1.6a1.6 1.6 0 0 0-2.4 2.1l3.1 4.2A6.5 6.5 0 0 0 12.6 20H13a4 4 0 0 0 4-4v-2"/>
+  </svg>`,
+
   // archivo: hoja con la esquina doblada y líneas
   file: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M14 3H7.2A2.2 2.2 0 0 0 5 5.2v13.6A2.2 2.2 0 0 0 7.2 21h9.6a2.2 2.2 0 0 0 2.2-2.2V8z" fill="currentColor"/>
