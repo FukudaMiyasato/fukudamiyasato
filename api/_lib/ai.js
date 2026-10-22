@@ -30,7 +30,8 @@
    ============================================================ */
 
 const MAX_CSV_CHARS = 120_000; // ~30k tokens: deja espacio a la respuesta
-const MAX_CONTEXT_CHARS = 60_000;
+const MAX_CONTEXT_CHARS = 150_000; // incluye archivos subidos (widget Archivo)
+const MAX_SLICES = 8;
 const MAX_ROWS = 200;
 const MAX_POINTS = 40;
 const MAX_CELL = 300;
@@ -93,8 +94,10 @@ const FORMATS = `Responde con el formato que mejor se entienda de un vistazo, en
   "value" = la cifra formateada (ej. "1.234", "38%", "S/ 12.500"); "detail" = una frase corta que la explica.
 - "text": cuando la respuesta es un dato corto en palabras (¿quién…?, ¿cuál…?, ¿qué día…?).
   "value" = la respuesta (máx. 120 caracteres); "detail" = una frase de contexto, opcional.
-- "chart": cuando conviene VER una comparación o una evolución de UNA sola medida.
-  "chartType" = "bar" para comparar categorías, "line" para evolución en el tiempo;
+- "chart": cuando conviene VER una comparación, una evolución o un reparto de UNA sola medida.
+  "chartType" = "bar" para comparar categorías, "line" para evolución en el tiempo, "pie" para
+  partes de un todo (torta / pastel / dona / "qué porcentaje de…", máx. ${MAX_SLICES} porciones: junta el resto en
+  "Otros"; valores positivos). Si el pedido nombra un tipo de gráfico, usa ese;
   "labels" = las etiquetas del eje X (máx. ${MAX_POINTS}); "values" = un número por etiqueta, en el mismo orden;
   "unit" = la unidad corta de los valores (ej. "entradas", "S/", "%"), o "".
 - "table": cuando hacen falta varias filas o columnas (rankings, desgloses, listados, comparaciones de varias medidas).
@@ -150,7 +153,7 @@ const VISUAL_SCHEMA = {
       detail: { type: 'string' },
       columns: { type: 'array', items: { type: 'string' } },
       rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } },
-      chartType: { type: 'string', enum: ['bar', 'line'] },
+      chartType: { type: 'string', enum: ['bar', 'line', 'pie'] },
       labels: { type: 'array', items: { type: 'string' } },
       values: { type: 'array', items: { type: 'number' } },
       unit: { type: 'string' },
@@ -179,22 +182,35 @@ export async function askVisual({ prompt, csv = '', filename = '', context = '',
 
   const system = fromFile ? SYSTEM_CSV : context ? SYSTEM_CONTEXT : SYSTEM_FREE;
   const out = await callOpenAI(withVoices(system, voices), user, VISUAL_SCHEMA, { meter });
+  return shapeVisual(out, { truncated, fromFile });
+}
+
+/** Respuesta del esquema visual → datos del widget (o AIError si no sirve). */
+function shapeVisual(out, base = {}, { textMax = 200 } = {}) {
   if (!out.ok) throw new AIError(out.error || 'La pregunta no se puede responder.');
-  const title = str(out.title || 'Respuesta', 80);
-  const base = { title, truncated, fromFile };
+  base = { title: str(out.title || 'Respuesta', 80), ...base };
 
   if (out.kind === 'number' || out.kind === 'text') {
-    const value = str(out.value, 200);
+    const value = str(out.value, out.kind === 'text' ? textMax : 200);
     if (!value) throw new AIError('No salió ninguna respuesta.');
     return { ...base, kind: out.kind, value, detail: str(out.detail) };
   }
 
   if (out.kind === 'chart') {
-    const n = Math.min(out.labels?.length || 0, out.values?.length || 0, MAX_POINTS);
-    const labels = out.labels.slice(0, n).map((l) => str(l, 60));
-    const values = out.values.slice(0, n).map(Number);
+    const pie = out.chartType === 'pie';
+    const n = Math.min(out.labels?.length || 0, out.values?.length || 0, pie ? MAX_SLICES + 1 : MAX_POINTS);
+    let labels = out.labels.slice(0, n).map((l) => str(l, 60));
+    let values = out.values.slice(0, n).map(Number);
     if (!n || values.some((v) => !Number.isFinite(v))) throw new AIError('No salieron datos para el gráfico.');
-    return { ...base, kind: 'chart', chartType: out.chartType === 'line' ? 'line' : 'bar', labels, values, unit: str(out.unit, 20), detail: str(out.detail) };
+    if (pie) {
+      // la torta solo con porciones positivas
+      const keep = values.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+      labels = keep.map((i) => labels[i]);
+      values = keep.map((i) => values[i]);
+      if (!values.length) throw new AIError('No salieron porciones para el gráfico.');
+    }
+    const chartType = pie ? 'pie' : out.chartType === 'line' ? 'line' : 'bar';
+    return { ...base, kind: 'chart', chartType, labels, values, unit: str(out.unit, 20), detail: str(out.detail) };
   }
 
   const columns = (out.columns || []).map((c) => str(c));
@@ -247,24 +263,25 @@ export async function askShort({ prompt, context = '', voices = '', meter = null
    ============================================================ */
 
 const SYSTEM_FOLLOW = `Eres un analista que lee un tablero de trabajo. Recibes el contenido de una cadena de widgets
-conectados (tablas, gráficos, cifras, textos, usuarios, líneas de tiempo; los primeros están conectados
-directamente y los siguientes, antes en la cadena) y un pedido o pregunta del usuario.
-Responde en el idioma del pedido, en UN párrafo (máx. 700 caracteres), sin listas ni saludos.
-Tienes libertad: puedes interpretar, relacionar los widgets entre sí, inferir, resumir, comparar,
-proponer ideas o próximos pasos. Usa el contenido conectado como base y, si no alcanza, complétalo con
-conocimiento general (dilo en "detail").
-- "answer": el párrafo.
-- "title": 2 a 6 palabras que resuman la respuesta.
-- "detail": una aclaración muy corta si hace falta, o "".
-Responde ok=false (con un motivo breve en español en "error") SOLO si el pedido está vacío o no se entiende.`;
+conectados (tablas, gráficos, cifras, textos, usuarios, líneas de tiempo, archivos subidos con sus datos; los
+primeros están conectados directamente y los siguientes, antes en la cadena) y un pedido del usuario.
+Tienes libertad: puedes interpretar, relacionar los widgets entre sí, inferir, resumir, comparar, calcular
+(filtrar, agrupar, contar, sumar, promediar, porcentajes) o proponer ideas. Usa el contenido conectado como
+base y, si no alcanza, complétalo con conocimiento general (dilo en "detail"). Nunca inventes datos de un archivo.
 
-/** Devuelve { kind: 'text', title, value, detail } o lanza AIError / Error. */
+Elige el formato en "kind":
+- Si el pedido pide un gráfico (pastel/torta, barras, líneas…), una tabla, un ranking o una cifra, o si se entiende
+  mejor así, usa ese formato visual (reglas abajo).
+- Si no, "text": "value" = la respuesta en UN párrafo (máx. 700 caracteres), sin listas ni saludos.
+${FORMATS}
+Aquí "text" puede ser un párrafo de hasta 700 caracteres (no solo un dato corto).
+Responde ok=false (con un motivo breve en español en "error") SOLO si el pedido está vacío o no se entiende,
+o si pide datos que no están en lo conectado y no se pueden saber.`;
+
+/** Devuelve datos de widget (text, number, chart o table) o lanza AIError / Error. */
 export async function askFollow({ prompt, context = '', voices = '', meter = null }) {
-  const out = await callOpenAI(withVoices(SYSTEM_FOLLOW, voices), contextBlock(context) + `Pedido: ${prompt}`, SHORT_SCHEMA, { temperature: 0.5, meter });
-  if (!out.ok) throw new AIError(out.error || 'No entendí la pregunta.');
-  const value = str(out.answer, 800);
-  if (!value) throw new AIError('No salió ninguna respuesta.');
-  return { kind: 'text', title: str(out.title || 'Respuesta', 80), value, detail: str(out.detail) };
+  const out = await callOpenAI(withVoices(SYSTEM_FOLLOW, voices), contextBlock(context) + `Pedido: ${prompt}`, VISUAL_SCHEMA, { temperature: 0.3, meter });
+  return shapeVisual(out, {}, { textMax: 800 });
 }
 
 /* ============================================================

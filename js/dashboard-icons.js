@@ -107,6 +107,13 @@ export const TOOL_ICONS = {
     <path d="M4.2 20.5c.4-4.2 3.6-6.8 7.8-6.8s7.4 2.6 7.8 6.8z" fill="currentColor"/>
   </svg>`,
 
+  // archivo: hoja con la esquina doblada y líneas
+  file: `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M14 3H7.2A2.2 2.2 0 0 0 5 5.2v13.6A2.2 2.2 0 0 0 7.2 21h9.6a2.2 2.2 0 0 0 2.2-2.2V8z" fill="currentColor"/>
+    <path d="M14 3v3.8A1.2 1.2 0 0 0 15.2 8H19" fill="#9a9aa6"/>
+    <path d="M8.5 12.5h7M8.5 15.5h7M8.5 18h4.5" stroke="#1d1d22" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>`,
+
   // paneles: tres bloques de distinto tamaño
   panels: `<svg viewBox="0 0 24 24" aria-hidden="true">
     <rect x="3" y="3.5" width="18" height="7" rx="2" fill="currentColor"/>

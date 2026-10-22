@@ -38,8 +38,8 @@
                                                       la IA responde con su mirada (data.voices)
      POST   ?d=<id>&widget=journey { data, layout } → panel User journey, vacío
      POST   ?d=<id>&journey=<widgetId> { goal }     → la IA arma el journey con los usuarios
-                                                      conectados (varios = uno promedio) y los
-                                                      profesionales; cuesta tokens ("journey")
+                                                      conectados (varios = uno promedio; solo se
+                                                      le conectan usuarios); cuesta tokens ("journey")
      POST   ?d=<id>&mark=flag { x, y }              → bandera (color al azar, sin repetir; máx. 8)
      POST   ?d=<id>&mark=divider                    → raya divisoria una columna a la derecha
                                                       de lo más a la derecha (solo una)
@@ -197,10 +197,31 @@ const userContext = (d) => (d.context || []).map((f) => (f.kind === 'text' && f.
   ? `Texto «${f.name}»:\n${f.text.slice(0, 6000)}`
   : `Audio «${f.name}» (sin transcribir)`)).join('\n\n');
 
+/* ---------- archivo ---------- */
+const MAX_FILE_TEXT = 240_000;
+const FILE_TYPES = ['csv', 'xlsx', 'json', 'text'];
+
+/** Archivos subidos: nombre, tipo y su texto (entre todos, hasta MAX_FILE_TEXT). */
+function cleanFile(d) {
+  if (!d || typeof d !== 'object') return null;
+  let budget = MAX_FILE_TEXT;
+  const files = (Array.isArray(d.files) ? d.files : []).slice(0, 6).map((f) => {
+    const text = String(f?.text ?? '').slice(0, Math.max(0, budget));
+    budget -= text.length;
+    const rows = Number.isFinite(Number(f?.rows)) && f?.rows != null ? Math.max(0, Math.round(Number(f.rows))) : null;
+    return {
+      name: txt(f?.name, 120), size: Math.max(0, Math.round(Number(f?.size) || 0)),
+      type: FILE_TYPES.includes(f?.type) ? f.type : 'text', text,
+      ...(rows != null ? { rows } : {}), ...(f?.cut || text.length < String(f?.text ?? '').length ? { cut: true } : {}),
+    };
+  }).filter((f) => f.name);
+  return { kind: 'file', title: txt(d.title, 60) || 'Archivo', files };
+}
+
 /* ---------- nebulosa de IA ---------- */
 const cleanNebula = () => ({ kind: 'nebula', title: 'Nebulosa de IA' });
 
-const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, nebula: cleanNebula };
+const CLEANERS = { timeline: cleanTimeline, user: cleanUser, expert: cleanExpert, journey: cleanJourney, file: cleanFile, nebula: cleanNebula };
 
 /** ids de conexiones válidos: existen en este dashboard, sin repetir y sin el propio. */
 function cleanInputs(v, widgets, selfId) {
@@ -253,6 +274,8 @@ function contextFrom(list) {
       ].filter(Boolean).join('\n') || 'User journey vacío';
     } else if (d.kind === 'expert') {
       body = `Profesional: ${d.name} (${d.role}). ${d.prompt}`;
+    } else if (d.kind === 'file') {
+      body = (d.files || []).map((f) => `Archivo «${f.name}» (${f.type === 'xlsx' ? 'Excel, como CSV' : f.type}${f.rows != null ? `, ${f.rows} filas` : ''}${f.cut ? ', recortado' : ''}):\n\`\`\`\n${f.text}\n\`\`\``).join('\n\n') || 'Archivo vacío';
     } else if (d.kind === 'nebula') {
       body = 'Nebulosa de IA (todavía sin contenido)';
     } else if (d.kind === 'chart') {
@@ -393,7 +416,8 @@ export default async function handler(req, res) {
         data.rows = data.rows.slice(0, Math.floor(data.rows.length * 0.8));
         data.cut = true;
       }
-      const type = tool === 'follow' ? 'ask' : tool; // se ve igual que un widget de la estrella
+      // el + responde texto (se ve como la estrella) o algo visual (como la tabla con IA)
+      const type = tool === 'follow' ? (answer.kind === 'text' ? 'ask' : 'table') : tool;
       const widget = await createWidget(dash.id, type, cleanLayout(req.body?.layout), data, inputs);
       return res.status(201).json({ widget: publicWidget(widget), tokens: unlimited(user) ? null : await balanceOf(user.email) });
     }
@@ -406,7 +430,6 @@ export default async function handler(req, res) {
       const linked = all.filter((w) => (panel.inputs || []).includes(w.id));
       const users = linked.filter((w) => w.data?.kind === 'user' && w.data.sex);
       if (!users.length) return res.status(422).json({ error: 'Conecta al menos un usuario al panel.' });
-      const { rest, names, voices } = voicesOf(linked.filter((w) => w.data?.kind !== 'user'));
       const goal = txt(req.body?.goal, 300);
 
       const price = unlimited(user) ? 0 : priceOf(await getConfig(), 'journey');
@@ -421,8 +444,6 @@ export default async function handler(req, res) {
         out = await askJourney({
           goal,
           users: users.map((w) => ({ name: w.data.name, sex: w.data.sex, age: w.data.age, context: userContext(w.data) })),
-          context: contextFrom(rest),
-          voices,
         });
       } catch (err) {
         if (price) await refund(user.email, price);
@@ -430,7 +451,7 @@ export default async function handler(req, res) {
         throw err;
       }
       const data = cleanJourney({
-        ...out, goal, voices: names,
+        ...out, goal,
         users: users.map((w) => ({ name: w.data.name, sex: w.data.sex, age: w.data.age })),
       });
       await updateWidget(dash.id, panel.id, { data });
@@ -471,7 +492,11 @@ export default async function handler(req, res) {
       if (!current) return res.status(404).json({ error: 'Widget no encontrado.' });
       const patch = {};
       if (req.body?.x != null) Object.assign(patch, cleanLayout({ ...current, ...req.body }));
-      if (req.body?.inputs != null) patch.inputs = cleanInputs(req.body.inputs, all, wid);
+      if (req.body?.inputs != null) {
+        patch.inputs = cleanInputs(req.body.inputs, all, wid);
+        // al user journey solo se le conectan usuarios
+        if (current.type === 'journey') patch.inputs = patch.inputs.filter((i) => all.find((w) => w.id === i)?.data?.kind === 'user');
+      }
       if (req.body?.data != null) {
         const clean = CLEANERS[current.type];
         if (!clean) return res.status(400).json({ error: 'Este widget no se edita así.' });

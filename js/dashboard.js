@@ -54,6 +54,7 @@ import {
   AGE_MAX, MAX_CONTEXT, MAX_TEXT,
 } from './persona.js';
 import { emptyJourney, journeySize, journeyHTML } from './journey.js';
+import { emptyFile, fileWidgetSize, fileHTML, readUploads, textLeft, MAX_FILES, ACCEPT } from './file.js';
 import { EXPERTS, expertOf, fromPreset, defaultExpert, expertSize, expertHTML, expertAvatar } from './expert.js';
 
 const $ = (id) => document.getElementById(id);
@@ -300,6 +301,7 @@ function doneHTML(wd) {
   if (d.kind === 'user') return userHTML(d);
   if (d.kind === 'expert') return expertHTML(d);
   if (d.kind === 'journey') return journeyHTML(d, { linked: linkedUsers(wd), generating: wd.generating });
+  if (d.kind === 'file') return fileHTML(d, { canEdit });
   if (d.kind === 'nebula') return nebulaHTML(wd);
   return `
     <header class="whead" title="${esc(d.prompt || '')}">
@@ -317,7 +319,7 @@ function render(wd) {
   el.dataset.id = wd.id;
   const inner = wd.state === 'done' ? doneHTML(wd) : draftHTML(wd);
   el.innerHTML = `<div class="wbox">
-    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}">${inner}</div>
+    <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'file' ? ' wcard--file' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}">${inner}</div>
     ${canEdit ? `
       <button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>
       ${wd.state === 'done' ? `<button class="wport wport--out" type="button" data-tip-ai="follow" data-tip-label="Preguntar sobre esto (arrastra para conectar)" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
@@ -505,6 +507,9 @@ function startEdit(e, wd, mode) {
    Conectores: arrastrar desde el + o hacer clic en él
    ============================================================ */
 
+/** ¿Se puede conectar src a t? Al user journey solo le llegan usuarios. */
+const canLink = (src, t) => t.data?.kind !== 'journey' || src.data?.kind === 'user';
+
 function startLink(e, src) {
   e.preventDefault();
   e.stopPropagation();
@@ -518,7 +523,7 @@ function startLink(e, src) {
   const nearestIn = (px, py) => {
     let best = null, bestD = SNAP_PORT;
     for (const t of widgets) {
-      if (t === src || t.state === 'thinking') continue;
+      if (t === src || t.state === 'thinking' || !canLink(src, t)) continue;
       const p = portPoint(t, 'in');
       const d = Math.hypot(p.x - px, p.y - py);
       if (d < bestD) { best = t; bestD = d; }
@@ -758,12 +763,14 @@ function sizeFor(d) {
   if (d.kind === 'user') return userSize();
   if (d.kind === 'expert') return expertSize();
   if (d.kind === 'journey') return journeySize(d);
+  if (d.kind === 'file') return fileWidgetSize();
   if (d.kind === 'nebula') return NEBULA_SIZE;
   if (d.kind === 'number') return { w: 7, h: 6 };
   if (d.kind === 'text') {
     const n = d.value.length;
     return n > 300 ? { w: 12, h: 9 } : n > 60 ? { w: 11, h: 7 } : { w: 9, h: 6 };
   }
+  if (d.kind === 'chart' && d.chartType === 'pie') return { w: 14, h: 10 };
   if (d.kind === 'chart') return { w: clamp((d.labels?.length || 4) * 2 + 4, 10, 22), h: 9 };
   const cols = d.columns?.length || 1, rows = d.rows?.length || 1;
   return { w: clamp(cols * 5, 10, 28), h: clamp(Math.ceil(rows * 0.9) + 3, 5, 16) };
@@ -905,7 +912,7 @@ $('info-x').addEventListener('click', () => select(null));
 /* ---------- bloque de información del seleccionado ---------- */
 
 const KIND_LABEL = { table: 'Tabla', chart: 'Gráfico', number: 'Número', text: 'Texto' };
-const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Profesional', journey: 'User journey', nebula: 'Nebulosa de IA' };
+const TOOL_LABEL = { table: 'Tabla con IA', ask: 'Pregúntale a la IA', timeline: 'Línea de tiempo', user: 'Usuario', expert: 'Profesional', journey: 'User journey', file: 'Archivo', nebula: 'Nebulosa de IA' };
 
 /** Muestra el bloque; la animación de entrada solo cuando cambia de widget
     (editarlo no lo "recarga"). */
@@ -927,6 +934,7 @@ function renderInfo() {
   if (d.kind === 'user') return renderUserInfo(box);
   if (d.kind === 'expert') return renderExpertInfo(box);
   if (d.kind === 'journey') return renderJourneyInfo(box);
+  if (d.kind === 'file') return renderFileInfo(box);
   const rows = [];
   const add = (label, value) => { if (value) rows.push(`<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`); };
   add('Pregunta', d.prompt);
@@ -1123,10 +1131,114 @@ async function createPlain(type, data, size) {
 const createUser = () => createPlain('user', defaultUser(), userSize());
 const createExpert = () => createPlain('expert', defaultExpert(), expertSize());
 const createJourney = () => createPlain('journey', emptyJourney(), journeySize({}));
+const createFile = () => createPlain('file', emptyFile(), fileWidgetSize());
+
+/* ============================================================
+   Archivo: solo guarda información; con su + se le pregunta a la IA
+   ============================================================ */
+
+async function addFiles(wd, list, errEl) {
+  const d = wd.data;
+  const room = Math.min(textLeft(d), Infinity);
+  const slots = MAX_FILES - d.files.length;
+  const picked = [...list].slice(0, Math.max(0, slots));
+  const { ok, skipped } = await readUploads(picked, room);
+  skipped.push(...[...list].slice(picked.length).map((f) => f.name));
+  if (ok.length) {
+    d.files.push(...ok);
+    if (d.title === 'Archivo') d.title = ok[0].name.replace(/\.[a-z0-9]+$/i, '').slice(0, 60);
+    saveData(wd, 'No se pudo guardar el archivo.');
+    if (selected === wd) renderInfo();
+  }
+  const msg = skipped.length ? `No se agregó: ${skipped.join(', ')} (solo CSV, Excel, JSON o texto; máx. ${MAX_FILES} archivos).` : '';
+  // el bloque se pudo rearmar: el aviso va en el que se ve ahora
+  const shown = selected === wd ? $('info-list').querySelector('.us-err') : errEl;
+  if (shown) shown.textContent = msg; else if (msg) alert(msg);
+}
+
+/* arrastrar archivos encima de la tarjeta del widget */
+board.addEventListener('dragover', (e) => {
+  const w = e.target.closest?.('.widget');
+  const wd = w && widgets.find((x) => x.el === w);
+  if (canEdit && wd?.data?.kind === 'file' && e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); w.classList.add('is-drop'); }
+});
+board.addEventListener('dragleave', (e) => e.target.closest?.('.widget')?.classList.remove('is-drop'));
+board.addEventListener('drop', (e) => {
+  const w = e.target.closest?.('.widget');
+  const wd = w && widgets.find((x) => x.el === w);
+  if (!canEdit || wd?.data?.kind !== 'file') return;
+  e.preventDefault();
+  w.classList.remove('is-drop');
+  addFiles(wd, e.dataTransfer.files);
+});
+
+function renderFileInfo(box) {
+  const wd = selected;
+  const d = wd.data;
+  $('info-kind').textContent = 'Archivo';
+  $('info-title').hidden = true;
+  const list = $('info-list');
+  list.innerHTML = '';
+
+  if (canEdit) {
+    const t = document.createElement('label');
+    t.className = 'ex-field';
+    t.innerHTML = '<span>Nombre</span><input maxlength="60">';
+    const input = t.querySelector('input');
+    input.value = d.title;
+    input.addEventListener('input', () => { d.title = input.value.trim() || 'Archivo'; saveData(wd, 'No se pudo guardar.'); });
+    list.append(t);
+  }
+
+  const head = document.createElement('p');
+  head.className = 'tl-head';
+  head.textContent = 'Archivos';
+  list.append(head);
+  const ul = document.createElement('ul');
+  ul.className = 'us-files';
+  for (const f of d.files) {
+    const li = document.createElement('li');
+    li.className = 'us-file';
+    li.innerHTML = `<span class="us-kind">${f.type === 'xlsx' ? 'X' : f.type === 'csv' ? '▦' : f.type === 'json' ? '{}' : 'T'}</span><span class="us-fname"></span><small>${f.rows != null ? `${f.rows.toLocaleString('es')} filas` : fileSize(f.size)}</small>
+      ${canEdit ? '<button type="button" class="tl-del" aria-label="Quitar archivo">×</button>' : ''}`;
+    li.querySelector('.us-fname').textContent = f.name;
+    li.querySelector('.tl-del')?.addEventListener('click', () => {
+      d.files = d.files.filter((x) => x !== f);
+      saveData(wd, 'No se pudo guardar.');
+      renderInfo();
+    });
+    ul.append(li);
+  }
+  list.append(ul);
+  if (!d.files.length && !canEdit) {
+    const none = document.createElement('p');
+    none.className = 'us-none';
+    none.textContent = 'Sin archivos.';
+    list.append(none);
+  }
+
+  if (canEdit && d.files.length < MAX_FILES) {
+    const err = document.createElement('p');
+    err.className = 'us-err';
+    const drop = document.createElement('label');
+    drop.className = 'us-drop';
+    drop.innerHTML = `<b>Arrastra o sube archivos</b><small>CSV, Excel, JSON, TXT o Markdown</small><input type="file" multiple hidden accept="${ACCEPT}">`;
+    drop.querySelector('input').addEventListener('change', (e) => { addFiles(wd, e.target.files, err); e.target.value = ''; });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('is-over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('is-over'));
+    drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('is-over'); addFiles(wd, e.dataTransfer.files, err); });
+    list.append(drop, err);
+  }
+
+  const hint = document.createElement('p');
+  hint.className = 'ex-hint wf-hint';
+  hint.textContent = 'Toca su + para preguntarle a la IA. Puede responder con tablas o gráficos: «un pastel de ventas por región», «barras de clientes por mes».';
+  list.append(hint);
+  showInfo(box);
+}
 
 /** Usuarios conectados a un widget (para los paneles). */
 const linkedUsers = (wd) => (wd.inputs || []).map(byId).filter((w) => w?.data?.kind === 'user').map((w) => fromLegacy(w.data));
-const linkedExperts = (wd) => (wd.inputs || []).map(byId).filter((w) => w?.data?.kind === 'expert').map((w) => w.data.name);
 
 /* ============================================================
    Panel User journey: objetivo + generar con los usuarios conectados
@@ -1169,7 +1281,6 @@ function renderJourneyInfo(box) {
   const list = $('info-list');
   list.innerHTML = '';
   const users = linkedUsers(wd);
-  const voices = linkedExperts(wd);
 
   const head = (t) => { const p = document.createElement('p'); p.className = 'tl-head'; p.textContent = t; list.append(p); };
 
@@ -1205,12 +1316,6 @@ function renderJourneyInfo(box) {
     who.innerHTML = '<p class="us-none">Conecta uno o más usuarios: arrastra su + hasta el conector izquierdo del panel.</p>';
   }
   list.append(who);
-  if (voices.length) {
-    const v = document.createElement('p');
-    v.className = 'ex-hint';
-    v.textContent = `Con la mirada de ${voices.join(' y ')}.`;
-    list.append(v);
-  }
 
   if (canEdit) {
     const err = document.createElement('p');
@@ -1576,6 +1681,7 @@ const TOOLS = [
   { key: 'timeline', label: 'Línea de tiempo', open: () => createTimeline() },
   { key: 'user', label: 'Usuario', open: () => createUser() },
   { key: 'expert', label: 'Profesional', open: () => createExpert() },
+  { key: 'file', label: 'Archivo', open: () => createFile() },
   { key: 'panels', label: 'Paneles', menu: true },
   { key: 'nebula', label: 'Nebulosa de IA', open: () => createPlain('nebula', { kind: 'nebula', title: 'Nebulosa de IA' }, NEBULA_SIZE) },
 ];
@@ -1841,9 +1947,46 @@ function barPath(x, y0, w, y1, r) {
     : `M${x},${y0}V${y1 - rr}Q${x},${y1} ${x + rr},${y1}H${x + w - rr}Q${x + w},${y1} ${x + w},${y1 - rr}V${y0}Z`;
 }
 
+/* porciones del pastel: colores que se distinguen entre sí sobre fondo oscuro */
+const PIE_COLORS = ['#ff3b4f', '#ff9f1c', '#ffd60a', '#2ecc71', '#22d3ee', '#3b82f6', '#a855f7', '#ff5fa2', '#8a8a96'];
+
+/** Pastel (dona) con su leyenda: etiqueta, valor y porcentaje. */
+function drawPie(host, d, W, H) {
+  const total = d.values.reduce((a, v) => a + v, 0) || 1;
+  const legendW = W > 300 ? Math.min(220, W * 0.45) : 0;
+  const size = Math.min(W - legendW - 16, H - 12);
+  const R = size / 2, r = R * 0.58, cx = 8 + R, cy = H / 2;
+  let a0 = -Math.PI / 2;
+  const slices = d.values.map((v, i) => {
+    const a1 = a0 + (v / total) * Math.PI * 2;
+    const big = a1 - a0 > Math.PI ? 1 : 0;
+    const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)},${(cy + rad * Math.sin(ang)).toFixed(2)}`;
+    // una sola porción: dos medias vueltas (un arco de 360° no se dibuja)
+    const path = d.values.length === 1
+      ? `M${p(R, -Math.PI / 2)}A${R},${R} 0 1 1 ${p(R, Math.PI / 2)}A${R},${R} 0 1 1 ${p(R, -Math.PI / 2)}M${p(r, -Math.PI / 2)}A${r},${r} 0 1 0 ${p(r, Math.PI / 2)}A${r},${r} 0 1 0 ${p(r, -Math.PI / 2)}Z`
+      : `M${p(R, a0)}A${R},${R} 0 ${big} 1 ${p(R, a1)}L${p(r, a1)}A${r},${r} 0 ${big} 0 ${p(r, a0)}Z`;
+    a0 = a1;
+    const pct = (v / total) * 100;
+    const tip = esc(`${d.labels[i]}: ${fmt(v)}${d.unit ? ` ${d.unit}` : ''} (${pct.toLocaleString('es', { maximumFractionDigits: 1 })}%)`);
+    return `<path class="c-slice" d="${path}" fill="${PIE_COLORS[i % PIE_COLORS.length]}" fill-rule="evenodd" data-tip="${tip}"/>`;
+  }).join('');
+  const legend = legendW ? d.labels.map((l, i) => {
+    const pct = (d.values[i] / total) * 100;
+    return `<li><i style="background:${PIE_COLORS[i % PIE_COLORS.length]}"></i><span>${esc(l)}</span><b>${pct.toLocaleString('es', { maximumFractionDigits: 1 })}%</b></li>`;
+  }).join('') : '';
+  host.innerHTML = `<div class="c-pie">
+    <svg width="${size + 16}" height="${H}" viewBox="0 0 ${size + 16} ${H}" aria-hidden="true">${slices}
+      <text class="c-pie-total" x="${cx}" y="${cy + 2}" text-anchor="middle">${esc(fmt(total))}</text>
+      ${d.unit ? `<text class="c-pie-unit" x="${cx}" y="${cy + 16}" text-anchor="middle">${esc(d.unit)}</text>` : ''}
+    </svg>
+    ${legend ? `<ul class="c-legend">${legend}</ul>` : ''}
+  </div>`;
+}
+
 function drawChart(host, d) {
   const W = host.clientWidth, H = host.clientHeight;
   if (W < 40 || H < 40) return;
+  if (d.chartType === 'pie') return drawPie(host, d, W, H);
   const n = d.values.length;
   const ticks = niceTicks(Math.min(0, ...d.values), Math.max(0, ...d.values));
   const yMin = ticks[0], yMax = ticks[ticks.length - 1];
