@@ -2,21 +2,24 @@
    api/_lib/dashboards.js — catálogo de dashboards y sus widgets
    ------------------------------------------------------------
    Se guardan en Redis (api/_lib/store.js):
-     fm:dashboards         [{ id, name, image }]  — los que crean los amos
+     fm:dashboards         [{ id, name, image, icon? }]  — los que crean los amos
                            image: ícono subido (data URL chica) o null →
                            el navegador dibuja uno por defecto con las iniciales
+     fm:dashboards:removed [id]  — fijos (BUILTIN) que un amo eliminó
      fm:widgets:<dashId>   [{ id, type, x, y, w, h, data, inputs }]
      fm:marks:<dashId>     { flags: [{ id, x, y, color }], divider: { x } | null }
                            banderas y raya divisoria (no son widgets)
    x, y, w, h van en celdas de la rejilla del lienzo. `inputs` son los ids
    de los widgets conectados a su conector izquierdo (le dan contexto).
-   Los de BUILTIN existen siempre y no se pueden borrar (su `icon` es una
-   clave de js/dashboard-icons.js).
+   Los de BUILTIN vienen del código (su `icon` es una clave de
+   js/dashboard-icons.js). Al editar uno se copia a fm:dashboards (esa copia
+   manda); al eliminarlo su id va a fm:dashboards:removed.
    ============================================================ */
 
 import { getJSON, setJSON, del, newId } from './store.js';
 
 const DASH_KEY = 'fm:dashboards';
+const REMOVED_KEY = 'fm:dashboards:removed';
 const widgetsKey = (dashId) => `fm:widgets:${dashId}`;
 const marksKey = (dashId) => `fm:marks:${dashId}`;
 
@@ -36,12 +39,11 @@ export function slugify(name) {
 /* ---------- dashboards ---------- */
 
 export async function listDashboards() {
-  const created = await getJSON(DASH_KEY, []);
-  const out = BUILTIN.map((b) => ({ ...b, builtin: true }));
-  for (const d of created) {
-    if (out.some((x) => x.id === d.id)) continue;
-    out.push({ ...d, builtin: false });
-  }
+  const [created, removed] = await Promise.all([getJSON(DASH_KEY, []), getJSON(REMOVED_KEY, [])]);
+  const out = BUILTIN
+    .filter((b) => !removed.includes(b.id) && !created.some((d) => d.id === b.id))
+    .map((b) => ({ ...b, builtin: true }));
+  for (const d of created) out.push({ ...d, builtin: false });
   return out.map((d) => ({ ...d, url: urlFor(d.id) }));
 }
 
@@ -59,11 +61,17 @@ export async function createDashboard(name, image) {
   return { ...dash, builtin: false, url: urlFor(id) };
 }
 
-/** Cambia nombre y/o ícono (image: data URL o null para quitarlo). false si no existe. */
+/** Cambia nombre y/o ícono (image: data URL o null para quitarlo). Un fijo
+    se copia a fm:dashboards con el cambio. false si no existe. */
 export async function updateDashboard(id, patch) {
   const list = await getJSON(DASH_KEY, []);
-  const d = list.find((x) => x.id === id);
-  if (!d) return false;
+  let d = list.find((x) => x.id === id);
+  if (!d) {
+    const b = BUILTIN.find((x) => x.id === id);
+    if (!b) return false;
+    d = { ...b, image: null };
+    list.unshift(d); // primero, como cuando era fijo
+  }
   Object.assign(d, patch);
   await setJSON(DASH_KEY, list);
   return true;
@@ -73,6 +81,10 @@ export async function deleteDashboard(d) {
   await del(widgetsKey(d.id));
   await del(marksKey(d.id));
   await setJSON(DASH_KEY, (await getJSON(DASH_KEY, [])).filter((x) => x.id !== d.id));
+  if (BUILTIN.some((b) => b.id === d.id)) {
+    const removed = await getJSON(REMOVED_KEY, []);
+    if (!removed.includes(d.id)) await setJSON(REMOVED_KEY, [...removed, d.id]);
+  }
 }
 
 /* ---------- widgets ---------- */

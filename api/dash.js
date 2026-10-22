@@ -9,8 +9,8 @@
      GET    ?d=<id>&members=1      → chismosos y si tienen este dashboard activo
      POST   { name, image? }                        → crea un dashboard
      PATCH  ?d=<id>  { name?, image? }              → renombra / cambia el ícono (image: null lo
-                                                      quita). No los fijos
-     DELETE ?d=<id>                                 → borra el dashboard (no los fijos)
+                                                      quita)
+     DELETE ?d=<id>                                 → borra el dashboard y sus widgets
      POST   ?d=<id>&widget=table
             { prompt, csv?, filename?, inputs?, layout }
                                                     → OpenAI responde (tabla, gráfico, número o
@@ -308,7 +308,6 @@ export default async function handler(req, res) {
 
     /* ---------- editar el dashboard: nombre e ícono ---------- */
     if (req.method === 'PATCH' && dash && !req.body?.widget) {
-      if (dash.builtin) return res.status(400).json({ error: 'Este dashboard es fijo y no se puede editar.' });
       const patch = {};
       if (req.body?.name != null) {
         patch.name = String(req.body.name).trim().slice(0, 60);
@@ -351,7 +350,6 @@ export default async function handler(req, res) {
         if (!(await deleteWidget(dash.id, wid))) return res.status(404).json({ error: 'Widget no encontrado.' });
         return res.status(200).json({ ok: true });
       }
-      if (dash.builtin) return res.status(400).json({ error: 'Este dashboard es fijo y no se puede borrar.' });
       await deleteDashboard(dash);
       await forgetDashboard(dash.id);
       return res.status(200).json({ ok: true });

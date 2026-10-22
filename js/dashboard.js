@@ -44,6 +44,7 @@
 
 import { dashIconHTML, toIcon, TOOL_ICONS, ATTACHED_ICON } from './dashboard-icons.js';
 import { parseCSV } from './csv.js';
+import { confirmByName } from './confirm-name.js';
 import { drawDots, fitCanvas, buildLensFilter, unwarp } from './fisheye.js';
 import {
   FACES, CHARACTERS, todayISO, addDays, defaultTimeline, timelineHTML, timelineSize, daysLeftText,
@@ -1801,7 +1802,7 @@ function paintDashHead() {
 let deImage = null;
 
 function paintDeIcon() {
-  $('de-icon-img').innerHTML = dashIconHTML({ name: $('de-title').value || '+', image: deImage });
+  $('de-icon-img').innerHTML = dashIconHTML({ name: $('de-title').value || '+', image: deImage, icon: dashInfo.icon });
   $('de-icon').classList.toggle('has-image', Boolean(deImage));
   $('de-icon-note').textContent = deImage ? 'Cambiar' : 'Subir ícono';
   $('de-clear').hidden = !deImage;
@@ -1859,7 +1860,12 @@ $('de-form').addEventListener('submit', async (e) => {
 /* eliminar */
 $('dash-delete').addEventListener('click', async () => {
   toggleDashMenu(false);
-  if (!confirm(`¿Eliminar el dashboard «${dashInfo.name}» y todos sus widgets? No se puede deshacer.`)) return;
+  const yes = await confirmByName({
+    name: dashInfo.name,
+    title: `¿Eliminar «${dashInfo.name}»?`,
+    body: 'Se borran el dashboard y todos sus widgets. No se puede deshacer.',
+  });
+  if (!yes) return;
   const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!r.ok) return alert(r.data.error || 'No se pudo eliminar.');
   location.href = '/admin/';
@@ -1894,7 +1900,7 @@ $('dash-delete').addEventListener('click', async () => {
   $('dash-back').hidden = !(canEdit || user.dashboards.length > 1);
   if (canEdit) setupMembers(data.members || 0);
 
-  $('dash-menu').hidden = !canEdit || data.dashboard.builtin;
+  $('dash-menu').hidden = !canEdit;
 
   show('dash');
   renderDock();

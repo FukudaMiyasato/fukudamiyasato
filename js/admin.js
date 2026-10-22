@@ -11,6 +11,7 @@
    ============================================================ */
 
 import { dashIconHTML, toIcon } from './dashboard-icons.js';
+import { confirmByName } from './confirm-name.js';
 import { drawDots, fitCanvas, buildLensFilter } from './fisheye.js';
 import { youtubeId, youtubeThumb } from './youtube.js';
 import { DEFAULT_DURATION, TAGS } from './site-defaults.js';
@@ -55,6 +56,63 @@ function dashLink(d) {
   return a;
 }
 
+const DOTS = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg>';
+const EDIT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+const TRASH_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M9 7V4h6v3"/></svg>';
+
+/** Tarjeta del panel (amos): el link y, arriba a la derecha, ⋯ con Editar / Eliminar. */
+function dashTile(d) {
+  const tile = document.createElement('div');
+  tile.className = 'dash-tile';
+  tile.append(dashLink(d));
+  const menu = document.createElement('div');
+  menu.className = 'dash-menu';
+  menu.innerHTML = `
+    <button class="icon-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Opciones" title="Opciones">${DOTS}</button>
+    <div class="dash-menu-pop" role="menu" hidden>
+      <button type="button" role="menuitem" data-act="edit">${EDIT_SVG}Editar</button>
+      <button type="button" role="menuitem" class="is-danger" data-act="delete">${TRASH_SVG}Eliminar</button>
+    </div>`;
+  const btn = menu.querySelector('.icon-btn');
+  const pop = menu.querySelector('.dash-menu-pop');
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = pop.hidden;
+    closeDashMenus();
+    pop.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  });
+  menu.querySelector('[data-act="edit"]').addEventListener('click', () => { closeDashMenus(); openNewDash(d); });
+  menu.querySelector('[data-act="delete"]').addEventListener('click', () => { closeDashMenus(); deleteDash(d); });
+  tile.append(menu);
+  return tile;
+}
+
+function closeDashMenus() {
+  document.querySelectorAll('.dash-tile .dash-menu-pop').forEach((p) => { p.hidden = true; });
+  document.querySelectorAll('.dash-tile .dash-menu .icon-btn').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+}
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.dash-tile .dash-menu')) closeDashMenus(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDashMenus(); });
+
+/** Vuelve a pedir la sesión y repinta (las tarjetas vienen en user.dashboards). */
+async function refreshDashes() {
+  const r = await api('/api/auth');
+  if (r.data.user) enter(r.data.user);
+}
+
+async function deleteDash(d) {
+  const yes = await confirmByName({
+    name: d.name,
+    title: `¿Eliminar «${d.name}»?`,
+    body: 'Se borran el dashboard y todos sus widgets. No se puede deshacer.',
+  });
+  if (!yes) return;
+  const r = await api(`/api/dash?d=${encodeURIComponent(d.id)}`, { method: 'DELETE' });
+  if (!r.ok) return alert(r.data.error || 'No se pudo eliminar.');
+  refreshDashes();
+}
+
 function enter(user) {
   me = user;
   fillUser(user);
@@ -72,7 +130,7 @@ function enter(user) {
     add.innerHTML = '<span class="dash-ico">+</span><span class="dash-name">Nuevo dashboard</span>';
     add.addEventListener('click', openNewDash);
     grid.append(add);
-    dashes.forEach((d) => grid.append(dashLink(d)));
+    dashes.forEach((d) => grid.append(dashTile(d)));
     return;
   }
 
@@ -382,6 +440,7 @@ $('pj-del').addEventListener('click', async () => {
    ============================================================ */
 
 let ndImage = null;
+let ndEditing = null; // el dashboard que se edita; null = crear uno nuevo
 
 function resetNewDash() {
   ndImage = null;
@@ -396,11 +455,20 @@ function resetNewDash() {
 
 /** Vista previa: la imagen subida o el ícono por defecto con las iniciales del título. */
 function paintNdIcon() {
-  $('nd-icon-img').innerHTML = dashIconHTML({ name: $('nd-title').value || '+', image: ndImage });
+  $('nd-icon-img').innerHTML = dashIconHTML({ name: $('nd-title').value || '+', image: ndImage, icon: ndEditing?.icon });
 }
 
-function openNewDash() {
+/** Sin argumento crea uno nuevo; con un dashboard, lo edita. */
+function openNewDash(d = null) {
   resetNewDash();
+  ndEditing = d && d.id ? d : null;
+  if (ndEditing) {
+    ndImage = ndEditing.image || null;
+    $('nd-title').value = ndEditing.name;
+    if (ndImage) { $('nd-icon').classList.add('has-image'); $('nd-icon-note').textContent = 'Cambiar'; }
+    paintNdIcon();
+  }
+  $('nd-save').textContent = ndEditing ? 'Guardar' : 'Crear';
   $('nd-layer').hidden = false;
   setTimeout(() => $('nd-title').focus(), 50);
 }
@@ -435,9 +503,12 @@ $('nd-form').addEventListener('submit', async (e) => {
     return;
   }
   $('nd-save').disabled = true;
-  const r = await api('/api/dash', { method: 'POST', body: JSON.stringify({ name, image: ndImage }) });
+  const r = ndEditing
+    ? await api(`/api/dash?d=${encodeURIComponent(ndEditing.id)}`, { method: 'PATCH', body: JSON.stringify({ name, image: ndImage }) })
+    : await api('/api/dash', { method: 'POST', body: JSON.stringify({ name, image: ndImage }) });
   $('nd-save').disabled = false;
-  if (!r.ok) { $('nd-err').textContent = r.data.error || 'No se pudo crear.'; return; }
+  if (!r.ok) { $('nd-err').textContent = r.data.error || 'No se pudo guardar.'; return; }
+  if (ndEditing) { closeNewDash(); refreshDashes(); return; }
   location.href = r.data.dashboard.url; // directo al lienzo nuevo
 });
 
