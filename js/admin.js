@@ -774,7 +774,43 @@ async function loadConfig() {
   if (!ok) { $('fe-msg').textContent = data.error || 'No se pudo cargar.'; return; }
   feRange.value = data.config.fisheye;
   paintPreview();
+  paintApis(data);
   paintTokens(data);
+}
+
+/* ---------- API de OpenAI: cuál key usa la IA ---------- */
+
+function paintApis(data) {
+  const list = $('api-list');
+  list.innerHTML = '';
+  for (const [id, a] of Object.entries(data.aiApis)) {
+    const row = document.createElement('label');
+    row.className = 'api-row';
+    row.classList.toggle('is-off', !a.loaded);
+    row.innerHTML = `
+      <input type="radio" name="ai-api">
+      <span class="api-name"><b></b><small></small></span>
+      <span class="api-state"></span>`;
+    const input = row.querySelector('input');
+    input.value = id;
+    input.checked = data.config.aiApi === id;
+    input.disabled = !a.loaded;
+    row.querySelector('b').textContent = a.label;
+    row.querySelector('small').textContent = a.env;
+    row.querySelector('.api-state').textContent = a.loaded ? (input.checked ? 'En uso' : 'Cargada') : 'Falta en Vercel';
+    input.addEventListener('change', () => saveApi(id, data));
+    list.append(row);
+  }
+}
+
+async function saveApi(id, data) {
+  $('api-msg').className = 'form-msg';
+  $('api-msg').textContent = 'Guardando…';
+  const r = await api('/api/config', { method: 'PUT', body: JSON.stringify({ aiApi: id }) });
+  $('api-msg').classList.toggle('err', !r.ok);
+  $('api-msg').textContent = r.ok ? `Listo: la IA usa la API ${data.aiApis[id].label}.` : (r.data.error || 'No se pudo guardar.');
+  if (r.ok) cfg = r.data.config;
+  paintApis({ ...data, config: r.ok ? r.data.config : data.config });
 }
 
 /* ---------- tokens: sobrecargo, conversión y costo de cada herramienta ---------- */
@@ -788,7 +824,6 @@ function paintTokens(data) {
   $('tk-surcharge').value = cfg.surcharge;
   $('tk-usdpen').value = cfg.usdPen;
   $('tk-usdperm').value = cfg.usdPerM;
-  $('ai-key-status').textContent = data.aiKey ? 'Usa tu OPENAI_API_KEY.' : '⚠ Falta OPENAI_API_KEY en Vercel.';
   paintRate();
   const list = $('tk-list');
   list.innerHTML = '';

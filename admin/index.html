@@ -199,8 +199,19 @@
       <div class="cfg-card">
         <div class="cfg-row">
           <div>
+            <h2>API de OpenAI</h2>
+            <p>La key que usa toda la IA (lienzo, /api/ask y la voz). Las keys viven en Vercel; aquí solo eliges cuál.</p>
+          </div>
+        </div>
+        <div class="api-list" id="api-list" role="radiogroup" aria-label="API de OpenAI"></div>
+        <p class="form-msg" id="api-msg" role="status"></p>
+      </div>
+
+      <div class="cfg-card">
+        <div class="cfg-row">
+          <div>
             <h2>Tokens</h2>
-            <p>Lo que cuesta cada herramienta de IA del lienzo. Al usuario se le cobra el costo + el sobrecargo; si no le alcanzan sus tokens, la herramienta se bloquea. Tú no tienes límite. <span id="ai-key-status"></span></p>
+            <p>Lo que cuesta cada herramienta de IA del lienzo. Al usuario se le cobra el costo + el sobrecargo; si no le alcanzan sus tokens, la herramienta se bloquea. Tú no tienes límite.</p>
           </div>
         </div>
 

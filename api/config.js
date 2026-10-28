@@ -1,9 +1,10 @@
 /* ============================================================
    /api/config — configuración global (solo amo supremo)
    ------------------------------------------------------------
-   GET                      → { config, ranges, tools, prices, aiKey }
-                              aiKey: si OPENAI_API_KEY está cargada (sin revelarla)
-   PUT  { fisheye?, surcharge?, costs?: { tool: n }, usdPen?, usdPerM? }
+   GET                      → { config, ranges, tools, prices, aiApis }
+                              aiApis: { fuku, lvl } con label, env y si su key
+                              está cargada en Vercel (sin revelarla)
+   PUT  { fisheye?, surcharge?, costs?: { tool: n }, usdPen?, usdPerM?, aiApi? }
                             → guarda lo que venga · { config, prices }
    POST ?measure=<tool>     → llama de verdad a esa herramienta con un pedido de
                               prueba, cuenta los tokens que gastó y los deja como
@@ -12,7 +13,7 @@
    ============================================================ */
 
 import { currentUser } from './_lib/auth.js';
-import { getConfig, setConfig, RANGES, TOOLS, prices, hasAiKey } from './_lib/config.js';
+import { getConfig, setConfig, RANGES, TOOLS, prices, AI_APIS, aiApis } from './_lib/config.js';
 import { askVisual, askShort, askFollow, askJourney, askJourneyFit, askResearch, askDashboard } from './_lib/ai.js';
 
 export const maxDuration = 60; // medir llama a OpenAI
@@ -53,7 +54,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const config = await getConfig();
-      return res.status(200).json({ config, ranges: RANGES, tools: TOOLS, prices: prices(config), aiKey: hasAiKey() });
+      return res.status(200).json({ config, ranges: RANGES, tools: TOOLS, prices: prices(config), aiApis: aiApis() });
     }
 
     if (req.method === 'PUT') {
@@ -63,6 +64,11 @@ export default async function handler(req, res) {
       if (b.surcharge != null) patch.surcharge = Math.round(num(b.surcharge, RANGES.surcharge, 'El sobrecargo'));
       if (b.usdPen != null) patch.usdPen = num(b.usdPen, RANGES.usdPen, 'El tipo de cambio');
       if (b.usdPerM != null) patch.usdPerM = num(b.usdPerM, RANGES.usdPerM, 'El precio por millón');
+      if (b.aiApi != null) {
+        if (!AI_APIS[b.aiApi]) return res.status(400).json({ error: 'API desconocida.' });
+        if (!aiApis()[b.aiApi].loaded) return res.status(400).json({ error: `Falta ${AI_APIS[b.aiApi].env} en Vercel.` });
+        patch.aiApi = b.aiApi;
+      }
       if (b.costs && typeof b.costs === 'object') {
         patch.costs = {};
         for (const [t, v] of Object.entries(b.costs)) {

@@ -147,6 +147,24 @@ body.vx::before {
 .credit small { grid-column: 1; font-size: 11px; color: var(--text-faint); }
 .credit .mini-btn { grid-row: 1 / span 2; grid-column: 2; }
 
+/* ---------- configuración → API de OpenAI: una fila por key, con radio ---------- */
+.api-list { display: grid; gap: 8px; margin-top: 18px; }
+.api-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+  padding: 12px 16px; border: 1.5px solid var(--line); border-radius: var(--vx-r-sm);
+  cursor: pointer; transition: border-color .2s, background .2s;
+}
+.api-row:hover { border-color: var(--red-hot); }
+.api-row:has(input:checked) { border-color: var(--red-hot); background: rgba(224, 16, 43, .08); }
+.api-row.is-off { cursor: not-allowed; opacity: .55; }
+.api-row.is-off:hover { border-color: var(--line); }
+.api-row input { width: 16px; height: 16px; margin: 0; accent-color: var(--red-hot); }
+.api-name { display: grid; gap: 2px; min-width: 0; }
+.api-name b { font-family: var(--vx-head); font-size: 14px; font-weight: 600; }
+.api-name small { font-family: var(--vx-mono); font-size: 10.5px; color: var(--text-faint); }
+.api-state { font-family: var(--vx-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+.api-row:has(input:checked) .api-state { color: var(--red-hot); }
+
 /* ---------- configuración → tokens ---------- */
 .tk-top { display: grid; grid-template-columns: 140px 1fr 1fr; gap: 12px; margin-top: 18px; }
 .tk-top label { display: grid; gap: 6px; }

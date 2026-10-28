@@ -164,8 +164,18 @@ function portPoint(wd, side) {
   const card = wd.el.querySelector('.wcard').getBoundingClientRect();
   const b = board.getBoundingClientRect();
   if (side === 'top') return { x: card.left + card.width / 2 - b.left, y: card.top - b.top };
-  return { x: (side === 'out' ? card.right : card.left) - b.left, y: card.top + card.height / 2 - b.top };
+  // el journey tiene dos entradas a la izquierda: usuarios arriba, datos abajo
+  const journey = wd.data?.kind === 'journey';
+  const at = side === 'data' ? 0.7 : journey && side === 'in' ? 0.3 : 0.5;
+  return { x: (side === 'out' ? card.right : card.left) - b.left, y: card.top + card.height * at - b.top };
 }
+
+/* íconos de los conectores del journey: qué recibe cada uno */
+const PORT_ICONS = {
+  users: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M4.5 20.5c.4-4.3 3.4-6.8 7.5-6.8s7.1 2.5 7.5 6.8z" fill="currentColor"/></svg>',
+  data: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="12" width="4" height="8" rx="1" fill="currentColor"/><rect x="10" y="7" width="4" height="13" rx="1" fill="currentColor"/><rect x="16" y="4" width="4" height="16" rx="1" fill="currentColor"/></svg>',
+  solution: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3z" fill="currentColor"/><rect x="9.5" y="17.5" width="5" height="2" rx="1" fill="currentColor"/><rect x="10.5" y="20.5" width="3" height="1.6" rx=".8" fill="currentColor"/></svg>',
+};
 
 function curve(a, z, top = false) {
   const dx = Math.max(40, Math.abs(z.x - a.x) / 2);
@@ -208,6 +218,19 @@ function drawLinks() {
       ends += `<circle class="link-end link-end--top" style="--sc:${sc}" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end link-end--top" style="--sc:${sc}" cx="${z.x}" cy="${z.y}" r="3.5"/>`;
     }
   }
+  for (const t of widgets) {
+    // datos: entran por el nodo de abajo a la izquierda del journey
+    for (const srcId of t.feeds || []) {
+      const s = byId(srcId);
+      if (!s) continue;
+      const a = portPoint(s, 'out'), z = portPoint(t, 'data');
+      html += `<g class="link link--data" data-from="${esc(s.id)}" data-to="${esc(t.id)}" data-kind="data">
+        <path class="link-hit" d="${curve(a, z)}"/>
+        <path class="link-line" d="${curve(a, z)}"/>
+      </g>`;
+      ends += `<circle class="link-end link-end--data" cx="${a.x}" cy="${a.y}" r="3.5"/><circle class="link-end link-end--data" cx="${z.x}" cy="${z.y}" r="3.5"/>`;
+    }
+  }
   if (tempLine) html += `<path class="link-line link-temp${tempLine.snap ? ' is-snapped' : ''}${tempLine.top ? ' link-temp--top' : ''}" d="${curve(tempLine.a, tempLine.z, tempLine.top)}"/>`;
   linksSvg.innerHTML = html;
   linksTop.innerHTML = ends;
@@ -222,6 +245,7 @@ linksSvg.addEventListener('pointerdown', (e) => {
   if (!t || t.state === 'thinking') return;
   if (!confirm('¿Quitar esta conexión?')) return;
   if (g.dataset.kind === 'top') { disconnectSolution(t, g.dataset.from); return; }
+  if (g.dataset.kind === 'data') { setFeeds(t, t.feeds.filter((i) => i !== g.dataset.from), 'quitar el dato'); return; }
   remember('quitar la conexión', { changed: [t] });
   t.inputs = t.inputs.filter((i) => i !== g.dataset.from);
   if (t.state === 'done') saveInputs(t);
@@ -355,8 +379,11 @@ function render(wd) {
   el.innerHTML = `<div class="wbox">
     <div class="wcard${wd.data?.kind === 'timeline' ? ' wcard--timeline' : ''}${wd.data?.kind === 'user' || wd.data?.kind === 'expert' ? ' wcard--user' : ''}${wd.data?.kind === 'expert' ? ' wcard--expert' : ''}${wd.data?.kind === 'journey' ? ' wcard--journey' : ''}${wd.data?.kind === 'file' ? ' wcard--file' : ''}${wd.data?.kind === 'pro' ? ' wcard--user wcard--pro' : ''}${wd.data?.kind === 'finding' ? ' wcard--finding' : ''}${wd.data?.kind === 'nebula' ? ' wcard--nebula' : ''}${wd.data?.kind === 'enaho' ? ' wcard--enaho' : ''}${wd.data?.kind === 'label' ? ' wcard--label' : ''}${isGroup(wd) ? ' wcard--group' : ''}${wd.data?.kind === 'note' ? ' wcard--note' : ''}">${inner}</div>
     ${canEdit ? `
-      ${isGroup(wd) ? '' : '<button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>'}
-      ${wd.data?.kind === 'journey' ? '<button class="wport wport--top" type="button" tabindex="-1" aria-label="Conector de soluciones" title="Soluciones"></button>' : ''}
+      ${wd.data?.kind === 'journey'
+        ? `<button class="wport wport--in wport--users" type="button" tabindex="-1" aria-label="Entrada de usuarios" data-tip="Usuarios">${PORT_ICONS.users}</button>
+           <button class="wport wport--data" type="button" tabindex="-1" aria-label="Entrada de datos" data-tip="Datos (ENAHO, archivos…)">${PORT_ICONS.data}</button>
+           <button class="wport wport--top" type="button" tabindex="-1" aria-label="Entrada de soluciones" data-tip="Soluciones">${PORT_ICONS.solution}</button>`
+        : isGroup(wd) ? '' : '<button class="wport wport--in" type="button" tabindex="-1" aria-label="Conector de entrada"></button>'}
       ${wd.state === 'done' ? `<button class="wport wport--out" type="button" data-tip-ai="follow" data-tip-label="Preguntar sobre esto (arrastra para conectar)" aria-label="Conectar o preguntar sobre «${esc(wd.data?.title || 'este widget')}»">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button>` : ''}
       ${wd.data?.kind === 'timeline' ? '' : '<span class="whandle" aria-hidden="true"></span>'}
@@ -381,6 +408,7 @@ function mount(wd, { isNew = false } = {}) {
   wd.el = document.createElement('div');
   wd.inputs ||= [];
   wd.tops ||= [];
+  wd.feeds ||= [];
   wd.state ||= 'done';
   render(wd);
   if (isNew) wd.el.classList.add('is-new');
@@ -438,6 +466,7 @@ function unmount(wd, animate = true) {
   widgets = widgets.filter((x) => x !== wd);
   for (const o of widgets) {
     if (o.tops?.includes(wd.id)) { o.tops = o.tops.filter((i) => i !== wd.id); render(o); }
+    if (o.feeds?.includes(wd.id)) { o.feeds = o.feeds.filter((i) => i !== wd.id); render(o); }
     if (o.inputs?.includes(wd.id) || o.about?.includes(wd.id)) {
       o.inputs = o.inputs.filter((i) => i !== wd.id);
       if (o.about) o.about = o.about.filter((i) => i !== wd.id);
@@ -465,14 +494,14 @@ let lastAction = null;
 const RESTORABLE = ['timeline', 'user', 'expert', 'journey', 'file', 'pro', 'finding', 'label', 'group', 'note', 'nebula', 'enaho'];
 const snapOf = (w) => ({
   id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h,
-  data: structuredClone(w.data), inputs: [...(w.inputs || [])], tops: [...(w.tops || [])],
+  data: structuredClone(w.data), inputs: [...(w.inputs || [])], tops: [...(w.tops || [])], feeds: [...(w.feeds || [])],
 });
 
 /** Guarda la acción que está por pasar (reemplaza a la anterior: solo hay un paso). */
 function remember(label, { changed = [], deleted = [], created = [] } = {}) {
   // quienes estaban conectados a lo que se borra también cambian (pierden la línea)
   const gone = new Set(deleted.map((w) => w.id));
-  const refs = widgets.filter((o) => !gone.has(o.id) && [...(o.inputs || []), ...(o.tops || [])].some((i) => gone.has(i)));
+  const refs = widgets.filter((o) => !gone.has(o.id) && [...(o.inputs || []), ...(o.tops || []), ...(o.feeds || [])].some((i) => gone.has(i)));
   const ch = [...new Set([...changed, ...refs])].filter((w) => w && !gone.has(w.id) && w.state === 'done');
   lastAction = { label, changed: ch.map(snapOf), deleted: deleted.filter((w) => w.state === 'done').map(snapOf), created: [...created] };
 }
@@ -517,7 +546,7 @@ async function undo() {
   for (const sn of a.changed) {
     const w = byId(sn.id);
     if (!w) continue;
-    Object.assign(w, { x: sn.x, y: sn.y, w: sn.w, h: sn.h, inputs: fix(sn.inputs), tops: fix(sn.tops) });
+    Object.assign(w, { x: sn.x, y: sn.y, w: sn.w, h: sn.h, inputs: fix(sn.inputs), tops: fix(sn.tops), feeds: fix(sn.feeds || []) });
     if (RESTORABLE.includes(sn.data?.kind)) {
       w.data = sn.data;
       if (w.data.kind === 'journey') w.data.solutions = (w.data.solutions || []).map((x) => ({ ...x, id: newId.get(x.id) || x.id }));
@@ -527,7 +556,7 @@ async function undo() {
       method: 'PATCH',
       body: JSON.stringify({
         widget: w.id, x: w.x, y: w.y, w: w.w, h: w.h, inputs: w.inputs,
-        ...(w.type === 'journey' ? { tops: w.tops } : {}),
+        ...(w.type === 'journey' ? { tops: w.tops, feeds: w.feeds } : {}),
         ...(RESTORABLE.includes(w.data?.kind) ? { data: w.data } : {}),
       }),
     });
@@ -738,8 +767,8 @@ function startLink(e, src) {
     let best = null, bestD = SNAP_PORT;
     for (const t of widgets) {
       if (t === src || t.state === 'thinking') continue;
-      for (const side of ['in', 'top']) {
-        if (side === 'in' ? !canLink(src, t) : !canTop(src, t)) continue;
+      for (const side of ['in', 'top', 'data']) {
+        if (side === 'in' ? !canLink(src, t) : !canTop(src, t)) continue; // datos acepta lo mismo que soluciones
         const p = portPoint(t, side);
         const d = Math.hypot(p.x - px, p.y - py);
         if (d < bestD) { best = { t, side }; bestD = d; }
@@ -755,7 +784,7 @@ function startLink(e, src) {
     const px = sp.x - b0.left, py = sp.y - b0.top;
     const hit = nearestIn(px, py);
     markTarget(hit);
-    tempLine = { a: portPoint(src, 'out'), z: hit ? portPoint(hit.t, hit.side) : { x: px, y: py }, snap: Boolean(hit), top: hit?.side === 'top' };
+    tempLine = { a: portPoint(src, 'out'), z: hit ? portPoint(hit.t, hit.side) : { x: px, y: py }, snap: Boolean(hit), top: hit?.side === 'top', data: hit?.side === 'data' };
     requestDraw();
   };
 
@@ -769,6 +798,11 @@ function startLink(e, src) {
     const sp = sourcePoint(ev.clientX, ev.clientY);
     const hit = nearestIn(sp.x - b0.left, sp.y - b0.top);
     if (hit?.side === 'top') { connectSolution(hit.t, src); requestDraw(); return; }
+    if (hit?.side === 'data') {
+      if (!hit.t.feeds.includes(src.id)) setFeeds(hit.t, [...hit.t.feeds, src.id], 'conectar el dato');
+      requestDraw();
+      return;
+    }
     const t = hit?.t;
     if (t && !t.inputs.includes(src.id)) {
       if (t.state === 'done') remember('conectar', { changed: [t] });
@@ -788,7 +822,7 @@ function startLink(e, src) {
 /** Resalta el conector de entrada donde caería la línea que se arrastra. */
 let targetPort = null;
 function markTarget(hit) {
-  const port = hit ? hit.t.el.querySelector(hit.side === 'top' ? '.wport--top' : '.wport--in') : null;
+  const port = hit ? hit.t.el.querySelector({ top: '.wport--top', data: '.wport--data' }[hit.side] || '.wport--in') : null;
   if (port === targetPort) return;
   targetPort?.classList.remove('is-target');
   port?.classList.add('is-target');
@@ -1700,6 +1734,17 @@ function growToFit(j) {
   saveLayout(j);
 }
 
+/** Cambia los datos conectados al nodo de abajo del journey (y lo guarda). */
+async function setFeeds(j, feeds, label) {
+  remember(label, { changed: [j] });
+  j.feeds = feeds;
+  render(j);
+  requestDraw();
+  if (selected === j) renderInfo();
+  const r = await api(`/api/dash?d=${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ widget: j.id, feeds }) });
+  if (!r.ok) alert(r.data.error || 'No se pudo guardar la conexión.');
+}
+
 /** Quita una solución de arriba (y lo que había agregado a las etapas). */
 async function disconnectSolution(j, solId) {
   remember('quitar la solución', { changed: [j] });
@@ -2185,6 +2230,21 @@ function renderJourneyInfo(box) {
     list.append(p);
   }
 
+  // datos conectados abajo a la izquierda: se suman al generar el journey
+  const feeds = (wd.feeds || []).map(byId).filter(Boolean);
+  if (feeds.length) {
+    head('Datos que usa');
+    const ul = document.createElement('ul');
+    ul.className = 'sel-list';
+    for (const f of feeds) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span></span><small></small>';
+      li.querySelector('span').textContent = f.data?.title || f.data?.name || 'Dato';
+      li.querySelector('small').textContent = TOOL_LABEL[f.type] || '';
+      ul.append(li);
+    }
+    list.append(ul);
+  }
   head(users.length > 1 ? 'Usuarios (se promedian)' : 'Usuario');
   const who = document.createElement('div');
   who.className = 'jr-who';
@@ -2743,8 +2803,8 @@ function renderDock() {
     modes.setAttribute('role', 'group');
     modes.setAttribute('aria-label', 'Herramienta');
     modes.innerHTML = `
-      <button class="tool tool--mode" type="button" data-mode="arrow" aria-pressed="false" title="Flecha · seleccionar (V)" aria-label="Flecha: seleccionar">${TOOL_ICONS.arrow}</button>
-      <button class="tool tool--mode" type="button" data-mode="hand" aria-pressed="false" title="Mano · mover el lienzo (H, o mantén Espacio)" aria-label="Mano: mover el lienzo">${TOOL_ICONS.hand}</button>`;
+      <button class="tool tool--mode" type="button" data-mode="arrow" aria-pressed="false" data-tip="Flecha · seleccionar (V)" aria-label="Flecha: seleccionar">${TOOL_ICONS.arrow}</button>
+      <button class="tool tool--mode" type="button" data-mode="hand" aria-pressed="false" data-tip="Mano · mover el lienzo (H o Espacio)" aria-label="Mano: mover el lienzo">${TOOL_ICONS.hand}</button>`;
     modes.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => setToolMode(b.dataset.mode)));
     const sep0 = document.createElement('span');
     sep0.className = 'dock-sep';
@@ -2756,7 +2816,7 @@ function renderDock() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'tool';
-    b.title = t.label;
+    b.dataset.tip = t.label; // nombre al pasar el mouse
     b.setAttribute('aria-label', t.label);
     b.innerHTML = TOOL_ICONS[t.key];
     if (canEdit && AI_TOOLS[t.key]) {
@@ -2781,9 +2841,9 @@ function renderDock() {
   const kit = document.createElement('div');
   kit.className = 'kit';
   kit.innerHTML = `
-    <button class="tool tool--kit" id="kit-btn" type="button" title="Maleta" aria-label="Maleta" aria-haspopup="true" aria-expanded="false" aria-controls="kit-menu">${TOOL_ICONS.kit}</button>
+    <button class="tool tool--kit" id="kit-btn" type="button" data-tip="Maleta" aria-label="Maleta" aria-haspopup="true" aria-expanded="false" aria-controls="kit-menu">${TOOL_ICONS.kit}</button>
     <div class="kit-menu" id="kit-menu" role="menu" hidden>
-      ${KIT.map((t) => `<button class="tool tool--${t.key}" type="button" role="menuitem" data-kit="${t.key}" title="${t.label}" aria-label="${t.label}">${TOOL_ICONS[t.key]}</button>`).join('')}
+      ${KIT.map((t) => `<button class="tool tool--${t.key}" type="button" role="menuitem" data-kit="${t.key}" data-tip="${t.label}" aria-label="${t.label}">${TOOL_ICONS[t.key]}</button>`).join('')}
     </div>`;
   kit.querySelector('#kit-btn').addEventListener('click', () => toggleKit($('kit-menu').hidden));
   for (const t of KIT) {
@@ -2805,7 +2865,7 @@ function dockMenu(key) {
   const wrap = document.createElement('div');
   wrap.className = `kit dock-menu dock-menu--${key}`;
   wrap.innerHTML = `
-    <button class="tool" type="button" title="${m.label}" aria-label="${m.label}" aria-haspopup="true" aria-expanded="false">${TOOL_ICONS[m.icon]}</button>
+    <button class="tool" type="button" data-tip="${m.label}" aria-label="${m.label}" aria-haspopup="true" aria-expanded="false">${TOOL_ICONS[m.icon]}</button>
     <div class="kit-menu panels-menu" role="menu" hidden>
       <p class="panels-title">${m.label}</p>
       ${items.map((p) => {
@@ -2840,9 +2900,9 @@ function refreshKit() {
   if (!flag) return;
   const full = marks.flags.length >= FLAG_MAX;
   flag.disabled = full;
-  flag.title = full ? `Ya hay ${FLAG_MAX} banderas` : 'Bandera';
+  flag.dataset.tip = full ? `Ya hay ${FLAG_MAX} banderas` : 'Bandera';
   line.disabled = !!marks.divider;
-  line.title = marks.divider ? 'Ya hay una raya divisoria' : 'Raya divisoria';
+  line.dataset.tip = marks.divider ? 'Ya hay una raya divisoria' : 'Raya divisoria';
 }
 
 /* ============================================================
@@ -3464,7 +3524,7 @@ $('dash-export').addEventListener('click', () => {
     version: 1,
     name: dashInfo.name,
     widgets: widgets.filter((w) => w.state === 'done')
-      .map((w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [], ...(w.tops?.length ? { tops: w.tops } : {}) })),
+      .map((w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [], ...(w.tops?.length ? { tops: w.tops } : {}), ...(w.feeds?.length ? { feeds: w.feeds } : {}) })),
   };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
@@ -3567,7 +3627,7 @@ $('dash-delete').addEventListener('click', async () => {
 
   show('dash');
   renderDock();
-  widgets = data.widgets.map((w) => ({ ...w, state: 'done', inputs: w.inputs || [], tops: w.tops || [] }));
+  widgets = data.widgets.map((w) => ({ ...w, state: 'done', inputs: w.inputs || [], tops: w.tops || [], feeds: w.feeds || [] }));
   widgets.forEach((wd) => mount(wd));
   widgets.filter((w) => w.data?.kind === 'enaho').forEach((w) => syncEnaho(w));
   marks = { flags: data.marks?.flags || [], divider: data.marks?.divider || null };

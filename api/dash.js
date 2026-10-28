@@ -59,9 +59,10 @@
                                                       lugares libres que manda el navegador; cuesta
                                                       tokens ("research")
      POST   ?d=<id>&journey=<widgetId> { goal }     → la IA arma el journey con los usuarios
-                                                      conectados por la izquierda (usuarios o grupos
-                                                      con usuarios; varios = uno promedio); cuesta
-                                                      tokens ("journey")
+                                                      conectados por la izquierda arriba (usuarios o
+                                                      grupos con usuarios; varios = uno promedio) y los
+                                                      datos del nodo de abajo (feeds: ENAHO, archivos…);
+                                                      cuesta tokens ("journey")
      POST   ?d=<id>&fit=<journeyId>&sol=<widgetId>  → nodo superior del journey: la IA ve si esa
                                                       solución encaja en alguna etapa. Sí → la deja
                                                       conectada (tops) con su impacto y qué podría
@@ -112,7 +113,10 @@ function cleanLayout(b) {
 const IMAGE_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 const MAX_IMAGE_CHARS = 120_000;
 
-const publicWidget = (w) => ({ id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [], ...(w.tops?.length ? { tops: w.tops } : {}) });
+const publicWidget = (w) => ({
+  id: w.id, type: w.type, x: w.x, y: w.y, w: w.w, h: w.h, data: w.data, inputs: w.inputs || [],
+  ...(w.tops?.length ? { tops: w.tops } : {}), ...(w.feeds?.length ? { feeds: w.feeds } : {}),
+});
 
 /* ---------- línea de tiempo ---------- */
 const CHARACTERS = ['m', 'f'];
@@ -630,8 +634,9 @@ export default async function handler(req, res) {
         out = await askJourney({
           goal,
           users: users.map((w) => ({ name: w.data.name, sex: w.data.sex, age: w.data.age, context: userContext(w.data) })),
-          // el perfil ENAHO de esos usuarios (si alguno está conectado a un widget ENAHO)
-          context: contextFrom(enahoOf(users, all)),
+          // el perfil ENAHO de esos usuarios (si alguno está conectado a un widget ENAHO) y
+          // los datos conectados al nodo de abajo del journey (ENAHO, archivos, hallazgos…)
+          context: contextFrom([...new Set([...enahoOf(users, all), ...all.filter((w) => (panel.feeds || []).includes(w.id))])]),
         });
       } catch (err) {
         if (price) await refund(user.email, price);
@@ -656,6 +661,7 @@ export default async function handler(req, res) {
         return data ? {
           key: String(w.id ?? ''), type, layout: cleanLayout(w), data,
           inputs: Array.isArray(w.inputs) ? w.inputs.map(String) : [], tops: Array.isArray(w.tops) ? w.tops.map(String) : [],
+          feeds: Array.isArray(w.feeds) ? w.feeds.map(String) : [],
           // plantillas: resultados ya calculados de soluciones (para conectarlas sin gastar tokens)
           presets: (type === 'journey' && Array.isArray(w.data?.fitPresets) ? w.data.fitPresets
             : type === 'pro' && Array.isArray(w.data?.researchPresets) ? w.data.researchPresets : []).slice(0, 8),
@@ -677,6 +683,7 @@ export default async function handler(req, res) {
         const remap = (k) => ids.get(k) || (keep && there.has(k) ? k : null);
         const inputs = w.inputs.map(remap).filter(Boolean);
         const tops = w.tops.map(remap).filter(Boolean);
+        const feeds = w.feeds.map(remap).filter(Boolean);
         // las soluciones del journey guardan el id del widget: se pasan a los nuevos
         if (w.type === 'journey' && (w.data.solutions?.length || w.presets.length)) {
           w.data.solutions = (w.data.solutions || []).map((s) => ({ ...s, id: ids.get(s.id) })).filter((s) => s.id);
@@ -694,7 +701,9 @@ export default async function handler(req, res) {
           }
           await updateWidget(dash.id, ids.get(w.key), { data: w.data });
         }
-        if (inputs.length || tops.length) await updateWidget(dash.id, ids.get(w.key), { inputs, ...(tops.length ? { tops } : {}) });
+        if (inputs.length || tops.length || feeds.length) {
+          await updateWidget(dash.id, ids.get(w.key), { inputs, ...(tops.length ? { tops } : {}), ...(feeds.length ? { feeds } : {}) });
+        }
       }
       return res.status(201).json({ created: clean.length, ids: Object.fromEntries(ids) });
     }
@@ -842,6 +851,10 @@ export default async function handler(req, res) {
       // nodo superior (solo journey): soluciones; quitar una se hace aquí, conectarla por ?fit=
       if (req.body?.tops != null && current.type === 'journey') {
         patch.tops = cleanInputs(req.body.tops, all, wid).filter((i) => !['user', 'group'].includes(all.find((w) => w.id === i)?.data?.kind));
+      }
+      // nodo de datos (solo journey, izquierda abajo): ENAHO, archivos, hallazgos… nada de usuarios
+      if (req.body?.feeds != null && current.type === 'journey') {
+        patch.feeds = cleanInputs(req.body.feeds, all, wid).filter((i) => !['user', 'group', 'journey'].includes(all.find((w) => w.id === i)?.data?.kind));
       }
       if (req.body?.inputs != null) {
         patch.inputs = cleanInputs(req.body.inputs, all, wid);

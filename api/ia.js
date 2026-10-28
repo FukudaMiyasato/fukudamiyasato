@@ -31,7 +31,8 @@
 
    Variables de entorno:
      INDEX_AUT        secreto del webhook
-     OPENAI_API_KEY   la key de OpenAI
+     OPENAI_API_KEY   la key de OpenAI FUKU · OPENAI_API_KEY_LVL la de LVL
+                      (cuál se usa se elige en Panel → Configuración)
      OPENAI_MODEL     opcional, por defecto gpt-4o
      TEST_ORDER_KEY   clave para /test/sendOrder/ (aparte de INDEX_AUT:
                       así la página de prueba no conoce el secreto real
@@ -41,6 +42,7 @@
    ============================================================ */
 
 import crypto from 'node:crypto';
+import { openaiKey } from './_lib/config.js';
 
 export const config = { api: { bodyParser: false } };
 export const maxDuration = 60;          // generar puede tardar
@@ -1228,8 +1230,8 @@ async function modelOk(key) {
 }
 
 async function generate(text) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw Object.assign(new Error('OPENAI_API_KEY no está configurada.'), { code: 501 });
+  const { key, env } = await openaiKey();
+  if (!key) throw Object.assign(new Error(`${env} no está configurada.`), { code: 501 });
 
   const model = process.env.OPENAI_MODEL || 'gpt-4o';
 
@@ -1265,8 +1267,8 @@ const MAX_AUDIO_B64 = MAX_B64;
 
 /** Manda el audio a Whisper y devuelve el texto transcripto. */
 async function transcribeAudio({ data, contentType, filename }) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw Object.assign(new Error('OPENAI_API_KEY no está configurada.'), { code: 501 });
+  const { key, env } = await openaiKey();
+  if (!key) throw Object.assign(new Error(`${env} no está configurada.`), { code: 501 });
   if (!data) throw Object.assign(new Error('No llegó ningún audio.'), { code: 400 });
   if (data.length > MAX_AUDIO_B64) {
     throw Object.assign(new Error(`El audio es muy largo (máx ~${Math.round(MAX_AUDIO_B64 * 0.75 / 1e6)}MB).`), { code: 413 });
@@ -1330,17 +1332,19 @@ export default async function handler(req, res) {
     /* Diagnóstico: qué variables ve la función. Nunca devuelve valores,
        solo si existen y de qué largo son. */
     if (req.query?.diag) {
-      const key = process.env.OPENAI_API_KEY || '';
+      const { key, label, env } = await openaiKey();
+      const raw = process.env[env] || '';
       const state = await readSharedState();
       return res.status(200).json({
         entorno: process.env.VERCEL_ENV || '(local)',
         region: process.env.VERCEL_REGION || null,
         INDEX_AUT: { configurada: Boolean(process.env.INDEX_AUT), largo: (process.env.INDEX_AUT || '').length },
-        OPENAI_API_KEY: {
+        apiElegida: `${label} (${env})`,
+        [env]: {
           configurada: Boolean(key),
-          largo: key.length,
+          largo: raw.length,
           empiezaEnSk: key.startsWith('sk-'),
-          espaciosSobrantes: key !== key.trim(),
+          espaciosSobrantes: raw !== key,
         },
         OPENAI_MODEL: process.env.OPENAI_MODEL || '(por defecto: gpt-4o)',
         estadoCompartido: {

@@ -122,6 +122,7 @@ export async function deleteWidget(dashId, id) {
   const rest = list.filter((x) => x.id !== id);
   for (const w of rest) if (w.inputs?.includes(id)) w.inputs = w.inputs.filter((i) => i !== id);
   for (const w of rest) if (w.tops?.includes(id)) w.tops = w.tops.filter((i) => i !== id);
+  for (const w of rest) if (w.feeds?.includes(id)) w.feeds = w.feeds.filter((i) => i !== id);
   await setJSON(widgetsKey(dashId), rest);
   return true;
 }

@@ -19,15 +19,18 @@
    `voices` son los profesionales conectados (nombre, rol y cómo piensan):
    la respuesta sale con su mirada, sin cambiar el formato pedido.
 
-   Usa siempre OPENAI_API_KEY. Cada función acepta `meter` ({}): al
+   Usa la API key elegida en Panel → Configuración (FUKU u LVL). Cada función acepta `meter` ({}): al
    terminar trae en meter.tokens los tokens que gastó la llamada (así se
    mide el costo real de cada herramienta en Panel → Configuración).
 
    Las dos usan salida estructurada (json_schema). Si la pregunta está
    vacía, no tiene sentido o no se puede responder, el modelo devuelve
    ok=false con el motivo — no hay que adivinarlo del texto.
-   Variables: OPENAI_API_KEY, OPENAI_MODEL (default gpt-4o).
+   Variables: OPENAI_API_KEY (FUKU), OPENAI_API_KEY_LVL (LVL),
+   OPENAI_MODEL (default gpt-4o).
    ============================================================ */
+
+import { openaiKey } from './config.js';
 
 const MAX_CSV_CHARS = 120_000; // ~30k tokens: deja espacio a la respuesta
 const MAX_CONTEXT_CHARS = 150_000; // incluye archivos subidos (widget Archivo)
@@ -41,8 +44,8 @@ export class AIError extends Error {}
 const str = (v, max = MAX_CELL) => String(v ?? '').trim().slice(0, max);
 
 async function callOpenAI(system, user, schema, { temperature = 0, meter = null } = {}) {
-  const key = String(process.env.OPENAI_API_KEY || '').trim();
-  if (!key) throw new Error('No hay API key de OpenAI: carga OPENAI_API_KEY en Vercel.');
+  const { key, label, env } = await openaiKey();
+  if (!key) throw new Error(`No hay API key de OpenAI ${label}: carga ${env} en Vercel.`);
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -394,8 +397,8 @@ Escribe notas en el idioma de la pregunta.`;
 
 /** Paso 1: búsqueda web con citas. Devuelve { notes, sources: [{ url, title }] }. */
 async function webResearch(question, context, meter) {
-  const key = String(process.env.OPENAI_API_KEY || '').trim();
-  if (!key) throw new Error('No hay API key de OpenAI: carga OPENAI_API_KEY en Vercel.');
+  const { key, label, env } = await openaiKey();
+  if (!key) throw new Error(`No hay API key de OpenAI ${label}: carga ${env} en Vercel.`);
   const input = (context ? `Contexto del tablero (para entender de qué trata el proyecto):\n${String(context).slice(0, 20_000)}\n\n` : '')
     + `Pregunta: ${question}`;
 
